@@ -1,17 +1,17 @@
 # Docker
 
 > [!WARNING]
-> This Docker documentation may be outdated. It was written before Sockseek's daemon / remote mode was added and needs a full review.
+> This Docker documentation may be outdated. It was written before Sockseek's daemon / remote mode was added and still needs a fuller workflow review.
 >
-> The current repository targets `net10.0`, but the checked-in `Dockerfile` still installs `dotnet6-sdk` and `dotnet6-runtime`. Until that file is updated, treat the Docker image as a known Sprint 0 packaging issue rather than a validated release path.
+> The checked-in `Dockerfile` now builds against the repository's `net10.0` target, but Docker is still treated as a headless CLI/container path rather than the primary desktop distribution mechanism.
 
 A docker container for running Sockseek can be built from this repository. The image supports linux x86/ARM. 
 
 To build and start container:
 
 ```shell
-clone https://github.com/fiso64/sockseek
-cd Sockseek
+git clone https://github.com/fiso64/sockseek
+cd sockseek
 docker compose up -d
 ```
 

@@ -41,7 +41,7 @@ Results:
 
 - NuGet vulnerability warning: `AngleSharp` `1.4.0` reports advisory `GHSA-pgww-w46g-26qg` during restore/build.
 - `docs/api.md` (upstream) and `docs/API.md` (Codex package) coexist; this is valid on Linux but may be awkward on case-insensitive filesystems/tooling.
-- Current `Dockerfile` still installs `dotnet6-sdk` and `dotnet6-runtime` even though the repo targets `net10.0`; Docker packaging is not yet a validated release path.
+- Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism and still needs broader daemon/compose workflow review.
 - Read-only helper wrapper is present, but local helper authentication currently needs attention:
   - `gemini` CLI reports unsupported/ineligible client tier in this environment
   - `claude` CLI reports expired OAuth authentication in this environment
@@ -50,5 +50,5 @@ Results:
 
 - add/update remaining Sprint 0 documentation artifacts and release/legal checklist items
 - decide how to normalize or live with `docs/api.md` vs `docs/API.md`
-- refresh Docker packaging for `net10.0`
+- review daemon/compose workflow documentation now that the Dockerfile matches `net10.0`
 - refresh helper authentication if Gemini/Claude reviews are expected in regular workflow

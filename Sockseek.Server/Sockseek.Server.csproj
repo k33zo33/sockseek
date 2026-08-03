@@ -14,6 +14,13 @@
     <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != '' Or '$(SelfContained)' == 'true' Or '$(PublishSingleFile)' == 'true' Or '$(PublishTrimmed)' == 'true'">
+    <!-- Keep checked-in OpenAPI generation on ordinary builds, but skip it for RID-specific container publishes.
+         The docs artifact is already produced by the normal build pipeline, and publish-time OpenAPI generation
+         currently fails under trimmed/self-contained musl packaging. -->
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Sockseek.Api\Sockseek.Api.csproj" />
     <ProjectReference Include="..\Sockseek.Core\Sockseek.Core.csproj" />
