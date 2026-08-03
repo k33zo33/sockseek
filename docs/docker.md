@@ -2,6 +2,8 @@
 
 > [!WARNING]
 > This Docker documentation may be outdated. It was written before Sockseek's daemon / remote mode was added and needs a full review.
+>
+> The current repository targets `net10.0`, but the checked-in `Dockerfile` still installs `dotnet6-sdk` and `dotnet6-runtime`. Until that file is updated, treat the Docker image as a known Sprint 0 packaging issue rather than a validated release path.
 
 A docker container for running Sockseek can be built from this repository. The image supports linux x86/ARM. 
 

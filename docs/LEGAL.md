@@ -22,3 +22,5 @@ Projekt nastavlja koristiti postojeći Sockseek kod pod GNU Affero General Publi
 
 > **Release gate**  
 > Nijedan javni binary release ne smije biti objavljen dok About ekran, LICENSE, THIRD-PARTY-NOTICES, source URL i release source tag nisu prisutni i testirani.
+>
+> Operativni popis za to nalazi se u `docs/release-checklist.md`.

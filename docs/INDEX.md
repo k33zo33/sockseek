@@ -9,9 +9,12 @@
 
 ## Topic documents
 
-- [Product scope](PRODUCT.md)
+- [Product vision](PRODUCT.md)
+- [Product scope](product-scope.md)
+- [Provider capability matrix](provider-capability-matrix.md)
 - [Architecture](ARCHITECTURE.md)
 - [Baseline](BASELINE.md)
+- [Baseline sync report](baseline-sync-report.md)
 - [Migration strategy](MIGRATION.md)
 - [Domain model](DOMAIN_MODEL.md)
 - [Database](DATABASE.md)
@@ -23,6 +26,8 @@
 - [Configuration](CONFIGURATION.md)
 - [Testing and CI/CD](TESTING.md)
 - [License and distribution](LEGAL.md)
+- [Release checklist](release-checklist.md)
+- [AI helper workflow](10-ai-helper-workflow.md)
 - [Codex runbook](CODEX_RUNBOOK.md)
 - [Traceability](TRACEABILITY.md)
 - [References](REFERENCES.md)

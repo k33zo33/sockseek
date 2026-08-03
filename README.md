@@ -1,6 +1,8 @@
 # Sockseek
 
-Sockseek is a command-line downloader for Soulseek. Point it at a search string, Spotify playlist, YouTube playlist, CSV file, Bandcamp page, MusicBrainz release, or Soulseek link; it searches the network, ranks candidate files using your preferences, and downloads the best match (automatically or interactively). It is scriptable, configurable, and can run either as a one-shot CLI tool or as a persistent daemon.
+Sockseek is a command-line downloader and local daemon for Soulseek. Point it at a search string, Spotify playlist, YouTube playlist, CSV file, Bandcamp page, MusicBrainz release, or Soulseek link; it searches the network, ranks candidate files using your preferences, and downloads the best match (automatically or interactively). It is scriptable, configurable, and can run either as a one-shot CLI tool or as a persistent daemon.
+
+This fork is being extended into **Sockseek UI**: a local-first desktop music manager, Soulseek downloader, and local audio player. External services such as Spotify, YouTube, Bandcamp, and MusicBrainz are used only for playlist import or metadata enrichment. They are **not** audio sources for the internal player, and this project does not add provider-side audio downloading.
 
 This project was formerly named `sldl` (and `slsk-batchdl` before that). See [here](https://github.com/fiso64/sockseek/releases/) for why it was renamed to something dumb.
 
