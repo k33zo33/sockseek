@@ -41,7 +41,8 @@ Results:
 
 - NuGet vulnerability warning: `AngleSharp` `1.4.0` reports advisory `GHSA-pgww-w46g-26qg` during restore/build.
 - `docs/api.md` (upstream) and `docs/API.md` (Codex package) coexist; this is valid on Linux but may be awkward on case-insensitive filesystems/tooling.
-- Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism and still needs broader daemon/compose workflow review.
+- Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism.
+- Live compose review confirmed that the default container starts cron support but does not auto-start `sockseek daemon` or expose the daemon API port `5030`; the published `127.0.0.1:48721` port is for provider login callbacks such as Spotify PKCE.
 - Read-only helper wrapper is present, but local helper authentication currently needs attention:
   - `gemini` CLI reports unsupported/ineligible client tier in this environment
   - `claude` CLI reports expired OAuth authentication in this environment
@@ -50,5 +51,5 @@ Results:
 
 - add/update remaining Sprint 0 documentation artifacts and release/legal checklist items
 - decide how to normalize or live with `docs/api.md` vs `docs/API.md`
-- review daemon/compose workflow documentation now that the Dockerfile matches `net10.0`
+- decide whether a future daemon-first compose profile should be added, or whether Docker remains explicitly CLI/cron-oriented
 - refresh helper authentication if Gemini/Claude reviews are expected in regular workflow

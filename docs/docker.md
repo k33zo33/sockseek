@@ -1,13 +1,32 @@
 # Docker
 
 > [!WARNING]
-> This Docker documentation may be outdated. It was written before Sockseek's daemon / remote mode was added and still needs a fuller workflow review.
+> This Docker workflow is still a secondary headless/container path. It is not the primary desktop distribution mechanism for Sockseek UI.
 >
-> The checked-in `Dockerfile` now builds against the repository's `net10.0` target, but Docker is still treated as a headless CLI/container path rather than the primary desktop distribution mechanism.
+> The checked-in `Dockerfile` now builds against the repository's `net10.0` target, but the default compose stack is intentionally minimal: it starts the linuxserver base image with cron support and does **not** automatically start `sockseek daemon`.
 
-A docker container for running Sockseek can be built from this repository. The image supports linux x86/ARM. 
+A Docker container for running Sockseek can be built from this repository. The image supports linux x86/ARM.
 
-To build and start container:
+## What the current compose stack does
+
+`docker compose up -d` builds the image and starts the container's init/cron environment.
+
+It currently:
+
+- mounts `./config` to `/config`
+- mounts `./data` to `/data`
+- publishes `127.0.0.1:48721:48721` for provider login callbacks such as Spotify PKCE
+- does **not** start the Sockseek HTTP/SignalR daemon automatically
+- does **not** publish the daemon API port `5030` by default
+
+That makes the current compose file suitable for:
+
+- interactive CLI use via `docker compose exec`
+- scheduled cron-driven CLI jobs inside the container
+
+It is **not** yet a reviewed one-command daemon deployment.
+
+## Build and start the container
 
 ```shell
 git clone https://github.com/fiso64/sockseek
@@ -15,17 +34,29 @@ cd sockseek
 docker compose up -d
 ```
 
-`exec` into the container to start using Sockseek:
+## Run the CLI inside the container
 
 ```shell
 docker compose exec sockseek sh
 sockseek --help
 ```
 
-The compose stack mounts two directories relative to where `docker-compose.yml` is located which can be used for file management:
+The compose stack mounts two directories relative to where `docker-compose.yml` is located:
 
-* `/config` (at `./config` on host) - put your `sockseek.conf` configuration in this directory and then use `sockseek -c /config ...` to use your configuration in the container
-* `/data` (at `./data` on host) - use as the download directory IE `sockseek -p /data ...`
+* `/config` (host `./config`) - put your `sockseek.conf` here, then run `sockseek -c /config ...`
+* `/data` (host `./data`) - use this as the download directory, for example `sockseek -p /data ...`
+
+## Daemon / remote mode in Docker
+
+If you want to experiment with the daemon in Docker, start it manually inside the container and add your own `5030` port mapping first. For example:
+
+```shell
+docker compose exec sockseek sockseek daemon --server-ip 0.0.0.0 --server-port 5030 -c /config
+```
+
+Then connect a client to `http://127.0.0.1:5030` only after you have explicitly published that port in your compose override or local edits.
+
+Because this path has not had the same Sprint 0 review as the CLI/container flow, treat it as manual advanced usage rather than a polished default deployment.
 
 ## File Permissions
 
