@@ -25,6 +25,12 @@ docker run --rm -v /home/server/repo/sockseek:/src -w /src mcr.microsoft.com/dot
 
 docker run --rm -v /home/server/repo/sockseek:/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 \
   bash -lc 'dotnet run --project Sockseek.Cli -c Release -- --help'
+
+docker build -t sockseek:sprint0-net10 .
+
+docker run --rm --entrypoint /usr/bin/sockseek sockseek:sprint0-net10 --help
+
+docker compose config
 ```
 
 Results:
@@ -36,6 +42,10 @@ Results:
   - `Sockseek.Core.Tests`: 578 passed
   - `Sockseek.Cli.Tests`: 254 passed
 - manual legacy CLI help check: passed
+- Docker image build (`sockseek:sprint0-net10`): passed after updating the Dockerfile to `net10.0` and suppressing publish-time OpenAPI generation for RID/self-contained trimmed publishes
+- packaged container CLI help (`/usr/bin/sockseek --help`): passed
+- `docker compose config`: passed
+- live compose review: container starts cron-capable init stack successfully, but does not auto-start `sockseek daemon`
 
 ## Known warnings / issues
 
