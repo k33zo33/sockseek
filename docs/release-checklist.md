@@ -4,8 +4,8 @@ Use this checklist before publishing any public binary, installer, package, or h
 
 ## AGPL / source availability
 
-- [ ] `LICENSE` is included unchanged in the release artifact or installer payload
-- [ ] `THIRD-PARTY-NOTICES` is included in the release artifact or linked from the installer/app
+- [ ] Root `LICENSE` is included unchanged in the release artifact or installer payload
+- [ ] Root `THIRD-PARTY-NOTICES` (or a more complete release-specific equivalent) is included in the release artifact or linked from the installer/app
 - [ ] The product exposes the exact source URL for the released build
 - [ ] The exact corresponding source is available to users for the released build
 - [ ] A source tag matching the public release has been created and pushed
@@ -14,14 +14,16 @@ Use this checklist before publishing any public binary, installer, package, or h
 ## Build provenance
 
 - [ ] Release notes identify significant modifications honestly
-- [ ] Generated OpenAPI artifacts are committed for the released build
+- [ ] Generated OpenAPI artifacts (currently `docs/openapi.json`) are committed for the released build
 - [ ] Required migrations are committed for the released build
+- [ ] The release notes or artifact metadata identify the exact commit/tag being shipped
 
 ## Security / packaging
 
 - [ ] Local daemon binds safely for the release target
 - [ ] Secrets are not logged or bundled in release artifacts
 - [ ] Packaging scripts used for the release are committed in the repo
+- [ ] If Docker/container artifacts are published, they include the same AGPL/source-link/notices expectations as other public binaries
 
 ## Product scope guardrails
 
