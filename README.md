@@ -312,8 +312,15 @@ CLI and listens on `127.0.0.1:5030` by default.
 Once the daemon is running, use `--remote <url>` to run the CLI as a thin client against it:
 
 ```bash
-sockseek daemon --server-ip 0.0.0.0 --server-port 5030
+sockseek daemon
 sockseek "Artist - Title" --remote http://127.0.0.1:5030
+```
+
+If you intentionally want to expose the daemon beyond loopback for an advanced/self-managed setup, bind a
+specific interface explicitly and review the security implications first:
+
+```bash
+sockseek daemon --server-ip 0.0.0.0 --server-port 5030
 ```
 
 For the current HTTP API, SignalR surface, and client integration notes, see [docs/api.md](docs/api.md). For the planned Sockseek UI application API, see [docs/API.md](docs/API.md).
