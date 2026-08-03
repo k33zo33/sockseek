@@ -1,0 +1,69 @@
+# THIRD-PARTY-NOTICES
+
+This repository is distributed under GNU AGPL-3.0. It also depends on third-party libraries and tools that remain under their own licenses.
+
+This file is the Sprint 0 baseline notices artifact for Sockseek UI. It serves two purposes:
+
+1. keep a tracked inventory of the third-party components currently referenced by the repository; and
+2. define the minimum release-time expectation that public binary/installer/container releases must bundle or link the exact corresponding third-party notices for the shipped dependency set.
+
+## Release-time expectation
+
+Before any public release:
+
+- verify the exact dependency graph for the shipped build configuration;
+- collect the applicable third-party notice texts and/or license texts for redistributed components;
+- update this file if the dependency set changed materially;
+- include this file, or a release-specific generated equivalent, in the published artifact as required by `docs/release-checklist.md` and `docs/LEGAL.md`.
+
+This baseline file is intentionally conservative: it records the dependency inventory visible from the repository today, but it does not claim that the lists below are a complete substitute for a release-specific legal review.
+
+## Project dependencies visible in the repository
+
+### Runtime / product-facing package references
+
+Direct package references currently present in shipping projects:
+
+- `Google.Apis.YouTube.v3` `1.75.0.4176`
+- `HtmlAgilityPack` `1.12.4`
+- `Microsoft.AspNetCore.OpenApi` `10.0.9`
+- `Microsoft.AspNetCore.SignalR.Client` `10.0.9`
+- `Microsoft.AspNetCore.SignalR.Protocols.Json` `10.0.9`
+- `Microsoft.Extensions.ApiDescription.Server` `10.0.9`
+- `Microsoft.Extensions.Logging` `10.0.9`
+- `Microsoft.OpenApi` `2.9.0`
+- `SmallestCSVParser` `1.2.0`
+- `Soulseek` `10.0.2`
+- `Spectre.Console` `0.54.0`
+- `SpotifyAPI.Web` `7.4.2`
+- `SpotifyAPI.Web.Auth` `7.4.2`
+- `TagLibSharp` `2.3.0`
+- `YoutubeExplode` `6.6.0`
+
+### Development / test / tooling package references
+
+These are currently referenced by non-shipping or development-oriented projects and should still be reviewed for redistribution when their outputs are packaged or published:
+
+- `BenchmarkDotNet` `0.15.8`
+- `Markdig` `1.3.2`
+- `Microsoft.CodeAnalysis.CSharp` `4.14.0`
+- `Microsoft.NET.Test.Sdk` `17.9.0`
+- `MSTest.TestAdapter` `3.7.3`
+- `MSTest.TestFramework` `3.7.3`
+
+## Additional transitive dependencies
+
+The project also brings in transitive dependencies through NuGet (for example `AngleSharp`, `Newtonsoft.Json`, `EmbedIO`, `Unosquare.Swan.Lite`, Google API support packages, and ASP.NET Core support packages).
+
+Public releases must review the full resolved dependency graph for the exact shipped build, not only the direct package references listed above.
+
+## Source of truth for future updates
+
+When this file is refreshed, prefer evidence from:
+
+- `*.csproj`
+- `packages.lock.json`
+- the resolved NuGet dependency graph for the release build
+- upstream package metadata and license/notice texts
+
+Do not remove this file from release artifacts merely because a generated notice file is introduced later; replace it only with an equivalent or more complete artifact.

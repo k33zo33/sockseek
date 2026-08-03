@@ -39,6 +39,7 @@ Results:
 
 ## Known warnings / issues
 
+- `THIRD-PARTY-NOTICES` now exists as a tracked baseline artifact, but public releases still need a release-specific review of the exact resolved dependency graph and bundled notice texts.
 - NuGet vulnerability warning: `AngleSharp` `1.4.0` reports advisory `GHSA-pgww-w46g-26qg` during restore/build.
 - `docs/api.md` (current daemon/client integration) and `docs/API.md` (planned application API) intentionally coexist; this is valid on Linux but may still be awkward on case-insensitive filesystems/tooling.
 - Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism.
@@ -49,7 +50,7 @@ Results:
 
 ## Sprint 0 follow-up items
 
-- add/update remaining Sprint 0 documentation artifacts and release/legal checklist items
+- expand `THIRD-PARTY-NOTICES` from baseline inventory into a release-specific bundled notices artifact when public packaging begins
 - keep the current `docs/api.md` vs `docs/API.md` split documented until a future doc reorganization removes the case-sensitive filename distinction
 - decide whether a future daemon-first compose profile should be added, or whether Docker remains explicitly CLI/cron-oriented
 - refresh helper authentication if Gemini/Claude reviews are expected in regular workflow
