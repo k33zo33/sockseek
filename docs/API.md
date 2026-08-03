@@ -1,5 +1,10 @@
 # Application API and events
 
+> [!NOTE]
+> This document describes the **planned Sockseek UI application API** and event model for future sprint work.
+>
+> For the **current** daemon/client integration API that exists in the repository today, see [`api.md`](api.md).
+
 ## 13. API i događaji
 
 Postojeći /api/jobs i /api/workflows endpointovi ostaju radi kompatibilnosti. Novi UI koristi verzionirani application API pod /api/v1. Backend se po defaultu veže samo na 127.0.0.1 i zahtijeva session token koji desktop proces dobiva pri pokretanju daemona.

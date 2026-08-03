@@ -40,7 +40,7 @@ Results:
 ## Known warnings / issues
 
 - NuGet vulnerability warning: `AngleSharp` `1.4.0` reports advisory `GHSA-pgww-w46g-26qg` during restore/build.
-- `docs/api.md` (upstream) and `docs/API.md` (Codex package) coexist; this is valid on Linux but may be awkward on case-insensitive filesystems/tooling.
+- `docs/api.md` (current daemon/client integration) and `docs/API.md` (planned application API) intentionally coexist; this is valid on Linux but may still be awkward on case-insensitive filesystems/tooling.
 - Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism.
 - Live compose review confirmed that the default container starts cron support but does not auto-start `sockseek daemon` or expose the daemon API port `5030`; the published `127.0.0.1:48721` port is for provider login callbacks such as Spotify PKCE.
 - Read-only helper wrapper is present, but local helper authentication currently needs attention:
@@ -50,6 +50,6 @@ Results:
 ## Sprint 0 follow-up items
 
 - add/update remaining Sprint 0 documentation artifacts and release/legal checklist items
-- decide how to normalize or live with `docs/api.md` vs `docs/API.md`
+- keep the current `docs/api.md` vs `docs/API.md` split documented until a future doc reorganization removes the case-sensitive filename distinction
 - decide whether a future daemon-first compose profile should be added, or whether Docker remains explicitly CLI/cron-oriented
 - refresh helper authentication if Gemini/Claude reviews are expected in regular workflow

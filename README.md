@@ -316,7 +316,7 @@ sockseek daemon --server-ip 0.0.0.0 --server-port 5030
 sockseek "Artist - Title" --remote http://127.0.0.1:5030
 ```
 
-For HTTP API, SignalR, and client integration notes, see [docs/api.md](docs/api.md).
+For the current HTTP API, SignalR surface, and client integration notes, see [docs/api.md](docs/api.md). For the planned Sockseek UI application API, see [docs/API.md](docs/API.md).
 <!-- sockseek-help:end -->
 
 <!-- sockseek-help:start(config) -->
