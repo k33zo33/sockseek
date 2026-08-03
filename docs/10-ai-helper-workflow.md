@@ -60,6 +60,24 @@ One-shot repository question for architecture, debugging, or implementation guid
 - If a helper asks a follow-up question, stop and route that question to the human instead of entering a loop.
 - Prefer using the helper for code review, architecture review, and unblockers—not as the primary coding engine.
 
+## Authentication and environment notes
+
+Helper availability is environment-dependent.
+
+Known Sprint 0 baseline behavior in this workspace:
+
+- `gemini` CLI may fail with an unsupported or ineligible client-tier error
+- `claude` CLI may fail when local OAuth authentication has expired
+
+Treat these as workflow/environment issues, not as repository correctness failures.
+
+Practical guidance:
+
+1. run the local validation first
+2. attempt helper review if the environment looks healthy
+3. if helper auth fails, capture the exact error in the baseline report or task notes
+4. continue with local review instead of blocking the repository change on helper availability alone
+
 ## Practical use in this repo
 
 Recommended cadence:
