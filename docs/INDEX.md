@@ -34,6 +34,12 @@
 - [References](REFERENCES.md)
 - [Complete specification](SPECIFICATION.md)
 
+## Repository artifacts
+
+- [Root license](../LICENSE)
+- [Third-party notices](../THIRD-PARTY-NOTICES)
+- [Generated OpenAPI document](openapi.json)
+
 ## Project decisions
 
 Accepted Architecture Decision Records are under [`adr/`](adr/).

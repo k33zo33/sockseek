@@ -61,7 +61,7 @@ Results:
 ## Sprint 0 follow-up items
 
 - expand `THIRD-PARTY-NOTICES` from baseline inventory into a release-specific bundled notices artifact when public packaging begins
-- keep `docs/release-checklist.md` aligned with the concrete repo artifacts and release outputs used by packaging work
+- keep `docs/release-checklist.md` and `docs/INDEX.md` aligned with the concrete repo artifacts and release outputs used by packaging work
 - keep the current `docs/api.md` vs `docs/API.md` split documented until a future doc reorganization removes the case-sensitive filename distinction
 - decide whether a future daemon-first compose profile should be added, or whether Docker remains explicitly CLI/cron-oriented
 - refresh helper authentication if Gemini/Claude reviews are expected in regular workflow, while keeping helper use optional rather than a hard gate for local Sprint 0 validation
