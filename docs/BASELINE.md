@@ -23,7 +23,7 @@ Polazna točka je javni fork k33zo33/sockseek, grana master, commit ef36306c8604
 
 - M3uEditor upravlja i indeksom i playlistom. Razdvajanje je kasniji refactor, nakon funkcionalnog playera.
 
-- Dockerfile u baselineu koristi .NET 6 pakete i nije usklađen s net10.0 projektima. Packaging sprint mora ga zamijeniti.
+- Docker ostaje sekundarni headless packaging put. Sprint 0 je uskladio Dockerfile s `net10.0`, ali daemon/compose workflow i dalje treba zaseban pregled prije nego što se tretira kao polished deployment put.
 
 - Daemon u baselineu nema dovoljno lokalne aplikacijske autentikacije. Desktop izdanje mora uvesti localhost session token i default bind samo na loopback.
 
