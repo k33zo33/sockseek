@@ -13,6 +13,7 @@ namespace Sockseek.Server;
 public static class ServerHost
 {
     public const string CorrelationIdHeaderName = "X-Correlation-Id";
+    public const string DefaultListenUrl = "http://127.0.0.1:5030";
 
     public static WebApplication Build(string[] args, ServerOptions? options = null, string? url = null)
     {
@@ -25,8 +26,7 @@ public static class ServerHost
         });
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 
-        if (!string.IsNullOrWhiteSpace(url))
-            builder.WebHost.UseUrls(url);
+        builder.WebHost.UseUrls(ResolveListenUrl(url));
 
         if (options != null)
             builder.Services.AddSingleton<IOptions<ServerOptions>>(Options.Create(options));
@@ -134,6 +134,9 @@ public static class ServerHost
         MapEndpoints(app);
         return app;
     }
+
+    public static string ResolveListenUrl(string? url)
+        => string.IsNullOrWhiteSpace(url) ? DefaultListenUrl : url;
 
     private static string GetOpenApiVersion()
     {
