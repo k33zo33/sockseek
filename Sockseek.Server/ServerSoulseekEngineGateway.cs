@@ -108,7 +108,7 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
         }
     }
 
-    private static bool TryMapEnvelope(ServerEventEnvelopeDto envelope, out EngineEventEnvelope mapped)
+    private bool TryMapEnvelope(ServerEventEnvelopeDto envelope, out EngineEventEnvelope mapped)
     {
         JobSnapshot? snapshot = envelope.Payload switch
         {
@@ -123,6 +123,11 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
             AlbumStateChangedEventDto albumState => ToJobSnapshot(albumState.Summary),
             JobFolderRetrievingEventDto retrieving => ToJobSnapshot(retrieving.Summary),
             TrackBatchResolvedEventDto batchResolved => ToJobSnapshot(batchResolved.Summary),
+            SearchUpdatedDto searchUpdated => TryGetSnapshot(searchUpdated.JobId),
+            DownloadProgressEventDto progress => TryGetSnapshot(progress.JobId),
+            DownloadStateChangedEventDto stateChanged => TryGetSnapshot(stateChanged.JobId),
+            DownloadAttemptFailedEventDto attemptFailed => TryGetSnapshot(attemptFailed.JobId),
+            SongStateChangedEventDto songState => TryGetSnapshot(songState.JobId),
             _ => null,
         };
 
@@ -143,6 +148,11 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
             snapshot);
         return true;
     }
+
+    private JobSnapshot? TryGetSnapshot(Guid jobId)
+        => supervisor.StateStore.GetJobSummary(jobId) is { } summary
+            ? ToJobSnapshot(summary)
+            : null;
 
     private static SubmissionOptionsDto? CreateSubmissionOptions(DownloadOptions options)
     {
