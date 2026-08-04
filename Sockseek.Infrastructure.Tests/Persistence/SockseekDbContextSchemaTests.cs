@@ -65,7 +65,8 @@ public class SockseekDbContextSchemaTests
 
         var columns = await ColumnNamesAsync(connection, "ExternalAccounts");
         CollectionAssert.Contains(columns, "SecretReference");
-        Assert.IsFalse(columns.Any(name => name.Contains("token", StringComparison.OrdinalIgnoreCase)));
+        Assert.IsFalse(columns.Any(name => name.Contains("token", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(name, "ConcurrencyToken", StringComparison.OrdinalIgnoreCase)));
         Assert.IsFalse(columns.Any(name => name.Contains("refresh", StringComparison.OrdinalIgnoreCase)));
         Assert.IsFalse(columns.Any(name => name.Contains("oauth", StringComparison.OrdinalIgnoreCase)));
     }

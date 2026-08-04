@@ -1,8 +1,11 @@
 namespace Sockseek.Infrastructure.Persistence.Entities;
 
-public sealed class DownloadWorkflowEntity
+using Sockseek.Infrastructure.Persistence.Abstractions;
+
+public sealed class DownloadWorkflowEntity : IHasConcurrencyToken
 {
     public Guid Id { get; set; }
+    public Guid ConcurrencyToken { get; set; }
     public Guid WorkflowId { get; set; }
     public Guid EngineJobId { get; set; }
     public Guid? PlaylistItemId { get; set; }

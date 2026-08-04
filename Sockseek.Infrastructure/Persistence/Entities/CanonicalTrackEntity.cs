@@ -1,8 +1,11 @@
 namespace Sockseek.Infrastructure.Persistence.Entities;
 
-public sealed class CanonicalTrackEntity
+using Sockseek.Infrastructure.Persistence.Abstractions;
+
+public sealed class CanonicalTrackEntity : IHasConcurrencyToken
 {
     public Guid Id { get; set; }
+    public Guid ConcurrencyToken { get; set; }
     public string Artist { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public int? DurationMs { get; set; }

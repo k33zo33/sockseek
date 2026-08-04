@@ -1,8 +1,11 @@
 namespace Sockseek.Infrastructure.Persistence.Entities;
 
-public sealed class PlaylistEntity
+using Sockseek.Infrastructure.Persistence.Abstractions;
+
+public sealed class PlaylistEntity : IHasConcurrencyToken
 {
     public Guid Id { get; set; }
+    public Guid ConcurrencyToken { get; set; }
     public string Name { get; set; } = string.Empty;
     public int ImportMode { get; set; }
     public Guid? ExternalPlaylistId { get; set; }

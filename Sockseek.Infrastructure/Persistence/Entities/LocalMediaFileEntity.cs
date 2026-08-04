@@ -1,8 +1,11 @@
 namespace Sockseek.Infrastructure.Persistence.Entities;
 
-public sealed class LocalMediaFileEntity
+using Sockseek.Infrastructure.Persistence.Abstractions;
+
+public sealed class LocalMediaFileEntity : IHasConcurrencyToken
 {
     public Guid Id { get; set; }
+    public Guid ConcurrencyToken { get; set; }
     public Guid? CanonicalTrackId { get; set; }
     public string Path { get; set; } = string.Empty;
     public long Size { get; set; }

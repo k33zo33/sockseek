@@ -1,8 +1,11 @@
 namespace Sockseek.Infrastructure.Persistence.Entities;
 
-public sealed class ExternalPlaylistEntity
+using Sockseek.Infrastructure.Persistence.Abstractions;
+
+public sealed class ExternalPlaylistEntity : IHasConcurrencyToken
 {
     public Guid Id { get; set; }
+    public Guid ConcurrencyToken { get; set; }
     public Guid? AccountId { get; set; }
     public int Provider { get; set; }
     public string ExternalId { get; set; } = string.Empty;

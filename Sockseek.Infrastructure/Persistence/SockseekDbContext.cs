@@ -1,10 +1,23 @@
 using Microsoft.EntityFrameworkCore;
+using Sockseek.Infrastructure.Persistence.Abstractions;
 using Sockseek.Infrastructure.Persistence.Entities;
 
 namespace Sockseek.Infrastructure.Persistence;
 
 public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> options) : DbContext(options)
 {
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampConcurrencyTokens();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        StampConcurrencyTokens();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     public DbSet<AppProfileEntity> AppProfiles => Set<AppProfileEntity>();
     public DbSet<ExternalAccountEntity> ExternalAccounts => Set<ExternalAccountEntity>();
     public DbSet<ExternalPlaylistEntity> ExternalPlaylists => Set<ExternalPlaylistEntity>();
@@ -21,6 +34,8 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureConcurrencyTokens(modelBuilder);
+
         modelBuilder.Entity<AppProfileEntity>(entity =>
         {
             entity.ToTable("AppProfiles");
@@ -160,5 +175,27 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
             entity.Property(x => x.ApplicationVersion).IsRequired();
             entity.Property(x => x.MigrationVersion).IsRequired();
         });
+    }
+
+    private void StampConcurrencyTokens()
+    {
+        foreach (var entry in ChangeTracker.Entries<IHasConcurrencyToken>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+                entry.Entity.ConcurrencyToken = Guid.NewGuid();
+        }
+    }
+
+    private static void ConfigureConcurrencyTokens(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(IHasConcurrencyToken).IsAssignableFrom(entityType.ClrType))
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(IHasConcurrencyToken.ConcurrencyToken))
+                    .IsConcurrencyToken();
+            }
+        }
     }
 }

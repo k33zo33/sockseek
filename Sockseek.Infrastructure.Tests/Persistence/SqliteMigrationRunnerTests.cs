@@ -29,7 +29,7 @@ public class SqliteMigrationRunnerTests
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory);
 
-            Assert.AreEqual(1, result.AppliedMigrations.Count);
+            Assert.AreEqual(2, result.AppliedMigrations.Count);
             Assert.IsNotNull(result.BackupPath);
             Assert.IsTrue(File.Exists(result.BackupPath));
 

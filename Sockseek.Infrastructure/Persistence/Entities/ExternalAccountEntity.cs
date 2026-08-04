@@ -1,8 +1,11 @@
 namespace Sockseek.Infrastructure.Persistence.Entities;
 
-public sealed class ExternalAccountEntity
+using Sockseek.Infrastructure.Persistence.Abstractions;
+
+public sealed class ExternalAccountEntity : IHasConcurrencyToken
 {
     public Guid Id { get; set; }
+    public Guid ConcurrencyToken { get; set; }
     public int Provider { get; set; }
     public string ExternalUserId { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
