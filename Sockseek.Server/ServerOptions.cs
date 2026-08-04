@@ -13,4 +13,5 @@ public sealed class ServerOptions
     public ProfileCatalog Profiles { get; set; } = ProfileCatalog.Empty;
     public string? ConfigDir { get; set; }
     public Func<EngineSettings, ISoulseekClient>? ClientFactory { get; set; }
+    public string? SessionToken { get; set; }
 }

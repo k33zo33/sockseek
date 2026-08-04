@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sockseek.Api;
@@ -60,6 +61,7 @@ public static class ServerHost
         });
         builder.Services.AddSingleton<EngineSupervisor>();
         builder.Services.AddSingleton(sp => sp.GetRequiredService<EngineSupervisor>().StateStore);
+        builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
@@ -102,6 +104,32 @@ public static class ServerHost
             return context.Response.WriteAsJsonAsync(new ApiErrorDto($"Unexpected server error. CorrelationId: {correlationId}"));
         }));
 
+        app.Use(async (context, next) =>
+        {
+            if (!RequiresSessionToken(context.Request.Path))
+            {
+                await next();
+                return;
+            }
+
+            var sessionTokens = context.RequestServices.GetRequiredService<ServerSessionTokenProvider>();
+            var authorization = context.Request.Headers[HeaderNames.Authorization].ToString();
+            if (sessionTokens.Matches(authorization))
+            {
+                await next();
+                return;
+            }
+
+            var correlationId = GetCorrelationId(context);
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+            context.Response.Headers[HeaderNames.WWWAuthenticate] = ServerSessionTokenProvider.AuthorizationScheme;
+            await context.Response.WriteAsJsonAsync(new AppErrorDto(
+                Code: "unauthorized",
+                Message: "A valid local session token is required for this API endpoint.",
+                CorrelationId: correlationId));
+        });
+
         app.MapOpenApi("/api/openapi.json");
         MapEndpoints(app);
         return app;
@@ -136,6 +164,7 @@ public static class ServerHost
             .WithTags("System")
             .WithSummary("Gets versioned application API system information.")
             .Produces<SystemInfoDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
         app.MapGet("/api/v1/system/health", (HttpContext context, EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemHealth(GetCorrelationId(context))))
             .WithTags("System")
@@ -146,6 +175,7 @@ public static class ServerHost
             .WithTags("System")
             .WithSummary("Gets the versioned application API capability snapshot.")
             .Produces<SystemCapabilitiesDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
         app.MapGet("/api/server/status", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetStatus()))
             .WithTags("Server")
@@ -576,6 +606,14 @@ public static class ServerHost
             .Produces(StatusCodes.Status404NotFound);
 
         app.MapHub<ServerEventHub>("/api/events");
+    }
+
+    private static bool RequiresSessionToken(PathString path)
+    {
+        if (!path.StartsWithSegments("/api/v1", StringComparison.Ordinal))
+            return false;
+
+        return !path.StartsWithSegments("/api/v1/system/health", StringComparison.Ordinal);
     }
 
     private static string GetCorrelationId(HttpContext context)

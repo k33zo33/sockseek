@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -43,8 +44,19 @@ public sealed class SockseekApiClient
     }
 
     /// <summary>Creates an <see cref="HttpClient"/> with a normalized daemon base address.</summary>
-    public static HttpClient CreateHttpClient(string serverUrl)
-        => new() { BaseAddress = NormalizeServerUrl(serverUrl) };
+    public static HttpClient CreateHttpClient(string serverUrl, string? sessionToken = null)
+    {
+        var client = new HttpClient { BaseAddress = NormalizeServerUrl(serverUrl) };
+        ApplySessionToken(client, sessionToken);
+        return client;
+    }
+
+    public static void ApplySessionToken(HttpClient httpClient, string? sessionToken)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(sessionToken)
+            ? null
+            : new AuthenticationHeaderValue("Bearer", sessionToken);
+    }
 
     public async Task<JobSummaryDto> SubmitExtractJobAsync(SubmitExtractJobRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/extract", request, ct);

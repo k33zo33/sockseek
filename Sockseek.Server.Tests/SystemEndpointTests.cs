@@ -23,6 +23,7 @@ public class SystemEndpointTests
 
         int port = GetFreeTcpPort();
         string url = $"http://127.0.0.1:{port}";
+        const string sessionToken = "system-test-token";
         await using var app = ServerHost.Build([], new ServerOptions
         {
             Engine = new EngineSettings
@@ -38,6 +39,7 @@ public class SystemEndpointTests
                 },
             },
             Profiles = ProfileCatalog.Empty,
+            SessionToken = sessionToken,
         }, url);
 
         try
@@ -45,6 +47,8 @@ public class SystemEndpointTests
             await app.StartAsync();
             using var http = new HttpClient { BaseAddress = new Uri(url) };
             http.DefaultRequestHeaders.Add(ServerHost.CorrelationIdHeaderName, "system-test-correlation");
+            using var authorized = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            authorized.DefaultRequestHeaders.Add(ServerHost.CorrelationIdHeaderName, "system-test-correlation");
 
             var healthResponse = await http.GetAsync("/health");
             healthResponse.EnsureSuccessStatusCode();
@@ -55,7 +59,7 @@ public class SystemEndpointTests
             Assert.AreEqual("ok", health.Status);
             Assert.AreEqual("system-test-correlation", health.CorrelationId);
 
-            var systemInfo = await http.GetFromJsonAsync<SystemInfoDto>("/api/v1/system/info", SockseekApiJson.CreateSerializerOptions());
+            var systemInfo = await authorized.GetFromJsonAsync<SystemInfoDto>("/api/v1/system/info", SockseekApiJson.CreateSerializerOptions());
             Assert.IsNotNull(systemInfo);
             Assert.AreEqual("Sockseek", systemInfo.Name);
             Assert.IsFalse(string.IsNullOrWhiteSpace(systemInfo.Version));
@@ -72,7 +76,7 @@ public class SystemEndpointTests
             Assert.IsNotNull(versionedHealth);
             Assert.AreEqual("system-test-correlation", versionedHealth.CorrelationId);
 
-            var capabilities = await http.GetFromJsonAsync<SystemCapabilitiesDto>("/api/v1/system/capabilities", SockseekApiJson.CreateSerializerOptions());
+            var capabilities = await authorized.GetFromJsonAsync<SystemCapabilitiesDto>("/api/v1/system/capabilities", SockseekApiJson.CreateSerializerOptions());
             Assert.IsNotNull(capabilities);
             Assert.AreEqual(systemInfo.Capabilities, capabilities);
         }
@@ -96,6 +100,7 @@ public class SystemEndpointTests
 
         int port = GetFreeTcpPort();
         string url = $"http://127.0.0.1:{port}";
+        const string sessionToken = "error-test-token";
         await using var app = ServerHost.Build([], new ServerOptions
         {
             Engine = new EngineSettings
@@ -111,13 +116,14 @@ public class SystemEndpointTests
                 },
             },
             Profiles = ProfileCatalog.Empty,
+            SessionToken = sessionToken,
         }, url);
         app.MapGet("/api/v1/system/test-error", (HttpContext _) => throw new InvalidOperationException("boom"));
 
         try
         {
             await app.StartAsync();
-            using var http = new HttpClient { BaseAddress = new Uri(url) };
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
             http.DefaultRequestHeaders.Add(ServerHost.CorrelationIdHeaderName, "error-test-correlation");
 
             using var response = await http.GetAsync("/api/v1/system/test-error");
