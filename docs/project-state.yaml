@@ -15,9 +15,10 @@ active_sprint:
   id: 0
   slug: baseline-upstream-agpl
   file: docs/sprints/sprint-00-baseline-upstream-agpl.md
-  status: planned
+  status: completed
 
-completed_sprints: []
+completed_sprints:
+  - 0
 blocked_by: []
 
 locked_decisions:

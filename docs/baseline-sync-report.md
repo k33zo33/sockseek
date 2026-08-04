@@ -47,10 +47,19 @@ Results:
 - `docker compose config`: passed
 - live compose review: container starts cron-capable init stack successfully, but does not auto-start `sockseek daemon`
 
+Revalidation on current `codex/sprint-00-baseline-sync` HEAD repeated the same required gates successfully:
+
+- `docker run ... dotnet restore && dotnet build -c Release && dotnet test -c Release --no-build`: passed
+- `docker run ... dotnet run --project Sockseek.Cli -c Release -- --help`: passed
+- `docker build -t sockseek:sprint0-net10 .`: passed
+- `docker run --rm --entrypoint /usr/bin/sockseek sockseek:sprint0-net10 --help`: passed
+- `docker compose config`: passed
+
 ## Known warnings / issues
 
 - `THIRD-PARTY-NOTICES` now exists as a tracked baseline artifact, but public releases still need a release-specific review of the exact resolved dependency graph and bundled notice texts.
 - NuGet vulnerability warning: `AngleSharp` `1.4.0` reports advisory `GHSA-pgww-w46g-26qg` during restore/build.
+- Docker `dotnet publish` for the trimmed self-contained CLI image still emits linker/trim-analysis warnings (for example ASP.NET Core MVC/SignalR reflection paths, JSON serialization, `EmbedIO`, `Soulseek`, `SpotifyAPI.Web`, and related dependencies). The image builds and the packaged CLI help command works, but public packaging should treat these as review items rather than silently assuming trim safety.
 - `docs/api.md` (current daemon/client integration) and `docs/API.md` (planned application API) intentionally coexist; this is valid on Linux but may still be awkward on case-insensitive filesystems/tooling.
 - Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism.
 - Live compose review confirmed that the default container starts cron support but does not auto-start `sockseek daemon` or expose the daemon API port `5030`; the published `127.0.0.1:48721` port is for provider login callbacks such as Spotify PKCE.

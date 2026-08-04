@@ -4,7 +4,7 @@ Only one sprint is active at a time. Read the active sprint file and only its re
 
 | Sprint | File | Status |
 | --- | --- | --- |
-| 0 | [sprint-00-baseline-upstream-agpl.md](sprint-00-baseline-upstream-agpl.md) | Planned |
+| 0 | [sprint-00-baseline-upstream-agpl.md](sprint-00-baseline-upstream-agpl.md) | Completed |
 | 1 | [sprint-01-architecture-foundation.md](sprint-01-architecture-foundation.md) | Planned |
 | 2 | [sprint-02-soulseek-gateway-local-api-security.md](sprint-02-soulseek-gateway-local-api-security.md) | Planned |
 | 3 | [sprint-03-domain-sqlite-persistence.md](sprint-03-domain-sqlite-persistence.md) | Planned |
