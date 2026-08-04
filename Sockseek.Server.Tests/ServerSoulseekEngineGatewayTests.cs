@@ -7,6 +7,7 @@ using Sockseek.Api;
 using Sockseek.Application.Soulseek;
 using Sockseek.Core.Settings;
 using Sockseek.Server;
+using Tests.ClientTests;
 
 namespace Tests.Server;
 
@@ -183,6 +184,66 @@ public class ServerSoulseekEngineGatewayTests
             await runTask;
             Directory.Delete(musicRoot, recursive: true);
             Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task Gateway_TryNextCandidate_SkipsActiveDownload_AndFinishesWithAlternateCandidate()
+    {
+        string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-gateway-out-" + Guid.NewGuid());
+        Directory.CreateDirectory(outputDir);
+
+        using var cts = new CancellationTokenSource();
+        Task runTask = Task.CompletedTask;
+        try
+        {
+            var gate = new DownloadGate();
+            var client = new MockSoulseekClient(
+            [
+                SearchResponse("slowuser", @"Music\Artist\Album\01. Artist - Track.mp3"),
+                SearchResponse("fastuser", @"Music\Artist\Album\01. Artist - Track.mp3"),
+            ])
+            {
+                BeforeDownloadCompletesAsync = gate.BlockMatchingUserAsync,
+            };
+
+            var supervisor = CreateSupervisor(
+                musicRoot: Path.Combine(Path.GetTempPath(), "Sockseek-gateway-music-" + Guid.NewGuid()),
+                outputDir,
+                clientFactory: _ => client);
+            runTask = supervisor.RunAsync(cts.Token);
+            var gateway = new ServerSoulseekEngineGateway(supervisor);
+
+            var searchHandle = await gateway.StartTrackSearchAsync(
+                new TrackSearchRequest("Artist", "Track", "", null),
+                CancellationToken.None);
+            await WaitForSnapshotAsync(gateway, searchHandle.EngineJobId, SoulseekJobState.Succeeded);
+
+            var files = supervisor.GetFileResults(searchHandle.EngineJobId);
+            Assert.IsNotNull(files);
+            Assert.AreEqual(2, files.Items.Count);
+
+            var downloadHandle = await gateway.StartDownloadAsync(
+                new CandidateReference(searchHandle.EngineJobId, files.Items[0].Ref.Username, files.Items[0].Ref.Filename),
+                new DownloadOptions(outputDir, null),
+                CancellationToken.None);
+
+            await gate.WaitForStartedAsync();
+            Assert.IsTrue(await gateway.TryNextCandidateAsync(downloadHandle.EngineJobId, CancellationToken.None));
+
+            var completed = await WaitForSnapshotAsync(gateway, downloadHandle.EngineJobId, SoulseekJobState.Succeeded, timeoutMs: 10000);
+            Assert.AreEqual(SoulseekJobKind.Download, completed.Kind);
+
+            var detail = supervisor.StateStore.GetJobDetail(downloadHandle.EngineJobId);
+            Assert.IsInstanceOfType<SongJobPayloadDto>(detail?.Payload, out var payload);
+            Assert.AreNotEqual(gate.BlockedUsername, payload.ResolvedUsername);
+        }
+        finally
+        {
+            cts.Cancel();
+            await runTask;
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
         }
     }
 
@@ -399,7 +460,11 @@ public class ServerSoulseekEngineGatewayTests
             SessionToken = "gateway-test-token",
         }, "http://127.0.0.1:0");
 
-    private static EngineSupervisor CreateSupervisor(string musicRoot, string outputDir, bool slowMockFiles = false)
+    private static EngineSupervisor CreateSupervisor(
+        string musicRoot,
+        string outputDir,
+        bool slowMockFiles = false,
+        Func<EngineSettings, Soulseek.ISoulseekClient>? clientFactory = null)
         => new(Options.Create(new ServerOptions
         {
             Engine = new EngineSettings
@@ -417,7 +482,49 @@ public class ServerSoulseekEngineGatewayTests
                 },
             },
             Profiles = ProfileCatalog.Empty,
+            ClientFactory = clientFactory,
         }));
+
+    private static Soulseek.SearchResponse SearchResponse(string username, string filename)
+        => new(
+            username,
+            token: 1,
+            hasFreeUploadSlot: true,
+            uploadSpeed: 100,
+            queueLength: 0,
+            fileList:
+            [
+                new Soulseek.File(
+                    1,
+                    filename,
+                    100,
+                    Path.GetExtension(filename),
+                    attributeList:
+                    [
+                        new Soulseek.FileAttribute(Soulseek.FileAttributeType.Length, 60),
+                    ]),
+            ]);
+
+    private sealed class DownloadGate
+    {
+        private readonly TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int blocked;
+
+        public string? BlockedUsername { get; private set; }
+
+        public async Task BlockMatchingUserAsync(string candidateUsername, string _, CancellationToken ct)
+        {
+            if (Interlocked.CompareExchange(ref blocked, 1, 0) != 0)
+                return;
+
+            BlockedUsername = candidateUsername;
+            started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        }
+
+        public Task WaitForStartedAsync()
+            => started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
 
     private sealed class NoOpHubContext<THub> : IHubContext<THub>
         where THub : Hub

@@ -579,6 +579,7 @@ public sealed class EngineSupervisor
             var followUpSongJob = new SongJob(new SongQuery(songQuery))
             {
                 ResolvedTarget = candidate,
+                Candidates = GetFollowUpSongCandidates(sourceJob, candidate),
                 ItemName = sourceJob.ItemName,
             };
 
@@ -883,6 +884,36 @@ public sealed class EngineSupervisor
                 string.Equals(candidate.Username, candidateRef.Username, StringComparison.Ordinal)
                 && string.Equals(candidate.Filename, candidateRef.Filename, StringComparison.Ordinal));
     }
+
+    private List<FileCandidate>? GetFollowUpSongCandidates(Job sourceJob, FileCandidate selectedCandidate)
+    {
+        var candidates = sourceJob switch
+        {
+            SearchJob searchJob when searchJob.Config != null => searchJob
+                .GetAggregateTracks(searchJob.Config.Search, GetCurrentEngineUserSuccessCounts())
+                .Items
+                .FirstOrDefault(song => song.Candidates?.Any(candidate => MatchesCandidate(candidate, selectedCandidate)) == true)
+                ?.Candidates,
+            SongJob songJob => songJob.Candidates,
+            AggregateJob aggregateJob => aggregateJob.Songs
+                .FirstOrDefault(song => song.Candidates?.Any(candidate => MatchesCandidate(candidate, selectedCandidate)) == true)
+                ?.Candidates,
+            _ => null,
+        };
+
+        if (candidates == null || candidates.Count == 0)
+            return null;
+
+        return candidates
+            .OrderByDescending(candidate => MatchesCandidate(candidate, selectedCandidate))
+            .ThenBy(candidate => candidate.Username, StringComparer.Ordinal)
+            .ThenBy(candidate => candidate.Filename, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static bool MatchesCandidate(FileCandidate left, FileCandidate right)
+        => string.Equals(left.Username, right.Username, StringComparison.Ordinal)
+            && string.Equals(left.Filename, right.Filename, StringComparison.Ordinal);
 
     private static FileCandidate? FindRawFileCandidate(SearchJob searchJob, FileCandidateRefDto candidateRef)
         => searchJob.Snapshot()
