@@ -186,6 +186,13 @@
           "Sockseek.Core": "[3.0.5, )"
         }
       },
+      "sockseek.application": {
+        "type": "Project",
+        "dependencies": {
+          "Sockseek.Domain": "[3.0.5, )",
+          "Sockseek.Integrations.Abstractions": "[3.0.5, )"
+        }
+      },
       "sockseek.core": {
         "type": "Project",
         "dependencies": {
@@ -200,12 +207,19 @@
           "YoutubeExplode": "[6.6.0, )"
         }
       },
+      "sockseek.domain": {
+        "type": "Project"
+      },
+      "sockseek.integrations.abstractions": {
+        "type": "Project"
+      },
       "sockseek.server": {
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.OpenApi": "[10.0.9, )",
           "Microsoft.OpenApi": "[2.9.0, )",
           "Sockseek.Api": "[3.0.5, )",
+          "Sockseek.Application": "[3.0.5, )",
           "Sockseek.Core": "[3.0.5, )"
         }
       },

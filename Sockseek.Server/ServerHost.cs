@@ -7,6 +7,7 @@ using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sockseek.Api;
+using Sockseek.Application.Soulseek;
 
 namespace Sockseek.Server;
 
@@ -61,6 +62,7 @@ public static class ServerHost
         });
         builder.Services.AddSingleton<EngineSupervisor>();
         builder.Services.AddSingleton(sp => sp.GetRequiredService<EngineSupervisor>().StateStore);
+        builder.Services.AddSingleton<ISoulseekEngineGateway, ServerSoulseekEngineGateway>();
         builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();

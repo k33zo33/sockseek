@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sockseek.Api\Sockseek.Api.csproj" />
+    <ProjectReference Include="..\Sockseek.Application\Sockseek.Application.csproj" />
     <ProjectReference Include="..\Sockseek.Core\Sockseek.Core.csproj" />
   </ItemGroup>
 
