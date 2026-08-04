@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Desktop", "Socksee
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Architecture.Tests", "Sockseek.Architecture.Tests\Sockseek.Architecture.Tests.csproj", "{7B3F7563-418B-4283-9FC1-38C6416A1A88}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Application.Tests", "Sockseek.Application.Tests\Sockseek.Application.Tests.csproj", "{CACDA2FD-468A-4451-BC4F-4ACB485C9288}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -251,6 +253,18 @@ Global
 		{7B3F7563-418B-4283-9FC1-38C6416A1A88}.Release|x64.Build.0 = Release|Any CPU
 		{7B3F7563-418B-4283-9FC1-38C6416A1A88}.Release|x86.ActiveCfg = Release|Any CPU
 		{7B3F7563-418B-4283-9FC1-38C6416A1A88}.Release|x86.Build.0 = Release|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Debug|x64.Build.0 = Debug|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Debug|x86.Build.0 = Debug|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Release|x64.ActiveCfg = Release|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Release|x64.Build.0 = Release|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Release|x86.ActiveCfg = Release|Any CPU
+		{CACDA2FD-468A-4451-BC4F-4ACB485C9288}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
