@@ -48,6 +48,41 @@ public class ServerSoulseekEngineGatewayTests
     }
 
     [TestMethod]
+    public async Task Gateway_StartAlbumSearch_AndGetJob_ReturnMappedAlbumSnapshot()
+    {
+        string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-gateway-test-" + Guid.NewGuid());
+        string albumDir = Path.Combine(musicRoot, "Artist", "Album");
+        string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-gateway-out-" + Guid.NewGuid());
+        Directory.CreateDirectory(albumDir);
+        Directory.CreateDirectory(outputDir);
+        File.WriteAllText(Path.Combine(albumDir, "01. Artist - Track One.mp3"), "a");
+        File.WriteAllText(Path.Combine(albumDir, "02. Artist - Track Two.mp3"), "b");
+
+        await using var app = BuildApp(musicRoot, outputDir);
+        try
+        {
+            await app.StartAsync();
+            var gateway = app.Services.GetRequiredService<ISoulseekEngineGateway>();
+
+            var handle = await gateway.StartAlbumSearchAsync(
+                new AlbumSearchRequest("Artist", "Album", null),
+                CancellationToken.None);
+
+            var snapshot = await WaitForSnapshotAsync(gateway, handle.EngineJobId, SoulseekJobState.Succeeded);
+            Assert.AreEqual(handle.WorkflowId, snapshot.WorkflowId);
+            Assert.AreEqual(handle.EngineJobId, snapshot.EngineJobId);
+            Assert.AreEqual(SoulseekJobKind.AlbumSearch, snapshot.Kind);
+            Assert.AreEqual(SoulseekJobState.Succeeded, snapshot.State);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Directory.Delete(musicRoot, recursive: true);
+            Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task Gateway_StartDownload_ReusesWorkflow_AndMapsDownloadSnapshot()
     {
         string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-gateway-test-" + Guid.NewGuid());
@@ -103,28 +138,49 @@ public class ServerSoulseekEngineGatewayTests
         string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-gateway-out-" + Guid.NewGuid());
         Directory.CreateDirectory(albumDir);
         Directory.CreateDirectory(outputDir);
-        File.WriteAllText(Path.Combine(albumDir, "01. Artist - Track One.mp3"), "a");
+        File.WriteAllText(Path.Combine(albumDir, "01. Artist - Track One.mp3"), new string('a', 128 * 1024));
 
-        await using var app = BuildApp(musicRoot, outputDir);
+        using var cts = new CancellationTokenSource();
+        Task runTask = Task.CompletedTask;
         try
         {
-            await app.StartAsync();
-            var gateway = app.Services.GetRequiredService<ISoulseekEngineGateway>();
+            var supervisor = CreateSupervisor(musicRoot, outputDir, slowMockFiles: true);
+            runTask = supervisor.RunAsync(cts.Token);
+            var gateway = new ServerSoulseekEngineGateway(supervisor);
 
             var searchHandle = await gateway.StartTrackSearchAsync(
                 new TrackSearchRequest("Artist", "Track One", "Album", null),
                 CancellationToken.None);
             await WaitForSnapshotAsync(gateway, searchHandle.EngineJobId, SoulseekJobState.Succeeded);
 
+            var files = supervisor.GetFileResults(searchHandle.EngineJobId);
+            Assert.IsNotNull(files);
+
+            var downloadHandle = await gateway.StartDownloadAsync(
+                new CandidateReference(searchHandle.EngineJobId, files.Items[0].Ref.Username, files.Items[0].Ref.Filename),
+                new DownloadOptions(outputDir, null),
+                CancellationToken.None);
+
+            var runningSnapshot = await WaitForAnySnapshotAsync(
+                gateway,
+                downloadHandle.EngineJobId,
+                state => state is SoulseekJobState.Queued or SoulseekJobState.Running);
+            Assert.AreEqual(SoulseekJobKind.Download, runningSnapshot.Kind);
+
             var nextCandidate = await gateway.TryNextCandidateAsync(searchHandle.EngineJobId, CancellationToken.None);
             Assert.IsFalse(nextCandidate);
+
+            await gateway.CancelJobAsync(downloadHandle.EngineJobId, CancellationToken.None);
+            var cancelledSnapshot = await WaitForSnapshotAsync(gateway, downloadHandle.EngineJobId, SoulseekJobState.Cancelled);
+            Assert.AreEqual(SoulseekJobState.Cancelled, cancelledSnapshot.State);
 
             await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
                 gateway.CancelJobAsync(Guid.NewGuid(), CancellationToken.None));
         }
         finally
         {
-            await app.StopAsync();
+            cts.Cancel();
+            await runTask;
             Directory.Delete(musicRoot, recursive: true);
             Directory.Delete(outputDir, recursive: true);
         }
@@ -242,6 +298,35 @@ public class ServerSoulseekEngineGatewayTests
             Directory.Delete(musicRoot, recursive: true);
             Directory.Delete(outputDir, recursive: true);
         }
+    }
+
+    private static async Task<JobSnapshot> WaitForAnySnapshotAsync(
+        ISoulseekEngineGateway gateway,
+        Guid jobId,
+        Func<SoulseekJobState, bool> predicate,
+        int timeoutMs = 5000)
+    {
+        using var timeout = new CancellationTokenSource(timeoutMs);
+        JobSnapshot? lastSnapshot = null;
+
+        while (!timeout.IsCancellationRequested)
+        {
+            lastSnapshot = await gateway.GetJobAsync(jobId, CancellationToken.None);
+            if (lastSnapshot != null && predicate(lastSnapshot.State))
+                return lastSnapshot;
+
+            try
+            {
+                await Task.Delay(50, timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        Assert.Fail($"Timed out waiting for job {jobId} to reach a matching state. Last snapshot: {lastSnapshot}.");
+        return null!;
     }
 
     private static async Task<JobSnapshot> WaitForSnapshotAsync(ISoulseekEngineGateway gateway, Guid jobId, SoulseekJobState expectedState, int timeoutMs = 5000)

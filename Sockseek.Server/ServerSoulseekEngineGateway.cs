@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Sockseek.Api;
 using Sockseek.Application.Soulseek;
+using Sockseek.Core.Jobs;
 
 namespace Sockseek.Server;
 
@@ -154,6 +155,38 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
             ? ToJobSnapshot(summary)
             : null;
 
+    private JobSnapshot ToJobSnapshot(JobSummaryDto summary)
+        => new(
+            summary.JobId,
+            summary.WorkflowId,
+            ToJobKind(summary),
+            ToJobState(summary.LifecycleState, summary.TerminalOutcome),
+            summary.ItemName ?? summary.QueryText ?? summary.Kind.ToString());
+
+    private SoulseekJobKind ToJobKind(JobSummaryDto summary)
+    {
+        var job = supervisor.StateStore.GetJob<Job>(summary.JobId);
+
+        return job switch
+        {
+            SearchJob { DefaultFolderProjection: not null } => SoulseekJobKind.AlbumSearch,
+            SearchJob => SoulseekJobKind.TrackSearch,
+            SongJob => SoulseekJobKind.Download,
+            AlbumJob => SoulseekJobKind.Download,
+            RetrieveFolderJob => SoulseekJobKind.Download,
+            _ => summary.Kind switch
+            {
+                ServerJobKind.AlbumAggregate => SoulseekJobKind.AlbumSearch,
+                ServerJobKind.Search => SoulseekJobKind.TrackSearch,
+                ServerJobKind.Aggregate => SoulseekJobKind.TrackSearch,
+                ServerJobKind.Song => SoulseekJobKind.Download,
+                ServerJobKind.Album => SoulseekJobKind.Download,
+                ServerJobKind.RetrieveFolder => SoulseekJobKind.Download,
+                _ => SoulseekJobKind.TrackSearch,
+            },
+        };
+    }
+
     private static SubmissionOptionsDto? CreateSubmissionOptions(DownloadOptions options)
     {
         var profileNames = string.IsNullOrWhiteSpace(options.ProfileName)
@@ -167,25 +200,6 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
                 ProfileNames: profileNames);
     }
 
-    private static JobSnapshot ToJobSnapshot(JobSummaryDto summary)
-        => new(
-            summary.JobId,
-            summary.WorkflowId,
-            ToJobKind(summary.Kind),
-            ToJobState(summary.LifecycleState, summary.TerminalOutcome),
-            summary.ItemName ?? summary.QueryText ?? summary.Kind.ToString());
-
-    private static SoulseekJobKind ToJobKind(ServerJobKind kind)
-        => kind switch
-        {
-            ServerJobKind.AlbumAggregate => SoulseekJobKind.AlbumSearch,
-            ServerJobKind.Search => SoulseekJobKind.TrackSearch,
-            ServerJobKind.Aggregate => SoulseekJobKind.TrackSearch,
-            ServerJobKind.Song => SoulseekJobKind.Download,
-            ServerJobKind.Album => SoulseekJobKind.Download,
-            ServerJobKind.RetrieveFolder => SoulseekJobKind.Download,
-            _ => SoulseekJobKind.TrackSearch,
-        };
 
     private static SoulseekJobState ToJobState(ServerJobLifecycleState lifecycleState, ServerJobTerminalOutcome terminalOutcome)
         => lifecycleState switch
