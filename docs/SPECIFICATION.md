@@ -1047,7 +1047,7 @@ Ovisnosti: Nema.
 
 1. Dodati docs/provider-capability-matrix.md.
 
-1. Ažurirati Docker issue jer baseline Dockerfile nije net10.0 kompatibilan.
+1. Uskladiti i validirati Docker headless packaging put za `net10.0`, te dokumentirati preostali daemon/compose review scope.
 
 ### Acceptance kriteriji
 
