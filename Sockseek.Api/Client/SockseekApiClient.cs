@@ -90,6 +90,13 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SystemHealthDto>(response, ct);
     }
 
+    public async Task<SystemCapabilitiesDto> GetSystemCapabilitiesAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/system/capabilities", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SystemCapabilitiesDto>(response, ct);
+    }
+
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
     {

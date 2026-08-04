@@ -14,7 +14,7 @@ namespace Tests.Server;
 public class SystemEndpointTests
 {
     [TestMethod]
-    public async Task Health_And_SystemInfo_ReturnExpectedFoundationMetadata()
+    public async Task Health_SystemInfo_And_Capabilities_ReturnExpectedFoundationMetadata()
     {
         string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-system-test-" + Guid.NewGuid());
         string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-system-out-" + Guid.NewGuid());
@@ -71,6 +71,10 @@ public class SystemEndpointTests
             var versionedHealth = await versionedHealthResponse.Content.ReadFromJsonAsync<SystemHealthDto>(SockseekApiJson.CreateSerializerOptions());
             Assert.IsNotNull(versionedHealth);
             Assert.AreEqual("system-test-correlation", versionedHealth.CorrelationId);
+
+            var capabilities = await http.GetFromJsonAsync<SystemCapabilitiesDto>("/api/v1/system/capabilities", SockseekApiJson.CreateSerializerOptions());
+            Assert.IsNotNull(capabilities);
+            Assert.AreEqual(systemInfo.Capabilities, capabilities);
         }
         finally
         {

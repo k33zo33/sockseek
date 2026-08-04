@@ -142,6 +142,11 @@ public static class ServerHost
             .WithSummary("Gets application API health and correlation metadata.")
             .Produces<SystemHealthDto>()
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+        app.MapGet("/api/v1/system/capabilities", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemCapabilities()))
+            .WithTags("System")
+            .WithSummary("Gets the versioned application API capability snapshot.")
+            .Produces<SystemCapabilitiesDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
         app.MapGet("/api/server/status", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetStatus()))
             .WithTags("Server")
             .WithSummary("Gets current daemon and Soulseek client status.")

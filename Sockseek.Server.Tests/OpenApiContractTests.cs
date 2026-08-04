@@ -78,6 +78,7 @@ public class OpenApiContractTests
             Assert.IsTrue(paths.TryGetProperty("/health", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/info", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/health", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/system/capabilities", out _));
 
             var jobListParameterNames = paths
                 .GetProperty("/api/jobs")

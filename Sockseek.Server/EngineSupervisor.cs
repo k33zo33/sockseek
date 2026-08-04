@@ -118,13 +118,16 @@ public sealed class EngineSupervisor
             version,
             commit,
             StartedAtUtc,
-            new SystemCapabilitiesDto(
-                LegacyApi: true,
-                VersionedApi: true,
-                SignalR: true,
-                StructuredErrors: true,
-                CorrelationIds: true));
+            GetSystemCapabilities());
     }
+
+    public SystemCapabilitiesDto GetSystemCapabilities()
+        => new(
+            LegacyApi: true,
+            VersionedApi: true,
+            SignalR: true,
+            StructuredErrors: true,
+            CorrelationIds: true);
 
     public SystemHealthDto GetSystemHealth(string correlationId)
     {
