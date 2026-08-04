@@ -12,6 +12,35 @@ public sealed record ServerInfoDto(
     DateTimeOffset StartedAtUtc);
 
 /// <summary>
+/// Versioned application API system information for the future desktop client.
+/// </summary>
+public sealed record SystemInfoDto(
+    string Name,
+    string Version,
+    string Commit,
+    DateTimeOffset StartedAtUtc,
+    SystemCapabilitiesDto Capabilities);
+
+/// <summary>
+/// Lightweight readiness/health response for daemon process checks.
+/// </summary>
+public sealed record SystemHealthDto(
+    string Status,
+    DateTimeOffset StartedAtUtc,
+    int RestartCount,
+    string CorrelationId);
+
+/// <summary>
+/// Snapshot of application-layer capabilities exposed by the versioned API.
+/// </summary>
+public sealed record SystemCapabilitiesDto(
+    bool LegacyApi,
+    bool VersionedApi,
+    bool SignalR,
+    bool StructuredErrors,
+    bool CorrelationIds);
+
+/// <summary>
 /// Current daemon and engine activity counters.
 /// </summary>
 public sealed record ServerStatusDto(
@@ -48,6 +77,14 @@ public sealed record ProfileSummaryDto(
 /// </summary>
 public sealed record ApiErrorDto(
     string Error);
+
+/// <summary>
+/// Structured error response for versioned application API endpoints.
+/// </summary>
+public sealed record AppErrorDto(
+    string Code,
+    string Message,
+    string CorrelationId);
 
 /// <summary>
 /// Response body returned when cancelling a workflow.

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Logging;
@@ -10,6 +11,8 @@ namespace Sockseek.Server;
 
 public static class ServerHost
 {
+    public const string CorrelationIdHeaderName = "X-Correlation-Id";
+
     public static WebApplication Build(string[] args, ServerOptions? options = null, string? url = null)
     {
         var builder = WebApplication.CreateBuilder(args);
@@ -66,6 +69,39 @@ public static class ServerHost
         _ = app.Services.GetRequiredService<ServerEventBroadcaster>();
         _ = app.Services.GetRequiredService<ServerActivityLogReporter>();
 
+        app.Use(async (context, next) =>
+        {
+            var correlationId = context.Request.Headers.TryGetValue(CorrelationIdHeaderName, out var incoming)
+                && !string.IsNullOrWhiteSpace(incoming)
+                ? incoming.ToString()
+                : Guid.NewGuid().ToString("n");
+
+            context.TraceIdentifier = correlationId;
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+            await next();
+        });
+
+        app.UseExceptionHandler(v1Errors => v1Errors.Run(context =>
+        {
+            var feature = context.Features.Get<IExceptionHandlerFeature>();
+            var correlationId = GetCorrelationId(context);
+            if (feature?.Error != null)
+                Sockseek.Core.SockseekLog.Daemon.Error(feature.Error, $"Unhandled server error ({correlationId})");
+
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+
+            if (context.Request.Path.StartsWithSegments("/api/v1"))
+            {
+                return context.Response.WriteAsJsonAsync(new AppErrorDto(
+                    Code: "internal_error",
+                    Message: "An unexpected server error occurred.",
+                    CorrelationId: correlationId));
+            }
+
+            return context.Response.WriteAsJsonAsync(new ApiErrorDto($"Unexpected server error. CorrelationId: {correlationId}"));
+        }));
+
         app.MapOpenApi("/api/openapi.json");
         MapEndpoints(app);
         return app;
@@ -87,10 +123,25 @@ public static class ServerHost
         app.MapGet("/", () => Results.Redirect("/api/server/info"))
             .ExcludeFromDescription();
 
+        app.MapGet("/health", (HttpContext context, EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemHealth(GetCorrelationId(context))))
+            .WithTags("System")
+            .WithSummary("Gets a minimal daemon health response.")
+            .Produces<SystemHealthDto>();
+
         app.MapGet("/api/server/info", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetInfo()))
             .WithTags("Server")
             .WithSummary("Gets server identity and protocol information.")
             .Produces<ServerInfoDto>();
+        app.MapGet("/api/v1/system/info", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemInfo()))
+            .WithTags("System")
+            .WithSummary("Gets versioned application API system information.")
+            .Produces<SystemInfoDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+        app.MapGet("/api/v1/system/health", (HttpContext context, EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemHealth(GetCorrelationId(context))))
+            .WithTags("System")
+            .WithSummary("Gets application API health and correlation metadata.")
+            .Produces<SystemHealthDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
         app.MapGet("/api/server/status", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetStatus()))
             .WithTags("Server")
             .WithSummary("Gets current daemon and Soulseek client status.")
@@ -521,6 +572,9 @@ public static class ServerHost
 
         app.MapHub<ServerEventHub>("/api/events");
     }
+
+    private static string GetCorrelationId(HttpContext context)
+        => context.TraceIdentifier;
 
     private static async Task<IResult> SubmitJobAsync(Func<Task<JobSummaryDto>> submit)
     {

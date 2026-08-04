@@ -76,6 +76,20 @@ public sealed class SockseekApiClient
     public async Task<JobSummaryDto> SubmitJobListAsync(SubmitJobListRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/lists", request, ct);
 
+    public async Task<SystemInfoDto> GetSystemInfoAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/system/info", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SystemInfoDto>(response, ct);
+    }
+
+    public async Task<SystemHealthDto> GetSystemHealthAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/system/health", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SystemHealthDto>(response, ct);
+    }
+
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
     {
@@ -343,7 +357,17 @@ public sealed class SockseekApiClient
     {
         try
         {
-            return JsonSerializer.Deserialize<ApiErrorDto>(body, SockseekApiJson.CreateSerializerOptions())?.Error;
+            var options = SockseekApiJson.CreateSerializerOptions();
+            var appError = JsonSerializer.Deserialize<AppErrorDto>(body, options);
+            if (appError != null
+                && (!string.IsNullOrWhiteSpace(appError.Code)
+                    || !string.IsNullOrWhiteSpace(appError.Message)
+                    || !string.IsNullOrWhiteSpace(appError.CorrelationId)))
+            {
+                return $"{appError.Code}: {appError.Message} (correlationId: {appError.CorrelationId})";
+            }
+
+            return JsonSerializer.Deserialize<ApiErrorDto>(body, options)?.Error;
         }
         catch (JsonException)
         {

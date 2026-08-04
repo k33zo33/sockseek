@@ -6,6 +6,26 @@
     "version": "3.0.5"
   },
   "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets a minimal daemon health response.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/server/info": {
       "get": {
         "tags": [
@@ -19,6 +39,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServerInfoDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/info": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets versioned application API system information.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfoDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets application API health and correlation metadata.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
                 }
               }
             }
@@ -1736,6 +1816,25 @@
         "type": "object",
         "properties": {
           "error": {
+            "type": "string"
+          }
+        }
+      },
+      "AppErrorDto": {
+        "required": [
+          "code",
+          "message",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlationId": {
             "type": "string"
           }
         }
@@ -5382,6 +5481,90 @@
           }
         }
       },
+      "SystemCapabilitiesDto": {
+        "required": [
+          "legacyApi",
+          "versionedApi",
+          "signalR",
+          "structuredErrors",
+          "correlationIds"
+        ],
+        "type": "object",
+        "properties": {
+          "legacyApi": {
+            "type": "boolean"
+          },
+          "versionedApi": {
+            "type": "boolean"
+          },
+          "signalR": {
+            "type": "boolean"
+          },
+          "structuredErrors": {
+            "type": "boolean"
+          },
+          "correlationIds": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SystemHealthDto": {
+        "required": [
+          "status",
+          "startedAtUtc",
+          "restartCount",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "restartCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "correlationId": {
+            "type": "string"
+          }
+        }
+      },
+      "SystemInfoDto": {
+        "required": [
+          "name",
+          "version",
+          "commit",
+          "startedAtUtc",
+          "capabilities"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/SystemCapabilitiesDto"
+          }
+        }
+      },
       "TransferSettingsPatchDto": {
         "type": "object",
         "properties": {
@@ -5572,6 +5755,9 @@
     }
   },
   "tags": [
+    {
+      "name": "System"
+    },
     {
       "name": "Server"
     },

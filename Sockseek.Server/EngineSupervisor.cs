@@ -110,6 +110,31 @@ public sealed class EngineSupervisor
         return new ServerInfoDto(options.Name, version, StartedAtUtc);
     }
 
+    public SystemInfoDto GetSystemInfo()
+    {
+        var (version, commit) = GetBuildIdentity();
+        return new SystemInfoDto(
+            options.Name,
+            version,
+            commit,
+            StartedAtUtc,
+            new SystemCapabilitiesDto(
+                LegacyApi: true,
+                VersionedApi: true,
+                SignalR: true,
+                StructuredErrors: true,
+                CorrelationIds: true));
+    }
+
+    public SystemHealthDto GetSystemHealth(string correlationId)
+    {
+        return new SystemHealthDto(
+            Status: "ok",
+            StartedAtUtc: StartedAtUtc,
+            RestartCount: restartCount,
+            CorrelationId: correlationId);
+    }
+
     public ServerStatusDto GetStatus()
     {
         SoulseekClientStates clientState;
@@ -136,6 +161,26 @@ public sealed class EngineSupervisor
                 profile.HasDownloadSettings))
             .OrderBy(profile => profile.Name)
             .ToList();
+
+    private static (string Version, string Commit) GetBuildIdentity()
+    {
+        var informationalVersion = typeof(EngineSupervisor).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), inherit: false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault()?.InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            var fallback = typeof(EngineSupervisor).Assembly.GetName().Version?.ToString() ?? "dev";
+            return (fallback, "unknown");
+        }
+
+        var metadataIndex = informationalVersion.IndexOf('+', StringComparison.Ordinal);
+        if (metadataIndex < 0)
+            return (informationalVersion, "unknown");
+
+        return (informationalVersion[..metadataIndex], informationalVersion[(metadataIndex + 1)..]);
+    }
 
     private static SoulseekClientStatusDto ToSoulseekClientStatusDto(SoulseekClientStates state)
     {
