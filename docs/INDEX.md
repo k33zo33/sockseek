@@ -25,6 +25,7 @@
 - [Desktop UI/UX](UI_UX.md)
 - [Security and privacy](SECURITY.md)
 - [Configuration](CONFIGURATION.md)
+- [Docker / container workflow](docker.md)
 - [Testing and CI/CD](TESTING.md)
 - [License and distribution](LEGAL.md)
 - [Release checklist](release-checklist.md)
