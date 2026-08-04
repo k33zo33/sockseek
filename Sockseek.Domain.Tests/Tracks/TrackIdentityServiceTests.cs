@@ -76,6 +76,55 @@ public class TrackIdentityServiceTests
         Assert.AreEqual(0.88d, result.Score, 0.0001d);
     }
 
+    [DataTestMethod]
+    [DataRow("Artist feat. Guest", "Track", "artist ft guest", "track")]
+    [DataRow("Artist", "Track (Original Mix)", "artist", "track original mix")]
+    [DataRow("Artist", "Track - Radio Edit", "artist", "track radio edit")]
+    public void Match_FixtureVariants_AutoMatchCompatibleNormalizedForms(string candidateArtist, string candidateTitle, string queryArtist, string queryTitle)
+    {
+        var service = new TrackIdentityService();
+        var candidate = new CanonicalTrack(candidateArtist, candidateTitle, 180000);
+
+        var result = service.Match(candidate, new TrackIdentityQuery(queryArtist, queryTitle, 180500));
+
+        Assert.AreEqual(TrackMatchDisposition.AutoMatch, result.Disposition);
+        Assert.AreEqual(TrackMatchMethod.NormalizedArtistTitleDuration, result.Method);
+        Assert.IsTrue(result.Score >= 0.92d);
+    }
+
+    [DataTestMethod]
+    [DataRow("Track Live", "Track")]
+    [DataRow("Track Remix", "Track")]
+    [DataRow("Track Acoustic", "Track")]
+    public void Match_FixtureVariants_VersionConflictPreventsAutoMatch(string candidateTitle, string queryTitle)
+    {
+        var service = new TrackIdentityService();
+        var candidate = new CanonicalTrack("Artist", candidateTitle, 180000);
+
+        var result = service.Match(candidate, new TrackIdentityQuery("Artist", queryTitle, 180000));
+
+        Assert.AreEqual(TrackMatchDisposition.NoMatch, result.Disposition);
+        Assert.AreEqual(TrackMatchMethod.None, result.Method);
+    }
+
+    [TestMethod]
+    public void Match_UsesConfiguredThresholdsForBorderlineNormalizedMatch()
+    {
+        var service = new TrackIdentityService(new TrackIdentityOptions
+        {
+            AutoMatchThreshold = 1.01d,
+            ReviewThreshold = 0.80d,
+            DurationToleranceMs = 10_000,
+        });
+        var candidate = new CanonicalTrack("Artist", "Track", 180000);
+
+        var result = service.Match(candidate, new TrackIdentityQuery("Artist", "Track", 180000));
+
+        Assert.AreEqual(TrackMatchDisposition.ReviewRequired, result.Disposition);
+        Assert.AreEqual(TrackMatchMethod.NormalizedArtistTitleDuration, result.Method);
+        Assert.AreEqual(1.0d, result.Score, 0.0001d);
+    }
+
     [TestMethod]
     public void Match_ReturnsNoMatchWhenDurationOutsideToleranceForIsrc()
     {

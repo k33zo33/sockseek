@@ -48,12 +48,14 @@ public sealed class TrackIdentityService
         if (!artistMatches || !titleMatches)
             return TrackMatchResult.NoMatch;
 
+        double versionConflictPenalty = CalculateVersionConflictPenalty(candidate.Title, query.Title);
+
         if (DurationCompatible(candidate.DurationMs, query.DurationMs))
         {
-            return Evaluate(0.45d + 0.40d + 0.15d, TrackMatchMethod.NormalizedArtistTitleDuration);
+            return Evaluate((0.45d + 0.40d + 0.15d) - versionConflictPenalty, TrackMatchMethod.NormalizedArtistTitleDuration);
         }
 
-        return Evaluate(0.88d, TrackMatchMethod.NormalizedArtistTitle);
+        return Evaluate(0.88d - versionConflictPenalty, TrackMatchMethod.NormalizedArtistTitle);
     }
 
     private TrackMatchResult Evaluate(double score, TrackMatchMethod method)
@@ -73,6 +75,46 @@ public sealed class TrackIdentityService
             return false;
 
         return Math.Abs(leftDurationMs.Value - rightDurationMs.Value) <= options.DurationToleranceMs;
+    }
+
+    private static double CalculateVersionConflictPenalty(string candidateTitle, string queryTitle)
+    {
+        var candidateTags = ExtractVersionTags(candidateTitle);
+        var queryTags = ExtractVersionTags(queryTitle);
+
+        if (candidateTags.SetEquals(queryTags))
+            return 0d;
+
+        if (candidateTags.Count == 0 || queryTags.Count == 0)
+            return 0.25d;
+
+        return 0.20d;
+    }
+
+    private static HashSet<string> ExtractVersionTags(string title)
+    {
+        var normalized = CanonicalTrack.NormalizeForMatch(title);
+        var tags = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (string token in normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            switch (token)
+            {
+                case "live":
+                case "remix":
+                case "mix":
+                case "edit":
+                case "version":
+                case "acoustic":
+                case "instrumental":
+                case "remaster":
+                case "remastered":
+                    tags.Add(token);
+                    break;
+            }
+        }
+
+        return tags;
     }
 
     private static string? NormalizeCode(string? value)

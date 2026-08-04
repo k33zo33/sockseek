@@ -69,8 +69,17 @@ public sealed class CanonicalTrack
             .ToArray();
 
         return string.Join(' ', new string(chars)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(CanonicalizeToken));
     }
+
+    private static string CanonicalizeToken(string token)
+        => token switch
+        {
+            "ft" => "feat",
+            "featuring" => "feat",
+            _ => token,
+        };
 
     private static string Require(string value, string paramName)
         => string.IsNullOrWhiteSpace(value)
