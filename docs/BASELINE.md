@@ -43,7 +43,13 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-### 4.4. Baseline sync gate
+### 4.4. Sprint 0 development base
+
+Sprint 0 currently treats commit `21066a6` (`docs: close out sprint 0 baseline validation`) on branch `codex/sprint-00-baseline-sync` as the validated development base built on top of synchronized upstream commit `7bcc1909e24083453716fda38a23e6663c0b78d6`.
+
+This is the commit that should be referenced in the first Sprint 0 PR until a later reviewed commit intentionally supersedes it.
+
+### 4.5. Baseline sync gate
 
 Prije prvog funkcionalnog sprinta Codex mora zaključati reproducibilnu početnu točku. Ovaj gate sprječava da se UI i novi application sloj grade nad nepoznatom ili djelomično sinkroniziranom verzijom enginea.
 
