@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "dependencies": {
     "net10.0": {
       "Microsoft.CodeAnalysis.CSharp": {
@@ -80,20 +80,6 @@
           "Newtonsoft.Json": "13.0.4"
         }
       },
-      "Google.Apis.YouTube.v3": {
-        "type": "Transitive",
-        "resolved": "1.75.0.4176",
-        "contentHash": "Q5Hc5Qwg9EOc9OBvowxj93Nb1hx4kKbXC2ohbDclVSx1uIvyqbZtA4bDGaCCxGgq+BUyyaGSCloJqRqk+X7Y6g==",
-        "dependencies": {
-          "Google.Apis": "1.75.0",
-          "Google.Apis.Auth": "1.75.0"
-        }
-      },
-      "HtmlAgilityPack": {
-        "type": "Transitive",
-        "resolved": "1.12.4",
-        "contentHash": "ljqvBabvFwKoLniuoQKO8b5bJfJweKLs4fUNS/V5dsvpo0A8MlJqxxn9XVmP2DaskbUXty6IYaWAi1SArGIMeQ=="
-      },
       "JsonExtensions": {
         "type": "Transitive",
         "resolved": "1.2.0",
@@ -134,16 +120,6 @@
         "type": "Transitive",
         "resolved": "10.0.9",
         "contentHash": "g41l/30G3K4B/d/L8kjux0+30e27c8D0FVQ/PFCpbekgfDpj9mnDhieP67EqXWvl1EWNeZh2rpR4F5B/jcDOHA=="
-      },
-      "Microsoft.Extensions.Logging": {
-        "type": "Transitive",
-        "resolved": "10.0.9",
-        "contentHash": "N7Gm9SjugYjmmnhwbBKC9DFqGqjfJvh6YfOJgtwh0AW0Xpok3dIVors1ik050XmUxKAgAc7nNngDIJyFb06K2g==",
-        "dependencies": {
-          "Microsoft.Extensions.DependencyInjection": "10.0.9",
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.9",
-          "Microsoft.Extensions.Options": "10.0.9"
-        }
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "Transitive",
@@ -233,33 +209,6 @@
         "resolved": "13.0.4",
         "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
       },
-      "SmallestCSVParser": {
-        "type": "Transitive",
-        "resolved": "1.2.0",
-        "contentHash": "yCc84rzTlnXPEJnrMo7QQUXcnG0em1NAN7BQZxhksvxUo7SGnTW+ya86R34q3EwoUV+hZ4ZoRiLAyEmY7254hA=="
-      },
-      "Soulseek": {
-        "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "A28TCGK2PDUXohKXCRTjU+hECLrF1IM9fkHcbF4WgP++OTPlngHDlDSp243LZ2x2O7l7RDypYtUYrsRgre5xoA=="
-      },
-      "SpotifyAPI.Web": {
-        "type": "Transitive",
-        "resolved": "7.4.2",
-        "contentHash": "DxyIO+oxI7gyqyGJ5QzVWf31JInRDRhqGtTXIKX6HUJBie+aR+OuB4bFSYWNVO6GL4V+Tm3PQBKNBa+UJzchOA==",
-        "dependencies": {
-          "Newtonsoft.Json": "13.0.3"
-        }
-      },
-      "SpotifyAPI.Web.Auth": {
-        "type": "Transitive",
-        "resolved": "7.4.2",
-        "contentHash": "+Og2S4d8Q/lrZsBXlgPt0FieigtzVHj1Lg6+eDF+5RwVpKsfwQjW7aVfaDyktVCo56T2qOBjbqC/XluIxXGJgQ==",
-        "dependencies": {
-          "EmbedIO": "3.5.2",
-          "SpotifyAPI.Web": "7.4.2"
-        }
-      },
       "System.CodeDom": {
         "type": "Transitive",
         "resolved": "7.0.0",
@@ -273,24 +222,10 @@
           "System.CodeDom": "7.0.0"
         }
       },
-      "TagLibSharp": {
-        "type": "Transitive",
-        "resolved": "2.3.0",
-        "contentHash": "Qo4z6ZjnIfbR3Us1Za5M2vQ97OWZPmODvVmepxZ8XW0UIVLGdO2T63/N3b23kCcyiwuIe0TQvMEQG8wUCCD1mA=="
-      },
       "Unosquare.Swan.Lite": {
         "type": "Transitive",
         "resolved": "3.1.0",
         "contentHash": "X3s5QE/KMj3WAPFqFve7St+Ds10BB50u8kW8PmKIn7FVkn7yEXe9Yxr2htt1WV85DRqfFR0MN/BUNHkGHtL4OQ=="
-      },
-      "YoutubeExplode": {
-        "type": "Transitive",
-        "resolved": "6.6.0",
-        "contentHash": "DCFAmPvADs/ZB3pB24kLFzVY/1o6iECqJ7IL9LKi4zkSZLgcXDwFbOJe3vd2K3FBw36Xa3O/QMv10zelT7hjfA==",
-        "dependencies": {
-          "AngleSharp": "1.4.0",
-          "JsonExtensions": "1.2.0"
-        }
       },
       "sockseek.core": {
         "type": "Project",
@@ -304,6 +239,80 @@
           "SpotifyAPI.Web.Auth": "[7.4.2, )",
           "TagLibSharp": "[2.3.0, )",
           "YoutubeExplode": "[6.6.0, )"
+        }
+      },
+      "Google.Apis.YouTube.v3": {
+        "type": "CentralTransitive",
+        "requested": "[1.75.0.4176, )",
+        "resolved": "1.75.0.4176",
+        "contentHash": "Q5Hc5Qwg9EOc9OBvowxj93Nb1hx4kKbXC2ohbDclVSx1uIvyqbZtA4bDGaCCxGgq+BUyyaGSCloJqRqk+X7Y6g==",
+        "dependencies": {
+          "Google.Apis": "1.75.0",
+          "Google.Apis.Auth": "1.75.0"
+        }
+      },
+      "HtmlAgilityPack": {
+        "type": "CentralTransitive",
+        "requested": "[1.12.4, )",
+        "resolved": "1.12.4",
+        "contentHash": "ljqvBabvFwKoLniuoQKO8b5bJfJweKLs4fUNS/V5dsvpo0A8MlJqxxn9XVmP2DaskbUXty6IYaWAi1SArGIMeQ=="
+      },
+      "Microsoft.Extensions.Logging": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.9, )",
+        "resolved": "10.0.9",
+        "contentHash": "N7Gm9SjugYjmmnhwbBKC9DFqGqjfJvh6YfOJgtwh0AW0Xpok3dIVors1ik050XmUxKAgAc7nNngDIJyFb06K2g==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection": "10.0.9",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.9",
+          "Microsoft.Extensions.Options": "10.0.9"
+        }
+      },
+      "SmallestCSVParser": {
+        "type": "CentralTransitive",
+        "requested": "[1.2.0, )",
+        "resolved": "1.2.0",
+        "contentHash": "yCc84rzTlnXPEJnrMo7QQUXcnG0em1NAN7BQZxhksvxUo7SGnTW+ya86R34q3EwoUV+hZ4ZoRiLAyEmY7254hA=="
+      },
+      "Soulseek": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.2, )",
+        "resolved": "10.0.2",
+        "contentHash": "A28TCGK2PDUXohKXCRTjU+hECLrF1IM9fkHcbF4WgP++OTPlngHDlDSp243LZ2x2O7l7RDypYtUYrsRgre5xoA=="
+      },
+      "SpotifyAPI.Web": {
+        "type": "CentralTransitive",
+        "requested": "[7.4.2, )",
+        "resolved": "7.4.2",
+        "contentHash": "DxyIO+oxI7gyqyGJ5QzVWf31JInRDRhqGtTXIKX6HUJBie+aR+OuB4bFSYWNVO6GL4V+Tm3PQBKNBa+UJzchOA==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3"
+        }
+      },
+      "SpotifyAPI.Web.Auth": {
+        "type": "CentralTransitive",
+        "requested": "[7.4.2, )",
+        "resolved": "7.4.2",
+        "contentHash": "+Og2S4d8Q/lrZsBXlgPt0FieigtzVHj1Lg6+eDF+5RwVpKsfwQjW7aVfaDyktVCo56T2qOBjbqC/XluIxXGJgQ==",
+        "dependencies": {
+          "EmbedIO": "3.5.2",
+          "SpotifyAPI.Web": "7.4.2"
+        }
+      },
+      "TagLibSharp": {
+        "type": "CentralTransitive",
+        "requested": "[2.3.0, )",
+        "resolved": "2.3.0",
+        "contentHash": "Qo4z6ZjnIfbR3Us1Za5M2vQ97OWZPmODvVmepxZ8XW0UIVLGdO2T63/N3b23kCcyiwuIe0TQvMEQG8wUCCD1mA=="
+      },
+      "YoutubeExplode": {
+        "type": "CentralTransitive",
+        "requested": "[6.6.0, )",
+        "resolved": "6.6.0",
+        "contentHash": "DCFAmPvADs/ZB3pB24kLFzVY/1o6iECqJ7IL9LKi4zkSZLgcXDwFbOJe3vd2K3FBw36Xa3O/QMv10zelT7hjfA==",
+        "dependencies": {
+          "AngleSharp": "1.4.0",
+          "JsonExtensions": "1.2.0"
         }
       }
     }
