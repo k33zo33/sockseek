@@ -12,10 +12,10 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 0
-  slug: baseline-upstream-agpl
-  file: docs/sprints/sprint-00-baseline-upstream-agpl.md
-  status: completed
+  id: 1
+  slug: architecture-foundation
+  file: docs/sprints/sprint-01-architecture-foundation.md
+  status: in_progress
 
 completed_sprints:
   - 0
