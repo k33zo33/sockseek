@@ -12,15 +12,16 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 3
-  slug: domain-sqlite-persistence
-  file: docs/sprints/sprint-03-domain-sqlite-persistence.md
+  id: 4
+  slug: avalonia-desktop-shell
+  file: docs/sprints/sprint-04-avalonia-desktop-shell.md
   status: in_progress
 
 completed_sprints:
   - 0
   - 1
   - 2
+  - 3
 blocked_by: []
 
 locked_decisions:
