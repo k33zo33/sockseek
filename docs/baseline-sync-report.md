@@ -12,7 +12,7 @@
 - `master` preserved at the documented baseline commit
 - `codex/sprint-00-baseline-sync` fast-forwarded to `upstream/master`
 - Codex planning/docs package replayed on top of the Sprint 0 branch
-- current validated Sprint 0 development-base commit: `21066a6` (`docs: close out sprint 0 baseline validation`)
+- current validated Sprint 0 development-base commit: `f788bda` (`docs: record sprint 0 development base`)
 
 ## Validation
 
