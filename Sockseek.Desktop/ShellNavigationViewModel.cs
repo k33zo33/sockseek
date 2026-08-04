@@ -14,20 +14,40 @@ public sealed class ShellNavigationViewModel
             ["Ctrl+,"] = ShellSection.Settings,
         };
 
+    private static readonly IReadOnlyDictionary<ShellSection, ShellPageViewModel> Pages =
+        new Dictionary<ShellSection, ShellPageViewModel>
+        {
+            [ShellSection.Home] = new(ShellSection.Home, "Home", "Backend status, recent activity, and onboarding live here."),
+            [ShellSection.Search] = new(ShellSection.Search, "Search", "Track and album search UI will appear here."),
+            [ShellSection.Playlists] = new(ShellSection.Playlists, "Playlists", "Imported playlists and resolution progress will appear here."),
+            [ShellSection.Library] = new(ShellSection.Library, "Library", "Local library browsing and scans will appear here."),
+            [ShellSection.Downloads] = new(ShellSection.Downloads, "Downloads", "Active and completed download workflows will appear here."),
+            [ShellSection.Accounts] = new(ShellSection.Accounts, "Accounts", "Provider connections and authorization status will appear here."),
+            [ShellSection.Settings] = new(ShellSection.Settings, "Settings", "Theme, daemon, and library preferences will appear here."),
+        };
+
     public ShellNavigationViewModel()
     {
         Items = Enum.GetValues<ShellSection>()
             .Select(section => new ShellNavigationItem(section, GetDisplayName(section)))
             .ToArray();
-        CurrentSection = ShellSection.Home;
+        PlayerBar = new PlayerBarPlaceholderViewModel();
+        NavigateTo(ShellSection.Home);
     }
 
     public IReadOnlyList<ShellNavigationItem> Items { get; }
 
     public ShellSection CurrentSection { get; private set; }
 
+    public ShellPageViewModel CurrentPage { get; private set; } = Pages[ShellSection.Home];
+
+    public PlayerBarPlaceholderViewModel PlayerBar { get; }
+
     public void NavigateTo(ShellSection section)
-        => CurrentSection = section;
+    {
+        CurrentSection = section;
+        CurrentPage = Pages[section];
+    }
 
     public bool TryHandleShortcut(string shortcut)
     {
