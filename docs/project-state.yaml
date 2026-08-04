@@ -12,13 +12,14 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 1
-  slug: architecture-foundation
-  file: docs/sprints/sprint-01-architecture-foundation.md
+  id: 2
+  slug: soulseek-gateway-local-api-security
+  file: docs/sprints/sprint-02-soulseek-gateway-local-api-security.md
   status: in_progress
 
 completed_sprints:
   - 0
+  - 1
 blocked_by: []
 
 locked_decisions:
