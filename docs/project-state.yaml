@@ -12,14 +12,15 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 2
-  slug: soulseek-gateway-local-api-security
-  file: docs/sprints/sprint-02-soulseek-gateway-local-api-security.md
+  id: 3
+  slug: domain-sqlite-persistence
+  file: docs/sprints/sprint-03-domain-sqlite-persistence.md
   status: in_progress
 
 completed_sprints:
   - 0
   - 1
+  - 2
 blocked_by: []
 
 locked_decisions:
