@@ -40,6 +40,16 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string? CopyDiagnosticsHintResourceKey => StatusBanner.CopyDiagnosticsHintResourceKey;
 
+    public bool CanStartDaemon => Session.CanStartDaemon && Shell.BackendState is BackendConnectionState.Disconnected or BackendConnectionState.Unauthorized;
+
+    public string StartDaemonLabel => DesktopStringResources.Get("Shell.Backend.Action.StartDaemon.Label");
+
+    public string StartDaemonLabelResourceKey { get; } = "Shell.Backend.Action.StartDaemon.Label";
+
+    public string StartDaemonHint => DesktopStringResources.Get("Shell.Backend.Action.StartDaemon.Hint");
+
+    public string StartDaemonHintResourceKey { get; } = "Shell.Backend.Action.StartDaemon.Hint";
+
     public string DiagnosticsText => CreateDiagnosticsText();
 
     public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
@@ -78,6 +88,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.BackendState):
+                OnPropertyChanged(nameof(CanStartDaemon));
+                OnPropertyChanged(nameof(DiagnosticsText));
+                break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;

@@ -24,6 +24,11 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.IsFalse(viewModel.CanCopyDiagnostics);
         Assert.IsNull(viewModel.CopyDiagnosticsLabel);
+        Assert.IsFalse(viewModel.CanStartDaemon);
+        Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
+        Assert.AreEqual("Shell.Backend.Action.StartDaemon.Label", viewModel.StartDaemonLabelResourceKey);
+        Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
+        Assert.AreEqual("Shell.Backend.Action.StartDaemon.Hint", viewModel.StartDaemonHintResourceKey);
         StringAssert.Contains(viewModel.DiagnosticsText, "Page: Home");
     }
 
@@ -47,6 +52,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.IsTrue(viewModel.CanCopyDiagnostics);
+        Assert.IsFalse(viewModel.CanStartDaemon);
         Assert.AreEqual("Copy diagnostics", viewModel.CopyDiagnosticsLabel);
         Assert.AreEqual("Shell.Backend.Action.CopyDiagnostics.Label", viewModel.CopyDiagnosticsLabelResourceKey);
         Assert.AreEqual("Copy backend diagnostics", viewModel.CopyDiagnosticsHint);
@@ -56,6 +62,45 @@ public sealed class DesktopShellWindowViewModelTests
         StringAssert.Contains(viewModel.DiagnosticsText, "Backend state: Disconnected");
         StringAssert.Contains(viewModel.DiagnosticsText, "Backend URL: unavailable");
         Assert.IsFalse(viewModel.DiagnosticsText.Contains("secret-token", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task WindowViewModel_WhenSessionCanLaunchAndBackendDisconnects_ExposesStartDaemonAction()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(new FakeProcessLauncher()),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            workspaceRoot: "/workspace",
+            launchRequestFactory: root => new DesktopDaemonLaunchRequest(
+                "dotnet",
+                "run --project Sockseek.Server/Sockseek.Server.csproj",
+                root,
+                new Dictionary<string, string?>()));
+        var viewModel = new DesktopShellWindowViewModel(session);
+
+        session.Shell.SetBackendState(BackendConnectionState.Disconnected);
+
+        Assert.IsTrue(session.CanStartDaemon);
+        Assert.IsTrue(viewModel.CanStartDaemon);
+        Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
+        Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
+    }
+
+    private sealed class FakeProcessLauncher : IDesktopProcessLauncher
+    {
+        public Task<IDesktopProcessSession> LaunchAsync(DesktopDaemonLaunchRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult<IDesktopProcessSession>(new FakeProcessSession());
+    }
+
+    private sealed class FakeProcessSession : IDesktopProcessSession
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public async IAsyncEnumerable<string> ReadOutputLinesAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            yield break;
+        }
     }
 
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection

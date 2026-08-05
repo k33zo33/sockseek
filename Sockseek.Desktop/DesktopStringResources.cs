@@ -63,7 +63,9 @@ public static class DesktopStringResources
         ["Shell.Backend.Unknown.Message"] = "Sockseek cannot determine backend state yet.",
         ["Shell.Backend.Unknown.IconLabel"] = "Backend unknown status",
         ["Shell.Backend.Action.CopyDiagnostics.Label"] = "Copy diagnostics",
-        ["Shell.Backend.Action.CopyDiagnostics.Hint"] = "Copy backend diagnostics"
+        ["Shell.Backend.Action.CopyDiagnostics.Hint"] = "Copy backend diagnostics",
+        ["Shell.Backend.Action.StartDaemon.Label"] = "Start local daemon",
+        ["Shell.Backend.Action.StartDaemon.Hint"] = "Try starting the local daemon again"
     };
 
     public static string Get(string resourceKey)
