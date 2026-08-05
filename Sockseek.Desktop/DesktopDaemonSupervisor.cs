@@ -1,10 +1,11 @@
 namespace Sockseek.Desktop;
 
-public sealed class DesktopDaemonSupervisor
+public sealed class DesktopDaemonSupervisor : IAsyncDisposable
 {
     public event EventHandler<DesktopDaemonSupervisorSnapshot>? SnapshotChanged;
 
     private readonly IDesktopProcessLauncher? processLauncher;
+    private IDesktopProcessSession? activeSession;
 
     public DesktopDaemonSupervisor(IDesktopProcessLauncher? processLauncher = null)
         => this.processLauncher = processLauncher;
@@ -23,14 +24,18 @@ public sealed class DesktopDaemonSupervisor
             return false;
 
         ResetToStarting();
-        await using var session = await processLauncher.LaunchAsync(request, cancellationToken);
+        await DisposeActiveSessionAsync();
+
+        var session = await processLauncher.LaunchAsync(request, cancellationToken);
         var handshake = await DesktopDaemonStartupParser.WaitForHandshakeAsync(session.ReadOutputLinesAsync(cancellationToken), cancellationToken);
         if (handshake is null)
         {
+            await session.DisposeAsync();
             MarkDisconnected();
             return false;
         }
 
+        activeSession = session;
         CurrentHandshake = handshake;
         State = BackendConnectionState.Connected;
         OnSnapshotChanged();
@@ -74,6 +79,19 @@ public sealed class DesktopDaemonSupervisor
         CurrentHandshake = null;
         State = BackendConnectionState.Starting;
         OnSnapshotChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+        => await DisposeActiveSessionAsync();
+
+    private async ValueTask DisposeActiveSessionAsync()
+    {
+        if (activeSession is null)
+            return;
+
+        var session = activeSession;
+        activeSession = null;
+        await session.DisposeAsync();
     }
 
     private void OnSnapshotChanged()

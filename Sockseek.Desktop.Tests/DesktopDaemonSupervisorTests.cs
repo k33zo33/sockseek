@@ -120,7 +120,7 @@ public class DesktopDaemonSupervisorTests
             "booting",
             "SOCKSEEK_DAEMON_HANDSHAKE={\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"launch-token\"}"
         ]);
-        var supervisor = new DesktopDaemonSupervisor(launcher);
+        await using var supervisor = new DesktopDaemonSupervisor(launcher);
 
         var launched = await supervisor.TryLaunchAsync(new DesktopDaemonLaunchRequest(
             "dotnet",
@@ -133,13 +133,14 @@ public class DesktopDaemonSupervisorTests
         Assert.IsNotNull(supervisor.CurrentHandshake);
         Assert.AreEqual("launch-token", supervisor.CurrentHandshake.SessionToken);
         Assert.AreEqual("dotnet", launcher.LastRequest?.FileName);
+        Assert.IsFalse(launcher.Sessions.Single().Disposed);
     }
 
     [TestMethod]
     public async Task TryLaunchAsync_NoHandshakeOutput_TransitionsToDisconnected()
     {
         var launcher = new FakeProcessLauncher(["booting", "still booting"]);
-        var supervisor = new DesktopDaemonSupervisor(launcher);
+        await using var supervisor = new DesktopDaemonSupervisor(launcher);
 
         var launched = await supervisor.TryLaunchAsync(new DesktopDaemonLaunchRequest(
             "dotnet",
@@ -150,22 +151,75 @@ public class DesktopDaemonSupervisorTests
         Assert.IsFalse(launched);
         Assert.AreEqual(BackendConnectionState.Disconnected, supervisor.State);
         Assert.IsNull(supervisor.CurrentHandshake);
+        Assert.IsTrue(launcher.Sessions.Single().Disposed);
     }
 
-    private sealed class FakeProcessLauncher(params string[] outputLines) : IDesktopProcessLauncher
+    [TestMethod]
+    public async Task DisposeAsync_AfterSuccessfulLaunch_DisposesActiveSession()
     {
+        var launcher = new FakeProcessLauncher([
+            "SOCKSEEK_DAEMON_HANDSHAKE={\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"launch-token\"}"
+        ]);
+        var supervisor = new DesktopDaemonSupervisor(launcher);
+
+        await supervisor.TryLaunchAsync(new DesktopDaemonLaunchRequest(
+            "dotnet",
+            "run",
+            "/tmp",
+            new Dictionary<string, string?>()));
+
+        await supervisor.DisposeAsync();
+
+        Assert.IsTrue(launcher.Sessions.Single().Disposed);
+    }
+
+    [TestMethod]
+    public async Task TryLaunchAsync_SecondLaunch_DisposesPreviousSessionBeforeReplacingIt()
+    {
+        var launcher = new FakeProcessLauncher(
+            ["SOCKSEEK_DAEMON_HANDSHAKE={\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"first-token\"}"],
+            ["SOCKSEEK_DAEMON_HANDSHAKE={\"BaseUrl\":\"http://127.0.0.1:5040\",\"SessionToken\":\"second-token\"}"]);
+        await using var supervisor = new DesktopDaemonSupervisor(launcher);
+
+        await supervisor.TryLaunchAsync(new DesktopDaemonLaunchRequest("dotnet", "run", "/tmp", new Dictionary<string, string?>()));
+        var firstSession = launcher.Sessions[0];
+
+        await supervisor.TryLaunchAsync(new DesktopDaemonLaunchRequest("dotnet", "run", "/tmp", new Dictionary<string, string?>()));
+
+        Assert.IsTrue(firstSession.Disposed);
+        Assert.AreEqual("second-token", supervisor.CurrentHandshake?.SessionToken);
+        Assert.IsFalse(launcher.Sessions[1].Disposed);
+    }
+
+    private sealed class FakeProcessLauncher : IDesktopProcessLauncher
+    {
+        private readonly Queue<string[]> sessionOutputs;
+
+        public FakeProcessLauncher(params string[][] sessionOutputs)
+            => this.sessionOutputs = new Queue<string[]>(sessionOutputs);
+
         public DesktopDaemonLaunchRequest? LastRequest { get; private set; }
+
+        public List<FakeProcessSession> Sessions { get; } = [];
 
         public Task<IDesktopProcessSession> LaunchAsync(DesktopDaemonLaunchRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
-            return Task.FromResult<IDesktopProcessSession>(new FakeProcessSession(outputLines));
+            var session = new FakeProcessSession(sessionOutputs.Dequeue());
+            Sessions.Add(session);
+            return Task.FromResult<IDesktopProcessSession>(session);
         }
     }
 
     private sealed class FakeProcessSession(params string[] outputLines) : IDesktopProcessSession
     {
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public bool Disposed { get; private set; }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
 
         public async IAsyncEnumerable<string> ReadOutputLinesAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
