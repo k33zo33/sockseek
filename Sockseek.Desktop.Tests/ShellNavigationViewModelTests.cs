@@ -25,6 +25,7 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual("Shell.Backend.Starting.Message", viewModel.StatusBanner.MessageResourceKey);
         Assert.AreEqual("Shell.Backend.Starting.IconLabel", viewModel.StatusBanner.IconAccessibilityLabelResourceKey);
         Assert.AreEqual("Backend starting status", viewModel.StatusBanner.IconAccessibilityLabel);
+        Assert.IsFalse(viewModel.StatusBanner.CanCopyDiagnostics);
         Assert.IsFalse(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual(DesktopDesignTokens.Surface.CommandPalette, viewModel.CommandPalette.SurfaceToken);
         CollectionAssert.AreEqual(
@@ -163,6 +164,7 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(GetExpectedBannerSurfaceToken(state), viewModel.StatusBanner.SurfaceToken);
         Assert.AreEqual(GetExpectedBannerTitleResourceKey(state), viewModel.StatusBanner.TitleResourceKey);
         Assert.AreEqual(GetExpectedBannerIconLabelResourceKey(state), viewModel.StatusBanner.IconAccessibilityLabelResourceKey);
+        Assert.AreEqual(ShouldExposeCopyDiagnostics(state), viewModel.StatusBanner.CanCopyDiagnostics);
     }
 
     [TestMethod]
@@ -297,4 +299,7 @@ public class ShellNavigationViewModelTests
             BackendConnectionState.Unauthorized => "Shell.Backend.Unauthorized.IconLabel",
             _ => "Shell.Backend.Unknown.IconLabel"
         };
+
+    private static bool ShouldExposeCopyDiagnostics(BackendConnectionState state)
+        => state is BackendConnectionState.Restarting or BackendConnectionState.Disconnected or BackendConnectionState.Unauthorized;
 }

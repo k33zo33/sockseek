@@ -61,7 +61,9 @@ public static class DesktopStringResources
         ["Shell.Backend.Unauthorized.IconLabel"] = "Backend session expired status",
         ["Shell.Backend.Unknown.Title"] = "Backend status unknown",
         ["Shell.Backend.Unknown.Message"] = "Sockseek cannot determine backend state yet.",
-        ["Shell.Backend.Unknown.IconLabel"] = "Backend unknown status"
+        ["Shell.Backend.Unknown.IconLabel"] = "Backend unknown status",
+        ["Shell.Backend.Action.CopyDiagnostics.Label"] = "Copy diagnostics",
+        ["Shell.Backend.Action.CopyDiagnostics.Hint"] = "Copy backend diagnostics"
     };
 
     public static string Get(string resourceKey)

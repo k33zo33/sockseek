@@ -237,6 +237,9 @@ public sealed class ShellNavigationViewModel : ObservableObject
         string iconToken)
     {
         var iconAccessibilityLabelResourceKey = titleResourceKey.Replace(".Title", ".IconLabel", StringComparison.Ordinal);
+        var canCopyDiagnostics = state is BackendConnectionState.Restarting or BackendConnectionState.Disconnected or BackendConnectionState.Unauthorized;
+        const string copyDiagnosticsLabelResourceKey = "Shell.Backend.Action.CopyDiagnostics.Label";
+        const string copyDiagnosticsHintResourceKey = "Shell.Backend.Action.CopyDiagnostics.Hint";
 
         return new(
             state,
@@ -248,7 +251,12 @@ public sealed class ShellNavigationViewModel : ObservableObject
             titleResourceKey,
             messageResourceKey,
             DesktopStringResources.Get(iconAccessibilityLabelResourceKey),
-            iconAccessibilityLabelResourceKey);
+            iconAccessibilityLabelResourceKey,
+            canCopyDiagnostics,
+            canCopyDiagnostics ? DesktopStringResources.Get(copyDiagnosticsLabelResourceKey) : null,
+            canCopyDiagnostics ? copyDiagnosticsLabelResourceKey : null,
+            canCopyDiagnostics ? DesktopStringResources.Get(copyDiagnosticsHintResourceKey) : null,
+            canCopyDiagnostics ? copyDiagnosticsHintResourceKey : null);
     }
 
     private static string GetIconToken(ShellSection section)

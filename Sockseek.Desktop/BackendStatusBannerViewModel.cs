@@ -12,7 +12,12 @@ public sealed class BackendStatusBannerViewModel
         string titleResourceKey,
         string messageResourceKey,
         string iconAccessibilityLabel,
-        string iconAccessibilityLabelResourceKey)
+        string iconAccessibilityLabelResourceKey,
+        bool canCopyDiagnostics,
+        string? copyDiagnosticsLabel,
+        string? copyDiagnosticsLabelResourceKey,
+        string? copyDiagnosticsHint,
+        string? copyDiagnosticsHintResourceKey)
     {
         State = state;
         Title = title;
@@ -24,6 +29,11 @@ public sealed class BackendStatusBannerViewModel
         MessageResourceKey = messageResourceKey;
         IconAccessibilityLabel = iconAccessibilityLabel;
         IconAccessibilityLabelResourceKey = iconAccessibilityLabelResourceKey;
+        CanCopyDiagnostics = canCopyDiagnostics;
+        CopyDiagnosticsLabel = copyDiagnosticsLabel;
+        CopyDiagnosticsLabelResourceKey = copyDiagnosticsLabelResourceKey;
+        CopyDiagnosticsHint = copyDiagnosticsHint;
+        CopyDiagnosticsHintResourceKey = copyDiagnosticsHintResourceKey;
     }
 
     public BackendConnectionState State { get; }
@@ -45,6 +55,16 @@ public sealed class BackendStatusBannerViewModel
     public string IconAccessibilityLabel { get; }
 
     public string IconAccessibilityLabelResourceKey { get; }
+
+    public bool CanCopyDiagnostics { get; }
+
+    public string? CopyDiagnosticsLabel { get; }
+
+    public string? CopyDiagnosticsLabelResourceKey { get; }
+
+    public string? CopyDiagnosticsHint { get; }
+
+    public string? CopyDiagnosticsHintResourceKey { get; }
 
     public string TitleTypographyToken { get; } = DesktopDesignTokens.Typography.BannerTitle;
 
