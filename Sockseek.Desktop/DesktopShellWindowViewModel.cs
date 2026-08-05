@@ -52,6 +52,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string DiagnosticsText => CreateDiagnosticsText();
 
+    public Task<bool> TryStartDaemonAsync(CancellationToken cancellationToken = default)
+        => CanStartDaemon
+            ? Session.StartAsync(cancellationToken)
+            : Task.FromResult(false);
+
     public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
         => new(
             WindowTitle,

@@ -86,20 +86,63 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
     }
 
-    private sealed class FakeProcessLauncher : IDesktopProcessLauncher
+    [TestMethod]
+    public async Task TryStartDaemonAsync_WhenStartIsUnavailable_ReturnsFalse()
     {
-        public Task<IDesktopProcessSession> LaunchAsync(DesktopDaemonLaunchRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult<IDesktopProcessSession>(new FakeProcessSession());
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+
+        var started = await viewModel.TryStartDaemonAsync();
+
+        Assert.IsFalse(started);
+        Assert.AreEqual(BackendConnectionState.Starting, session.Shell.BackendState);
     }
 
-    private sealed class FakeProcessSession : IDesktopProcessSession
+    [TestMethod]
+    public async Task TryStartDaemonAsync_WhenAvailable_StartsDaemonThroughSession()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(new FakeProcessLauncher(
+                "SOCKSEEK_DAEMON_HANDSHAKE={\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token-1\"}")),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            workspaceRoot: "/workspace",
+            launchRequestFactory: root => new DesktopDaemonLaunchRequest(
+                "dotnet",
+                "run --project Sockseek.Server/Sockseek.Server.csproj",
+                root,
+                new Dictionary<string, string?>()));
+        var viewModel = new DesktopShellWindowViewModel(session);
+        session.Shell.SetBackendState(BackendConnectionState.Disconnected);
+
+        var started = await viewModel.TryStartDaemonAsync();
+        await session.RecoveryCoordinator.WhenIdleAsync();
+
+        Assert.IsTrue(started);
+        Assert.AreEqual(BackendConnectionState.Connected, session.Shell.BackendState);
+        Assert.IsFalse(viewModel.CanStartDaemon);
+        StringAssert.Contains(viewModel.DiagnosticsText, "Backend state: Connected");
+    }
+
+    private sealed class FakeProcessLauncher(params string[] outputLines) : IDesktopProcessLauncher
+    {
+        public Task<IDesktopProcessSession> LaunchAsync(DesktopDaemonLaunchRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult<IDesktopProcessSession>(new FakeProcessSession(outputLines));
+    }
+
+    private sealed class FakeProcessSession(params string[] outputLines) : IDesktopProcessSession
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public async IAsyncEnumerable<string> ReadOutputLinesAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            await Task.Yield();
-            yield break;
+            foreach (var line in outputLines)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return line;
+                await Task.Yield();
+            }
         }
     }
 
