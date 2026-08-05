@@ -4,6 +4,7 @@ public static class DesktopStringResources
 {
     private static readonly IReadOnlyDictionary<string, string> Strings = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        ["Shell.Window.Title"] = "Sockseek",
         ["Shell.Home.Title"] = "Home",
         ["Shell.Home.Description"] = "Backend status, recent activity, and onboarding live here.",
         ["Shell.Search.Title"] = "Search",
