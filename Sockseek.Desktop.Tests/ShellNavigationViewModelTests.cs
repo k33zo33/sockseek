@@ -119,6 +119,14 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual("Queue", viewModel.PlayerBar.QueueIconAccessibilityLabel);
         Assert.AreEqual("Shell.PlayerBar.Queue.Hint", viewModel.PlayerBar.QueueHintResourceKey);
         Assert.AreEqual("Queue placeholder", viewModel.PlayerBar.QueueHint);
+        Assert.AreEqual("Shell.PlayerBar.Volume.IconLabel", viewModel.PlayerBar.VolumeIconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Volume", viewModel.PlayerBar.VolumeIconAccessibilityLabel);
+        Assert.AreEqual("Shell.PlayerBar.Volume.Hint", viewModel.PlayerBar.VolumeHintResourceKey);
+        Assert.AreEqual("Volume placeholder", viewModel.PlayerBar.VolumeHint);
+        Assert.AreEqual("Shell.PlayerBar.ExpandedPlayer.IconLabel", viewModel.PlayerBar.ExpandedPlayerIconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Expanded player", viewModel.PlayerBar.ExpandedPlayerIconAccessibilityLabel);
+        Assert.AreEqual("Shell.PlayerBar.ExpandedPlayer.Hint", viewModel.PlayerBar.ExpandedPlayerHintResourceKey);
+        Assert.AreEqual("Expanded player placeholder", viewModel.PlayerBar.ExpandedPlayerHint);
         Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBar.SurfaceToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerQueue, viewModel.PlayerBar.QueueIconToken);
     }

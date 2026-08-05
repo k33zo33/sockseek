@@ -44,6 +44,22 @@ public sealed class PlayerBarPlaceholderViewModel
 
     public string QueueHint { get; } = DesktopStringResources.Get("Shell.PlayerBar.Queue.Hint");
 
+    public string VolumeIconAccessibilityLabelResourceKey { get; } = "Shell.PlayerBar.Volume.IconLabel";
+
+    public string VolumeIconAccessibilityLabel { get; } = DesktopStringResources.Get("Shell.PlayerBar.Volume.IconLabel");
+
+    public string VolumeHintResourceKey { get; } = "Shell.PlayerBar.Volume.Hint";
+
+    public string VolumeHint { get; } = DesktopStringResources.Get("Shell.PlayerBar.Volume.Hint");
+
+    public string ExpandedPlayerIconAccessibilityLabelResourceKey { get; } = "Shell.PlayerBar.ExpandedPlayer.IconLabel";
+
+    public string ExpandedPlayerIconAccessibilityLabel { get; } = DesktopStringResources.Get("Shell.PlayerBar.ExpandedPlayer.IconLabel");
+
+    public string ExpandedPlayerHintResourceKey { get; } = "Shell.PlayerBar.ExpandedPlayer.Hint";
+
+    public string ExpandedPlayerHint { get; } = DesktopStringResources.Get("Shell.PlayerBar.ExpandedPlayer.Hint");
+
     public string SurfaceToken { get; } = DesktopDesignTokens.Surface.PlayerBar;
 
     public string TitleTypographyToken { get; } = DesktopDesignTokens.Typography.PlayerTitle;
