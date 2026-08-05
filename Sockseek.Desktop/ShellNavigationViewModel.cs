@@ -1,9 +1,15 @@
 namespace Sockseek.Desktop;
 
-public sealed class ShellNavigationViewModel
+public sealed class ShellNavigationViewModel : ObservableObject
 {
     private readonly DesktopDaemonSupervisor? supervisor;
     private readonly IDesktopThemePreferenceStore themePreferenceStore;
+    private ShellSection currentSection;
+    private ShellPageViewModel currentPage = Pages[ShellSection.Home];
+    private DesktopThemePreference currentTheme;
+    private BackendConnectionState backendState;
+    private BackendStatusBannerViewModel statusBanner = CreateBanner(BackendConnectionState.Starting);
+    private DesktopDaemonHandshake? currentHandshake;
     private static readonly IReadOnlyDictionary<string, ShellSection> ShortcutMap =
         new Dictionary<string, ShellSection>(StringComparer.OrdinalIgnoreCase)
         {
@@ -65,21 +71,45 @@ public sealed class ShellNavigationViewModel
 
     public IReadOnlyList<ShellNavigationItem> Items { get; }
 
-    public ShellSection CurrentSection { get; private set; }
+    public ShellSection CurrentSection
+    {
+        get => currentSection;
+        private set => SetProperty(ref currentSection, value);
+    }
 
-    public ShellPageViewModel CurrentPage { get; private set; } = Pages[ShellSection.Home];
+    public ShellPageViewModel CurrentPage
+    {
+        get => currentPage;
+        private set => SetProperty(ref currentPage, value);
+    }
 
     public PlayerBarPlaceholderViewModel PlayerBar { get; }
 
-    public DesktopThemePreference CurrentTheme { get; private set; }
+    public DesktopThemePreference CurrentTheme
+    {
+        get => currentTheme;
+        private set => SetProperty(ref currentTheme, value);
+    }
 
     public CommandPaletteViewModel CommandPalette { get; }
 
-    public BackendConnectionState BackendState { get; private set; }
+    public BackendConnectionState BackendState
+    {
+        get => backendState;
+        private set => SetProperty(ref backendState, value);
+    }
 
-    public BackendStatusBannerViewModel StatusBanner { get; private set; } = CreateBanner(BackendConnectionState.Starting);
+    public BackendStatusBannerViewModel StatusBanner
+    {
+        get => statusBanner;
+        private set => SetProperty(ref statusBanner, value);
+    }
 
-    public DesktopDaemonHandshake? CurrentHandshake { get; private set; }
+    public DesktopDaemonHandshake? CurrentHandshake
+    {
+        get => currentHandshake;
+        private set => SetProperty(ref currentHandshake, value);
+    }
 
     public void NavigateTo(ShellSection section)
     {

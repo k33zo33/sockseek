@@ -1,8 +1,9 @@
 namespace Sockseek.Desktop;
 
-public sealed class CommandPaletteViewModel
+public sealed class CommandPaletteViewModel : ObservableObject
 {
     private readonly Dictionary<string, CommandPaletteItemViewModel> itemsById;
+    private bool isOpen;
 
     public CommandPaletteViewModel(IReadOnlyList<CommandPaletteItemViewModel> items)
     {
@@ -10,7 +11,11 @@ public sealed class CommandPaletteViewModel
         itemsById = items.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
     }
 
-    public bool IsOpen { get; private set; }
+    public bool IsOpen
+    {
+        get => isOpen;
+        private set => SetProperty(ref isOpen, value);
+    }
 
     public string TitleResourceKey { get; } = "Shell.CommandPalette.Title";
 

@@ -1,8 +1,14 @@
 namespace Sockseek.Desktop;
 
-public sealed class DesktopShellWindowViewModel(DesktopShellSession session)
+public sealed class DesktopShellWindowViewModel : ObservableObject
 {
-    public DesktopShellSession Session { get; } = session ?? throw new ArgumentNullException(nameof(session));
+    public DesktopShellWindowViewModel(DesktopShellSession session)
+    {
+        Session = session ?? throw new ArgumentNullException(nameof(session));
+        Session.Shell.PropertyChanged += HandleShellPropertyChanged;
+    }
+
+    public DesktopShellSession Session { get; }
 
     public string TitleResourceKey { get; } = "Shell.Window.Title";
 
@@ -23,4 +29,21 @@ public sealed class DesktopShellWindowViewModel(DesktopShellSession session)
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
 
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
+
+    private void HandleShellPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        switch (eventArgs.PropertyName)
+        {
+            case nameof(ShellNavigationViewModel.CurrentPage):
+                OnPropertyChanged(nameof(CurrentPage));
+                OnPropertyChanged(nameof(WindowTitle));
+                break;
+            case nameof(ShellNavigationViewModel.CurrentTheme):
+                OnPropertyChanged(nameof(CurrentTheme));
+                break;
+            case nameof(ShellNavigationViewModel.StatusBanner):
+                OnPropertyChanged(nameof(StatusBanner));
+                break;
+        }
+    }
 }
