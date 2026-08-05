@@ -3,6 +3,7 @@ namespace Sockseek.Desktop;
 public sealed class ShellNavigationViewModel
 {
     private readonly DesktopDaemonSupervisor? supervisor;
+    private readonly IDesktopThemePreferenceStore themePreferenceStore;
     private static readonly IReadOnlyDictionary<string, ShellSection> ShortcutMap =
         new Dictionary<string, ShellSection>(StringComparer.OrdinalIgnoreCase)
         {
@@ -18,22 +19,36 @@ public sealed class ShellNavigationViewModel
     private static readonly IReadOnlyDictionary<ShellSection, ShellPageViewModel> Pages =
         new Dictionary<ShellSection, ShellPageViewModel>
         {
-            [ShellSection.Home] = new(ShellSection.Home, "Home", "Backend status, recent activity, and onboarding live here."),
-            [ShellSection.Search] = new(ShellSection.Search, "Search", "Track and album search UI will appear here."),
-            [ShellSection.Playlists] = new(ShellSection.Playlists, "Playlists", "Imported playlists and resolution progress will appear here."),
-            [ShellSection.Library] = new(ShellSection.Library, "Library", "Local library browsing and scans will appear here."),
-            [ShellSection.Downloads] = new(ShellSection.Downloads, "Downloads", "Active and completed download workflows will appear here."),
-            [ShellSection.Accounts] = new(ShellSection.Accounts, "Accounts", "Provider connections and authorization status will appear here."),
-            [ShellSection.Settings] = new(ShellSection.Settings, "Settings", "Theme, daemon, and library preferences will appear here."),
+            [ShellSection.Home] = new(ShellSection.Home, "Home", "Backend status, recent activity, and onboarding live here.", "Shell.Home.Title", "Shell.Home.Description"),
+            [ShellSection.Search] = new(ShellSection.Search, "Search", "Track and album search UI will appear here.", "Shell.Search.Title", "Shell.Search.Description"),
+            [ShellSection.Playlists] = new(ShellSection.Playlists, "Playlists", "Imported playlists and resolution progress will appear here.", "Shell.Playlists.Title", "Shell.Playlists.Description"),
+            [ShellSection.Library] = new(ShellSection.Library, "Library", "Local library browsing and scans will appear here.", "Shell.Library.Title", "Shell.Library.Description"),
+            [ShellSection.Downloads] = new(ShellSection.Downloads, "Downloads", "Active and completed download workflows will appear here.", "Shell.Downloads.Title", "Shell.Downloads.Description"),
+            [ShellSection.Accounts] = new(ShellSection.Accounts, "Accounts", "Provider connections and authorization status will appear here.", "Shell.Accounts.Title", "Shell.Accounts.Description"),
+            [ShellSection.Settings] = new(ShellSection.Settings, "Settings", "Theme, daemon, and library preferences will appear here.", "Shell.Settings.Title", "Shell.Settings.Description"),
         };
 
-    public ShellNavigationViewModel(DesktopDaemonSupervisor? supervisor = null)
+    private static readonly IReadOnlyList<CommandPaletteItemViewModel> CommandPaletteItems =
+        [
+            new("navigate-home", "Go to Home", "Ctrl+1", "Shell.CommandPalette.NavigateHome", ShellSection.Home),
+            new("navigate-search", "Go to Search", "Ctrl+L", "Shell.CommandPalette.NavigateSearch", ShellSection.Search),
+            new("navigate-playlists", "Go to Playlists", "Ctrl+2", "Shell.CommandPalette.NavigatePlaylists", ShellSection.Playlists),
+            new("navigate-library", "Go to Library", "Ctrl+3", "Shell.CommandPalette.NavigateLibrary", ShellSection.Library),
+            new("navigate-downloads", "Go to Downloads", "Ctrl+4", "Shell.CommandPalette.NavigateDownloads", ShellSection.Downloads),
+            new("navigate-accounts", "Go to Accounts", "Ctrl+5", "Shell.CommandPalette.NavigateAccounts", ShellSection.Accounts),
+            new("navigate-settings", "Go to Settings", "Ctrl+,", "Shell.CommandPalette.NavigateSettings", ShellSection.Settings)
+        ];
+
+    public ShellNavigationViewModel(DesktopDaemonSupervisor? supervisor = null, IDesktopThemePreferenceStore? themePreferenceStore = null)
     {
         this.supervisor = supervisor;
+        this.themePreferenceStore = themePreferenceStore ?? new InMemoryDesktopThemePreferenceStore();
         Items = Enum.GetValues<ShellSection>()
             .Select(section => new ShellNavigationItem(section, GetDisplayName(section)))
             .ToArray();
         PlayerBar = new PlayerBarPlaceholderViewModel();
+        CurrentTheme = this.themePreferenceStore.Load();
+        CommandPalette = new CommandPaletteViewModel(CommandPaletteItems);
 
         if (this.supervisor is not null)
         {
@@ -56,6 +71,10 @@ public sealed class ShellNavigationViewModel
 
     public PlayerBarPlaceholderViewModel PlayerBar { get; }
 
+    public DesktopThemePreference CurrentTheme { get; private set; }
+
+    public CommandPaletteViewModel CommandPalette { get; }
+
     public BackendConnectionState BackendState { get; private set; }
 
     public BackendStatusBannerViewModel StatusBanner { get; private set; } = CreateBanner(BackendConnectionState.Starting);
@@ -67,6 +86,16 @@ public sealed class ShellNavigationViewModel
         CurrentSection = section;
         CurrentPage = Pages[section];
     }
+
+    public void SetTheme(DesktopThemePreference preference)
+    {
+        CurrentTheme = preference;
+        themePreferenceStore.Save(preference);
+    }
+
+    public void OpenCommandPalette() => CommandPalette.Open();
+
+    public void CloseCommandPalette() => CommandPalette.Close();
 
     public void SetBackendState(BackendConnectionState state)
     {
@@ -81,7 +110,14 @@ public sealed class ShellNavigationViewModel
         if (string.IsNullOrWhiteSpace(shortcut))
             return false;
 
-        if (!ShortcutMap.TryGetValue(shortcut.Trim(), out var section))
+        var normalizedShortcut = shortcut.Trim();
+        if (string.Equals(normalizedShortcut, "Ctrl+K", StringComparison.OrdinalIgnoreCase))
+        {
+            OpenCommandPalette();
+            return true;
+        }
+
+        if (!ShortcutMap.TryGetValue(normalizedShortcut, out var section))
             return false;
 
         NavigateTo(section);

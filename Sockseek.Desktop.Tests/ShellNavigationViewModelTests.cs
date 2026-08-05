@@ -13,8 +13,11 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.AreEqual("Home", viewModel.CurrentPage.Title);
+        Assert.AreEqual("Shell.Home.Title", viewModel.CurrentPage.TitleResourceKey);
+        Assert.AreEqual(DesktopThemePreference.System, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsTrue(viewModel.StatusBanner.IsVisible);
+        Assert.IsFalse(viewModel.CommandPalette.IsOpen);
         CollectionAssert.AreEqual(
             Enum.GetValues<ShellSection>(),
             viewModel.Items.Select(item => item.Section).ToArray());
@@ -37,6 +40,7 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(handled);
         Assert.AreEqual(expectedSection, viewModel.CurrentSection);
         Assert.AreEqual(expectedSection, viewModel.CurrentPage.Section);
+        Assert.IsFalse(viewModel.CommandPalette.IsOpen);
     }
 
     [TestMethod]
@@ -49,6 +53,19 @@ public class ShellNavigationViewModelTests
         Assert.IsFalse(handled);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
+    }
+
+    [TestMethod]
+    public void TryHandleShortcut_CommandPaletteShortcut_OpensCommandPalette()
+    {
+        var viewModel = new ShellNavigationViewModel();
+
+        var handled = viewModel.TryHandleShortcut("Ctrl+K");
+
+        Assert.IsTrue(handled);
+        Assert.IsTrue(viewModel.CommandPalette.IsOpen);
+        Assert.AreEqual("Shell.CommandPalette.Title", viewModel.CommandPalette.TitleResourceKey);
+        Assert.AreEqual(7, viewModel.CommandPalette.Items.Count);
     }
 
     [TestMethod]
@@ -130,5 +147,20 @@ public class ShellNavigationViewModelTests
         supervisor.MarkUnauthorized();
         Assert.AreEqual(BackendConnectionState.Unauthorized, viewModel.BackendState);
         Assert.AreEqual("Session expired", viewModel.StatusBanner.Title);
+    }
+
+    [TestMethod]
+    public void Constructor_UsesStoredThemePreference_AndPersistsUpdates()
+    {
+        var store = new InMemoryDesktopThemePreferenceStore(DesktopThemePreference.Dark);
+        var firstViewModel = new ShellNavigationViewModel(themePreferenceStore: store);
+
+        Assert.AreEqual(DesktopThemePreference.Dark, firstViewModel.CurrentTheme);
+
+        firstViewModel.SetTheme(DesktopThemePreference.Light);
+        var secondViewModel = new ShellNavigationViewModel(themePreferenceStore: store);
+
+        Assert.AreEqual(DesktopThemePreference.Light, firstViewModel.CurrentTheme);
+        Assert.AreEqual(DesktopThemePreference.Light, secondViewModel.CurrentTheme);
     }
 }
