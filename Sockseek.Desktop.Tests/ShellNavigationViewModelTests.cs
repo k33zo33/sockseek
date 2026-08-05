@@ -33,6 +33,12 @@ public class ShellNavigationViewModelTests
         CollectionAssert.AreEqual(
             Enum.GetValues<ShellSection>().Select(GetExpectedIconToken).ToArray(),
             viewModel.Items.Select(item => item.IconToken).ToArray());
+        CollectionAssert.AreEqual(
+            Enum.GetValues<ShellSection>().Select(GetExpectedTitleResourceKey).ToArray(),
+            viewModel.Items.Select(item => item.DisplayNameResourceKey).ToArray());
+        CollectionAssert.AreEqual(
+            Enum.GetValues<ShellSection>().Select(GetExpectedShortcut).ToArray(),
+            viewModel.Items.Select(item => item.Shortcut).ToArray());
     }
 
     [DataTestMethod]
@@ -52,6 +58,7 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(handled);
         Assert.AreEqual(expectedSection, viewModel.CurrentSection);
         Assert.AreEqual(expectedSection, viewModel.CurrentPage.Section);
+        Assert.AreEqual(GetExpectedShortcut(expectedSection), viewModel.Items.Single(item => item.Section == expectedSection).Shortcut);
         Assert.IsFalse(viewModel.CommandPalette.IsOpen);
     }
 
@@ -120,6 +127,9 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(section, viewModel.CurrentPage.Section);
         Assert.AreEqual(expectedDescription, viewModel.CurrentPage.Description);
         Assert.AreEqual(GetExpectedIconToken(section), viewModel.CurrentPage.IconToken);
+        var navigationItem = viewModel.Items.Single(item => item.Section == section);
+        Assert.AreEqual(GetExpectedTitleResourceKey(section), navigationItem.DisplayNameResourceKey);
+        Assert.AreEqual(GetExpectedHintResourceKey(section), navigationItem.HintResourceKey);
     }
 
     [DataTestMethod]
@@ -201,6 +211,45 @@ public class ShellNavigationViewModelTests
             ShellSection.Downloads => DesktopDesignTokens.Icon.Downloads,
             ShellSection.Accounts => DesktopDesignTokens.Icon.Accounts,
             ShellSection.Settings => DesktopDesignTokens.Icon.Settings,
+            _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
+        };
+
+    private static string GetExpectedTitleResourceKey(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "Shell.Home.Title",
+            ShellSection.Search => "Shell.Search.Title",
+            ShellSection.Playlists => "Shell.Playlists.Title",
+            ShellSection.Library => "Shell.Library.Title",
+            ShellSection.Downloads => "Shell.Downloads.Title",
+            ShellSection.Accounts => "Shell.Accounts.Title",
+            ShellSection.Settings => "Shell.Settings.Title",
+            _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
+        };
+
+    private static string GetExpectedShortcut(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "Ctrl+1",
+            ShellSection.Search => "Ctrl+L",
+            ShellSection.Playlists => "Ctrl+2",
+            ShellSection.Library => "Ctrl+3",
+            ShellSection.Downloads => "Ctrl+4",
+            ShellSection.Accounts => "Ctrl+5",
+            ShellSection.Settings => "Ctrl+,",
+            _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
+        };
+
+    private static string GetExpectedHintResourceKey(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "Shell.Navigation.Home.Hint",
+            ShellSection.Search => "Shell.Navigation.Search.Hint",
+            ShellSection.Playlists => "Shell.Navigation.Playlists.Hint",
+            ShellSection.Library => "Shell.Navigation.Library.Hint",
+            ShellSection.Downloads => "Shell.Navigation.Downloads.Hint",
+            ShellSection.Accounts => "Shell.Navigation.Accounts.Hint",
+            ShellSection.Settings => "Shell.Navigation.Settings.Hint",
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };
 

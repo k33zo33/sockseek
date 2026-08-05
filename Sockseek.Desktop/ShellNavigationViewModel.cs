@@ -50,7 +50,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
         this.supervisor = supervisor;
         this.themePreferenceStore = themePreferenceStore ?? new InMemoryDesktopThemePreferenceStore();
         Items = Enum.GetValues<ShellSection>()
-            .Select(section => new ShellNavigationItem(section, GetDisplayName(section), GetIconToken(section)))
+            .Select(CreateNavigationItem)
             .ToArray();
         PlayerBar = new PlayerBarPlaceholderViewModel();
         CurrentTheme = this.themePreferenceStore.Load();
@@ -181,6 +181,22 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ? page.Title
             : section.ToString();
 
+    private static ShellNavigationItem CreateNavigationItem(ShellSection section)
+    {
+        var titleResourceKey = GetTitleResourceKey(section);
+        var shortcut = GetShortcut(section);
+        var hintResourceKey = GetNavigationHintResourceKey(section);
+
+        return new ShellNavigationItem(
+            section,
+            DesktopStringResources.Get(titleResourceKey),
+            titleResourceKey,
+            GetIconToken(section),
+            shortcut,
+            DesktopStringResources.Get(hintResourceKey),
+            hintResourceKey);
+    }
+
     private static ShellPageViewModel CreatePage(
         ShellSection section,
         string titleResourceKey,
@@ -247,9 +263,55 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ShellSection.Settings => DesktopDesignTokens.Icon.Settings,
             _ => DesktopDesignTokens.Icon.Home,
         };
+
+    private static string GetTitleResourceKey(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "Shell.Home.Title",
+            ShellSection.Search => "Shell.Search.Title",
+            ShellSection.Playlists => "Shell.Playlists.Title",
+            ShellSection.Library => "Shell.Library.Title",
+            ShellSection.Downloads => "Shell.Downloads.Title",
+            ShellSection.Accounts => "Shell.Accounts.Title",
+            ShellSection.Settings => "Shell.Settings.Title",
+            _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
+        };
+
+    private static string GetShortcut(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "Ctrl+1",
+            ShellSection.Search => "Ctrl+L",
+            ShellSection.Playlists => "Ctrl+2",
+            ShellSection.Library => "Ctrl+3",
+            ShellSection.Downloads => "Ctrl+4",
+            ShellSection.Accounts => "Ctrl+5",
+            ShellSection.Settings => "Ctrl+,",
+            _ => string.Empty
+        };
+
+    private static string GetNavigationHintResourceKey(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "Shell.Navigation.Home.Hint",
+            ShellSection.Search => "Shell.Navigation.Search.Hint",
+            ShellSection.Playlists => "Shell.Navigation.Playlists.Hint",
+            ShellSection.Library => "Shell.Navigation.Library.Hint",
+            ShellSection.Downloads => "Shell.Navigation.Downloads.Hint",
+            ShellSection.Accounts => "Shell.Navigation.Accounts.Hint",
+            ShellSection.Settings => "Shell.Navigation.Settings.Hint",
+            _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
+        };
 }
 
-public sealed record ShellNavigationItem(ShellSection Section, string DisplayName, string IconToken)
+public sealed record ShellNavigationItem(
+    ShellSection Section,
+    string DisplayName,
+    string DisplayNameResourceKey,
+    string IconToken,
+    string Shortcut,
+    string Hint,
+    string HintResourceKey)
 {
     public string SurfaceToken { get; } = DesktopDesignTokens.Surface.Sidebar;
 
