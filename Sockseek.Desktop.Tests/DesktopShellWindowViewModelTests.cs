@@ -25,6 +25,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.IsFalse(viewModel.CanCopyDiagnostics);
         Assert.IsNull(viewModel.CopyDiagnosticsLabel);
         Assert.IsFalse(viewModel.CanStartDaemon);
+        Assert.IsFalse(viewModel.IsStartingDaemon);
         Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
         Assert.AreEqual("Shell.Backend.Action.StartDaemon.Label", viewModel.StartDaemonLabelResourceKey);
         Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
@@ -121,8 +122,41 @@ public sealed class DesktopShellWindowViewModelTests
 
         Assert.IsTrue(started);
         Assert.AreEqual(BackendConnectionState.Connected, session.Shell.BackendState);
+        Assert.IsFalse(viewModel.IsStartingDaemon);
         Assert.IsFalse(viewModel.CanStartDaemon);
         StringAssert.Contains(viewModel.DiagnosticsText, "Backend state: Connected");
+    }
+
+    [TestMethod]
+    public async Task TryStartDaemonAsync_WhileLaunching_TogglesBusyStateAndDisablesRepeatStart()
+    {
+        var processSession = new ControllableProcessSession();
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(new ControlledProcessLauncher(processSession)),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            workspaceRoot: "/workspace",
+            launchRequestFactory: root => new DesktopDaemonLaunchRequest(
+                "dotnet",
+                "run --project Sockseek.Server/Sockseek.Server.csproj",
+                root,
+                new Dictionary<string, string?>()));
+        var viewModel = new DesktopShellWindowViewModel(session);
+        session.Shell.SetBackendState(BackendConnectionState.Disconnected);
+
+        var startTask = viewModel.TryStartDaemonAsync();
+        await processSession.WaitUntilReadStartedAsync();
+
+        Assert.IsTrue(viewModel.IsStartingDaemon);
+        Assert.IsFalse(viewModel.CanStartDaemon);
+        Assert.IsFalse(await viewModel.TryStartDaemonAsync());
+
+        processSession.CompleteWith("SOCKSEEK_DAEMON_HANDSHAKE={\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token-2\"}");
+        var started = await startTask;
+        await session.RecoveryCoordinator.WhenIdleAsync();
+
+        Assert.IsTrue(started);
+        Assert.IsFalse(viewModel.IsStartingDaemon);
+        Assert.AreEqual(BackendConnectionState.Connected, session.Shell.BackendState);
     }
 
     private sealed class FakeProcessLauncher(params string[] outputLines) : IDesktopProcessLauncher
@@ -131,12 +165,42 @@ public sealed class DesktopShellWindowViewModelTests
             => Task.FromResult<IDesktopProcessSession>(new FakeProcessSession(outputLines));
     }
 
+    private sealed class ControlledProcessLauncher(ControllableProcessSession session) : IDesktopProcessLauncher
+    {
+        public Task<IDesktopProcessSession> LaunchAsync(DesktopDaemonLaunchRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult<IDesktopProcessSession>(session);
+    }
+
     private sealed class FakeProcessSession(params string[] outputLines) : IDesktopProcessSession
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public async IAsyncEnumerable<string> ReadOutputLinesAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            foreach (var line in outputLines)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return line;
+                await Task.Yield();
+            }
+        }
+    }
+
+    private sealed class ControllableProcessSession : IDesktopProcessSession
+    {
+        private readonly TaskCompletionSource<bool> readStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<string[]> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task WaitUntilReadStartedAsync() => readStarted.Task;
+
+        public void CompleteWith(params string[] outputLines) => completion.TrySetResult(outputLines);
+
+        public async IAsyncEnumerable<string> ReadOutputLinesAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            readStarted.TrySetResult(true);
+            var outputLines = await completion.Task.WaitAsync(cancellationToken);
             foreach (var line in outputLines)
             {
                 cancellationToken.ThrowIfCancellationRequested();

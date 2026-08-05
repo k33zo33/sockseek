@@ -2,6 +2,8 @@ namespace Sockseek.Desktop;
 
 public sealed class DesktopShellWindowViewModel : ObservableObject
 {
+    private bool isStartingDaemon;
+
     public DesktopShellWindowViewModel(DesktopShellSession session)
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
@@ -40,7 +42,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string? CopyDiagnosticsHintResourceKey => StatusBanner.CopyDiagnosticsHintResourceKey;
 
-    public bool CanStartDaemon => Session.CanStartDaemon && Shell.BackendState is BackendConnectionState.Disconnected or BackendConnectionState.Unauthorized;
+    public bool CanStartDaemon => !IsStartingDaemon && Session.CanStartDaemon && Shell.BackendState is BackendConnectionState.Disconnected or BackendConnectionState.Unauthorized;
 
     public string StartDaemonLabel => DesktopStringResources.Get("Shell.Backend.Action.StartDaemon.Label");
 
@@ -50,12 +52,35 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string StartDaemonHintResourceKey { get; } = "Shell.Backend.Action.StartDaemon.Hint";
 
+    public bool IsStartingDaemon
+    {
+        get => isStartingDaemon;
+        private set
+        {
+            if (!SetProperty(ref isStartingDaemon, value))
+                return;
+
+            OnPropertyChanged(nameof(CanStartDaemon));
+        }
+    }
+
     public string DiagnosticsText => CreateDiagnosticsText();
 
-    public Task<bool> TryStartDaemonAsync(CancellationToken cancellationToken = default)
-        => CanStartDaemon
-            ? Session.StartAsync(cancellationToken)
-            : Task.FromResult(false);
+    public async Task<bool> TryStartDaemonAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanStartDaemon)
+            return false;
+
+        IsStartingDaemon = true;
+        try
+        {
+            return await Session.StartAsync(cancellationToken);
+        }
+        finally
+        {
+            IsStartingDaemon = false;
+        }
+    }
 
     public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
         => new(
