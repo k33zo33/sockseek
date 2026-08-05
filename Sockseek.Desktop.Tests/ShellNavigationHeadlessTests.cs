@@ -34,6 +34,31 @@ public sealed class ShellNavigationHeadlessTests
     }
 
     [TestMethod]
+    public void CommandPaletteShortcut_TogglesPaletteOpenAndClosed()
+    {
+        var viewModel = new ShellNavigationViewModel();
+
+        var opened = viewModel.TryHandleShortcut("Ctrl+K");
+        var closed = viewModel.TryHandleShortcut("Ctrl+K");
+
+        Assert.IsTrue(opened);
+        Assert.IsTrue(closed);
+        Assert.IsFalse(viewModel.CommandPalette.IsOpen);
+    }
+
+    [TestMethod]
+    public void DirectNavigation_ClosesOpenCommandPalette()
+    {
+        var viewModel = new ShellNavigationViewModel();
+        viewModel.OpenCommandPalette();
+
+        viewModel.NavigateTo(ShellSection.Downloads);
+
+        Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentSection);
+        Assert.IsFalse(viewModel.CommandPalette.IsOpen);
+    }
+
+    [TestMethod]
     public void ShortcutThenCommandPaletteSelection_ProducesExpectedHeadlessNavigationFlow()
     {
         var viewModel = new ShellNavigationViewModel();

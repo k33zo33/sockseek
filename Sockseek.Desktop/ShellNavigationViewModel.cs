@@ -113,6 +113,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
 
     public void NavigateTo(ShellSection section)
     {
+        CloseCommandPalette();
         CurrentSection = section;
         CurrentPage = Pages[section];
     }
@@ -135,7 +136,6 @@ public sealed class ShellNavigationViewModel : ObservableObject
         if (item.TargetSection is { } targetSection)
             NavigateTo(targetSection);
 
-        CloseCommandPalette();
         return true;
     }
 
@@ -155,7 +155,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
         var normalizedShortcut = shortcut.Trim();
         if (string.Equals(normalizedShortcut, "Ctrl+K", StringComparison.OrdinalIgnoreCase))
         {
-            OpenCommandPalette();
+            CommandPalette.Toggle();
             return true;
         }
 

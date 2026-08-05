@@ -76,13 +76,26 @@ public class ShellNavigationViewModelTests
     }
 
     [TestMethod]
-    public void TryHandleShortcut_CommandPaletteShortcut_OpensCommandPalette()
+    public void TryHandleShortcut_SectionShortcut_ClosesCommandPaletteAfterNavigation()
+    {
+        var viewModel = new ShellNavigationViewModel();
+        viewModel.OpenCommandPalette();
+
+        var handled = viewModel.TryHandleShortcut("Ctrl+4");
+
+        Assert.IsTrue(handled);
+        Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentSection);
+        Assert.IsFalse(viewModel.CommandPalette.IsOpen);
+    }
+
+    [TestMethod]
+    public void TryHandleShortcut_CommandPaletteShortcut_TogglesCommandPalette()
     {
         var viewModel = new ShellNavigationViewModel();
 
-        var handled = viewModel.TryHandleShortcut("Ctrl+K");
+        var opened = viewModel.TryHandleShortcut("Ctrl+K");
 
-        Assert.IsTrue(handled);
+        Assert.IsTrue(opened);
         Assert.IsTrue(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual("Shell.CommandPalette.Title", viewModel.CommandPalette.TitleResourceKey);
         Assert.AreEqual(7, viewModel.CommandPalette.Items.Count);
@@ -92,6 +105,11 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(viewModel.CommandPalette.TryGetItem("navigate-search", out var item));
         Assert.AreEqual("Shell.CommandPalette.NavigateSearch", item?.TitleResourceKey);
         Assert.AreEqual(ShellSection.Search, item?.TargetSection);
+
+        var closed = viewModel.TryHandleShortcut("Ctrl+K");
+
+        Assert.IsTrue(closed);
+        Assert.IsFalse(viewModel.CommandPalette.IsOpen);
     }
 
     [TestMethod]
