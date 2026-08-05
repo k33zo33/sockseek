@@ -16,6 +16,8 @@ public sealed class PlayerBarPlaceholderViewModel
 
     public string PreviousIconAccessibilityLabel { get; } = DesktopStringResources.Get("Shell.PlayerBar.Previous.IconLabel");
 
+    public string PreviousIconToken { get; } = DesktopDesignTokens.Icon.PlayerPrevious;
+
     public bool CanPlayPause { get; } = false;
 
     public string PlayPauseIconAccessibilityLabelResourceKey { get; } = "Shell.PlayerBar.PlayPause.IconLabel";
@@ -26,11 +28,15 @@ public sealed class PlayerBarPlaceholderViewModel
 
     public string PlayPauseHint { get; } = DesktopStringResources.Get("Shell.PlayerBar.PlayPause.Hint");
 
+    public string PlayPauseIconToken { get; } = DesktopDesignTokens.Icon.PlayerPlayPause;
+
     public bool CanGoNext { get; } = false;
 
     public string NextIconAccessibilityLabelResourceKey { get; } = "Shell.PlayerBar.Next.IconLabel";
 
     public string NextIconAccessibilityLabel { get; } = DesktopStringResources.Get("Shell.PlayerBar.Next.IconLabel");
+
+    public string NextIconToken { get; } = DesktopDesignTokens.Icon.PlayerNext;
 
     public string QueueSummaryResourceKey { get; } = "Shell.PlayerBar.QueueSummary";
 

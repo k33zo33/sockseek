@@ -41,6 +41,9 @@ public static class DesktopDesignTokens
         public const string BannerSuccess = "Icon.Banner.Success";
         public const string BannerWarning = "Icon.Banner.Warning";
         public const string BannerDanger = "Icon.Banner.Danger";
+        public const string PlayerPrevious = "Icon.Player.Previous";
+        public const string PlayerPlayPause = "Icon.Player.PlayPause";
+        public const string PlayerNext = "Icon.Player.Next";
         public const string PlayerQueue = "Icon.Player.Queue";
         public const string PlayerVolume = "Icon.Player.Volume";
         public const string PlayerExpanded = "Icon.Player.Expanded";
