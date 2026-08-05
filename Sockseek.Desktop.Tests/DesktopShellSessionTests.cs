@@ -64,6 +64,27 @@ public sealed class DesktopShellSessionTests
         Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, session.RecoveryCoordinator.EventsState);
     }
 
+    [TestMethod]
+    public async Task Session_UsesProvidedThemePreferenceStore_ForCrossSessionPersistence()
+    {
+        var store = new InMemoryDesktopThemePreferenceStore(DesktopThemePreference.System);
+
+        await using (var firstSession = new DesktopShellSession(
+                         supervisor: new DesktopDaemonSupervisor(),
+                         connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+                         themePreferenceStore: store))
+        {
+            firstSession.Shell.SetTheme(DesktopThemePreference.Dark);
+        }
+
+        await using var secondSession = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            themePreferenceStore: store);
+
+        Assert.AreEqual(DesktopThemePreference.Dark, secondSession.Shell.CurrentTheme);
+    }
+
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection
     {
         public DesktopDaemonHandshake Handshake { get; } = handshake;

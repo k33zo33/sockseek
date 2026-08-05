@@ -11,6 +11,7 @@ internal static class Program
             runner,
             options => new DesktopShellSession(
                 supervisor: new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher()),
+                themePreferenceStore: new DesktopFileThemePreferenceStore(DesktopSettingsPaths.GetThemePreferenceFilePath()),
                 workspaceRoot: options.WorkspaceRoot),
             Directory.GetCurrentDirectory);
 
