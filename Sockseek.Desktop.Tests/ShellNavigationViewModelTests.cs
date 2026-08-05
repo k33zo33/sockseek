@@ -13,6 +13,8 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.AreEqual("Home", viewModel.CurrentPage.Title);
+        Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
+        Assert.IsTrue(viewModel.StatusBanner.IsVisible);
         CollectionAssert.AreEqual(
             Enum.GetValues<ShellSection>(),
             viewModel.Items.Select(item => item.Section).ToArray());
@@ -77,5 +79,23 @@ public class ShellNavigationViewModelTests
 
         Assert.AreEqual(section, viewModel.CurrentPage.Section);
         Assert.AreEqual(expectedDescription, viewModel.CurrentPage.Description);
+    }
+
+    [DataTestMethod]
+    [DataRow(BackendConnectionState.Starting, true, "Starting local daemon")]
+    [DataRow(BackendConnectionState.Connected, false, "Connected")]
+    [DataRow(BackendConnectionState.Restarting, true, "Restarting local daemon")]
+    [DataRow(BackendConnectionState.Disconnected, true, "Backend disconnected")]
+    [DataRow(BackendConnectionState.Unauthorized, true, "Session expired")]
+    public void SetBackendState_UpdatesBannerForExpectedUxState(BackendConnectionState state, bool visible, string expectedTitle)
+    {
+        var viewModel = new ShellNavigationViewModel();
+
+        viewModel.SetBackendState(state);
+
+        Assert.AreEqual(state, viewModel.BackendState);
+        Assert.AreEqual(state, viewModel.StatusBanner.State);
+        Assert.AreEqual(visible, viewModel.StatusBanner.IsVisible);
+        Assert.AreEqual(expectedTitle, viewModel.StatusBanner.Title);
     }
 }

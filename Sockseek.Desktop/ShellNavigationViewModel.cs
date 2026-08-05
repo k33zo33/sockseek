@@ -32,6 +32,7 @@ public sealed class ShellNavigationViewModel
             .Select(section => new ShellNavigationItem(section, GetDisplayName(section)))
             .ToArray();
         PlayerBar = new PlayerBarPlaceholderViewModel();
+        SetBackendState(BackendConnectionState.Starting);
         NavigateTo(ShellSection.Home);
     }
 
@@ -43,10 +44,20 @@ public sealed class ShellNavigationViewModel
 
     public PlayerBarPlaceholderViewModel PlayerBar { get; }
 
+    public BackendConnectionState BackendState { get; private set; }
+
+    public BackendStatusBannerViewModel StatusBanner { get; private set; } = CreateBanner(BackendConnectionState.Starting);
+
     public void NavigateTo(ShellSection section)
     {
         CurrentSection = section;
         CurrentPage = Pages[section];
+    }
+
+    public void SetBackendState(BackendConnectionState state)
+    {
+        BackendState = state;
+        StatusBanner = CreateBanner(state);
     }
 
     public bool TryHandleShortcut(string shortcut)
@@ -72,6 +83,17 @@ public sealed class ShellNavigationViewModel
             ShellSection.Accounts => "Accounts",
             ShellSection.Settings => "Settings",
             _ => section.ToString(),
+        };
+
+    private static BackendStatusBannerViewModel CreateBanner(BackendConnectionState state)
+        => state switch
+        {
+            BackendConnectionState.Starting => new(state, "Starting local daemon", "Sockseek is launching the backend and waiting for a secure session.", true),
+            BackendConnectionState.Connected => new(state, "Connected", "Local daemon is ready.", false),
+            BackendConnectionState.Restarting => new(state, "Restarting local daemon", "The backend is restarting. UI actions will resume automatically.", true),
+            BackendConnectionState.Disconnected => new(state, "Backend disconnected", "Sockseek cannot currently reach the local daemon.", true),
+            BackendConnectionState.Unauthorized => new(state, "Session expired", "The desktop shell needs a fresh local session handshake.", true),
+            _ => new(state, "Backend status unknown", "Sockseek cannot determine backend state yet.", true),
         };
 }
 
