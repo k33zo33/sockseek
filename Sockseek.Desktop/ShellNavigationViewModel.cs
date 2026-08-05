@@ -97,6 +97,18 @@ public sealed class ShellNavigationViewModel
 
     public void CloseCommandPalette() => CommandPalette.Close();
 
+    public bool TryExecuteCommandPaletteItem(string itemId)
+    {
+        if (!CommandPalette.TryGetItem(itemId, out var item) || item is null)
+            return false;
+
+        if (item.TargetSection is { } targetSection)
+            NavigateTo(targetSection);
+
+        CloseCommandPalette();
+        return true;
+    }
+
     public void SetBackendState(BackendConnectionState state)
     {
         BackendState = state;

@@ -66,6 +66,8 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual("Shell.CommandPalette.Title", viewModel.CommandPalette.TitleResourceKey);
         Assert.AreEqual(7, viewModel.CommandPalette.Items.Count);
+        Assert.IsTrue(viewModel.CommandPalette.TryGetItem("navigate-search", out var item));
+        Assert.AreEqual(ShellSection.Search, item?.TargetSection);
     }
 
     [TestMethod]
