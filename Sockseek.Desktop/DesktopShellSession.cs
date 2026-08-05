@@ -32,6 +32,9 @@ public sealed class DesktopShellSession : IDesktopShellSession
     {
         ObjectDisposedException.ThrowIf(disposed, this);
 
+        if (Shell.BackendState == BackendConnectionState.Connected)
+            return true;
+
         if (!CanStartDaemon || workspaceRoot is null)
             return false;
 

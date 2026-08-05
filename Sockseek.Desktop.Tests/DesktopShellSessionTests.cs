@@ -32,6 +32,31 @@ public sealed class DesktopShellSessionTests
     }
 
     [TestMethod]
+    public async Task StartAsync_WhenSupervisorIsAlreadyConnected_ReturnsTrueWithoutLaunchingAgain()
+    {
+        var launcher = new FakeProcessLauncher();
+        var supervisor = new DesktopDaemonSupervisor(launcher);
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token-1\"}");
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            workspaceRoot: "/workspace",
+            launchRequestFactory: root => new DesktopDaemonLaunchRequest(
+                "dotnet",
+                "run --project Sockseek.Server/Sockseek.Server.csproj",
+                root,
+                new Dictionary<string, string?>()));
+
+        var started = await session.StartAsync();
+        await session.RecoveryCoordinator.WhenIdleAsync();
+
+        Assert.IsTrue(started);
+        Assert.AreEqual(BackendConnectionState.Connected, session.Shell.BackendState);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Connected, session.RecoveryCoordinator.EventsState);
+        Assert.IsNull(launcher.LastRequest);
+    }
+
+    [TestMethod]
     public async Task StartAsync_WithoutWorkspaceRoot_ReturnsFalse()
     {
         await using var session = new DesktopShellSession(
