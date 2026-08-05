@@ -4,9 +4,16 @@ internal static class Program
 {
     private const string SingleInstanceMutexName = "Sockseek.Desktop.SingleInstance";
 
-    private static async Task<int> Main(string[] args)
+    private static Task<int> Main(string[] args)
     {
         var runner = new DesktopProgramRunner(new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));
-        return await runner.RunAsync(args, static (_, _) => Task.FromResult(0));
+        var bootstrap = new DesktopProgramBootstrap(
+            runner,
+            options => new DesktopShellSession(
+                supervisor: new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher()),
+                workspaceRoot: options.WorkspaceRoot),
+            Directory.GetCurrentDirectory);
+
+        return bootstrap.RunAsync(args);
     }
 }

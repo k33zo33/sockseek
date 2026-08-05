@@ -1,6 +1,6 @@
 namespace Sockseek.Desktop;
 
-public sealed class DesktopShellSession : IAsyncDisposable
+public sealed class DesktopShellSession : IDesktopShellSession
 {
     private readonly string? workspaceRoot;
     private readonly Func<string, DesktopDaemonLaunchRequest> launchRequestFactory;
