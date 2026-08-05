@@ -12,13 +12,13 @@ public sealed class CommandPaletteViewModel
 
     public bool IsOpen { get; private set; }
 
-    public string Title { get; } = "Command palette";
-
     public string TitleResourceKey { get; } = "Shell.CommandPalette.Title";
 
-    public string Placeholder { get; } = "Jump to a section or action";
+    public string Title { get; } = DesktopStringResources.Get("Shell.CommandPalette.Title");
 
     public string PlaceholderResourceKey { get; } = "Shell.CommandPalette.Placeholder";
+
+    public string Placeholder { get; } = DesktopStringResources.Get("Shell.CommandPalette.Placeholder");
 
     public string SurfaceToken { get; } = DesktopDesignTokens.Surface.CommandPalette;
 

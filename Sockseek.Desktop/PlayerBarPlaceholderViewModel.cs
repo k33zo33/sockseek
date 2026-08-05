@@ -2,9 +2,13 @@ namespace Sockseek.Desktop;
 
 public sealed class PlayerBarPlaceholderViewModel
 {
-    public string Title { get; } = "Nothing playing";
+    public string TitleResourceKey { get; } = "Shell.PlayerBar.Title";
 
-    public string Artist { get; } = "Choose a local track or completed download";
+    public string Title { get; } = DesktopStringResources.Get("Shell.PlayerBar.Title");
+
+    public string ArtistResourceKey { get; } = "Shell.PlayerBar.Artist";
+
+    public string Artist { get; } = DesktopStringResources.Get("Shell.PlayerBar.Artist");
 
     public bool CanGoPrevious { get; } = false;
 
@@ -12,7 +16,9 @@ public sealed class PlayerBarPlaceholderViewModel
 
     public bool CanGoNext { get; } = false;
 
-    public string QueueSummary { get; } = "Queue unavailable until playback coordinator is connected";
+    public string QueueSummaryResourceKey { get; } = "Shell.PlayerBar.QueueSummary";
+
+    public string QueueSummary { get; } = DesktopStringResources.Get("Shell.PlayerBar.QueueSummary");
 
     public string SurfaceToken { get; } = DesktopDesignTokens.Surface.PlayerBar;
 

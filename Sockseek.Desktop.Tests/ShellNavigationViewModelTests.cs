@@ -21,6 +21,8 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(viewModel.StatusBanner.IsVisible);
         Assert.AreEqual(DesktopDesignTokens.Surface.BannerInfo, viewModel.StatusBanner.SurfaceToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.BannerInfo, viewModel.StatusBanner.IconToken);
+        Assert.AreEqual("Shell.Backend.Starting.Title", viewModel.StatusBanner.TitleResourceKey);
+        Assert.AreEqual("Shell.Backend.Starting.Message", viewModel.StatusBanner.MessageResourceKey);
         Assert.IsFalse(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual(DesktopDesignTokens.Surface.CommandPalette, viewModel.CommandPalette.SurfaceToken);
         CollectionAssert.AreEqual(
@@ -76,7 +78,9 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(7, viewModel.CommandPalette.Items.Count);
         Assert.AreEqual(DesktopDesignTokens.Typography.CommandPaletteTitle, viewModel.CommandPalette.TitleTypographyToken);
         Assert.AreEqual(DesktopDesignTokens.Typography.CommandPaletteItem, viewModel.CommandPalette.ItemTypographyToken);
+        Assert.AreEqual("Shell.CommandPalette.Placeholder", viewModel.CommandPalette.PlaceholderResourceKey);
         Assert.IsTrue(viewModel.CommandPalette.TryGetItem("navigate-search", out var item));
+        Assert.AreEqual("Shell.CommandPalette.NavigateSearch", item?.TitleResourceKey);
         Assert.AreEqual(ShellSection.Search, item?.TargetSection);
     }
 
@@ -90,6 +94,9 @@ public class ShellNavigationViewModelTests
         Assert.IsFalse(viewModel.PlayerBar.CanPlayPause);
         Assert.IsFalse(viewModel.PlayerBar.CanGoPrevious);
         Assert.IsFalse(viewModel.PlayerBar.CanGoNext);
+        Assert.AreEqual("Shell.PlayerBar.Title", viewModel.PlayerBar.TitleResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.Artist", viewModel.PlayerBar.ArtistResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.QueueSummary", viewModel.PlayerBar.QueueSummaryResourceKey);
         Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBar.SurfaceToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerQueue, viewModel.PlayerBar.QueueIconToken);
     }
@@ -130,6 +137,7 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(visible, viewModel.StatusBanner.IsVisible);
         Assert.AreEqual(expectedTitle, viewModel.StatusBanner.Title);
         Assert.AreEqual(GetExpectedBannerSurfaceToken(state), viewModel.StatusBanner.SurfaceToken);
+        Assert.AreEqual(GetExpectedBannerTitleResourceKey(state), viewModel.StatusBanner.TitleResourceKey);
     }
 
     [TestMethod]
@@ -202,5 +210,16 @@ public class ShellNavigationViewModelTests
             BackendConnectionState.Disconnected => DesktopDesignTokens.Surface.BannerDanger,
             BackendConnectionState.Unauthorized => DesktopDesignTokens.Surface.BannerDanger,
             _ => DesktopDesignTokens.Surface.BannerWarning
+        };
+
+    private static string GetExpectedBannerTitleResourceKey(BackendConnectionState state)
+        => state switch
+        {
+            BackendConnectionState.Starting => "Shell.Backend.Starting.Title",
+            BackendConnectionState.Connected => "Shell.Backend.Connected.Title",
+            BackendConnectionState.Restarting => "Shell.Backend.Restarting.Title",
+            BackendConnectionState.Disconnected => "Shell.Backend.Disconnected.Title",
+            BackendConnectionState.Unauthorized => "Shell.Backend.Unauthorized.Title",
+            _ => "Shell.Backend.Unknown.Title"
         };
 }

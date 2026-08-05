@@ -19,24 +19,24 @@ public sealed class ShellNavigationViewModel
     private static readonly IReadOnlyDictionary<ShellSection, ShellPageViewModel> Pages =
         new Dictionary<ShellSection, ShellPageViewModel>
         {
-            [ShellSection.Home] = new(ShellSection.Home, "Home", "Backend status, recent activity, and onboarding live here.", "Shell.Home.Title", "Shell.Home.Description", DesktopDesignTokens.Icon.Home),
-            [ShellSection.Search] = new(ShellSection.Search, "Search", "Track and album search UI will appear here.", "Shell.Search.Title", "Shell.Search.Description", DesktopDesignTokens.Icon.Search),
-            [ShellSection.Playlists] = new(ShellSection.Playlists, "Playlists", "Imported playlists and resolution progress will appear here.", "Shell.Playlists.Title", "Shell.Playlists.Description", DesktopDesignTokens.Icon.Playlists),
-            [ShellSection.Library] = new(ShellSection.Library, "Library", "Local library browsing and scans will appear here.", "Shell.Library.Title", "Shell.Library.Description", DesktopDesignTokens.Icon.Library),
-            [ShellSection.Downloads] = new(ShellSection.Downloads, "Downloads", "Active and completed download workflows will appear here.", "Shell.Downloads.Title", "Shell.Downloads.Description", DesktopDesignTokens.Icon.Downloads),
-            [ShellSection.Accounts] = new(ShellSection.Accounts, "Accounts", "Provider connections and authorization status will appear here.", "Shell.Accounts.Title", "Shell.Accounts.Description", DesktopDesignTokens.Icon.Accounts),
-            [ShellSection.Settings] = new(ShellSection.Settings, "Settings", "Theme, daemon, and library preferences will appear here.", "Shell.Settings.Title", "Shell.Settings.Description", DesktopDesignTokens.Icon.Settings),
+            [ShellSection.Home] = CreatePage(ShellSection.Home, "Shell.Home.Title", "Shell.Home.Description", DesktopDesignTokens.Icon.Home),
+            [ShellSection.Search] = CreatePage(ShellSection.Search, "Shell.Search.Title", "Shell.Search.Description", DesktopDesignTokens.Icon.Search),
+            [ShellSection.Playlists] = CreatePage(ShellSection.Playlists, "Shell.Playlists.Title", "Shell.Playlists.Description", DesktopDesignTokens.Icon.Playlists),
+            [ShellSection.Library] = CreatePage(ShellSection.Library, "Shell.Library.Title", "Shell.Library.Description", DesktopDesignTokens.Icon.Library),
+            [ShellSection.Downloads] = CreatePage(ShellSection.Downloads, "Shell.Downloads.Title", "Shell.Downloads.Description", DesktopDesignTokens.Icon.Downloads),
+            [ShellSection.Accounts] = CreatePage(ShellSection.Accounts, "Shell.Accounts.Title", "Shell.Accounts.Description", DesktopDesignTokens.Icon.Accounts),
+            [ShellSection.Settings] = CreatePage(ShellSection.Settings, "Shell.Settings.Title", "Shell.Settings.Description", DesktopDesignTokens.Icon.Settings),
         };
 
     private static readonly IReadOnlyList<CommandPaletteItemViewModel> CommandPaletteItems =
         [
-            new("navigate-home", "Go to Home", "Ctrl+1", "Shell.CommandPalette.NavigateHome", ShellSection.Home),
-            new("navigate-search", "Go to Search", "Ctrl+L", "Shell.CommandPalette.NavigateSearch", ShellSection.Search),
-            new("navigate-playlists", "Go to Playlists", "Ctrl+2", "Shell.CommandPalette.NavigatePlaylists", ShellSection.Playlists),
-            new("navigate-library", "Go to Library", "Ctrl+3", "Shell.CommandPalette.NavigateLibrary", ShellSection.Library),
-            new("navigate-downloads", "Go to Downloads", "Ctrl+4", "Shell.CommandPalette.NavigateDownloads", ShellSection.Downloads),
-            new("navigate-accounts", "Go to Accounts", "Ctrl+5", "Shell.CommandPalette.NavigateAccounts", ShellSection.Accounts),
-            new("navigate-settings", "Go to Settings", "Ctrl+,", "Shell.CommandPalette.NavigateSettings", ShellSection.Settings)
+            CreateCommandPaletteItem("navigate-home", "Ctrl+1", "Shell.CommandPalette.NavigateHome", ShellSection.Home),
+            CreateCommandPaletteItem("navigate-search", "Ctrl+L", "Shell.CommandPalette.NavigateSearch", ShellSection.Search),
+            CreateCommandPaletteItem("navigate-playlists", "Ctrl+2", "Shell.CommandPalette.NavigatePlaylists", ShellSection.Playlists),
+            CreateCommandPaletteItem("navigate-library", "Ctrl+3", "Shell.CommandPalette.NavigateLibrary", ShellSection.Library),
+            CreateCommandPaletteItem("navigate-downloads", "Ctrl+4", "Shell.CommandPalette.NavigateDownloads", ShellSection.Downloads),
+            CreateCommandPaletteItem("navigate-accounts", "Ctrl+5", "Shell.CommandPalette.NavigateAccounts", ShellSection.Accounts),
+            CreateCommandPaletteItem("navigate-settings", "Ctrl+,", "Shell.CommandPalette.NavigateSettings", ShellSection.Settings)
         ];
 
     public ShellNavigationViewModel(DesktopDaemonSupervisor? supervisor = null, IDesktopThemePreferenceStore? themePreferenceStore = null)
@@ -147,28 +147,57 @@ public sealed class ShellNavigationViewModel
     }
 
     private static string GetDisplayName(ShellSection section)
-        => section switch
-        {
-            ShellSection.Home => "Home",
-            ShellSection.Search => "Search",
-            ShellSection.Playlists => "Playlists",
-            ShellSection.Library => "Library",
-            ShellSection.Downloads => "Downloads",
-            ShellSection.Accounts => "Accounts",
-            ShellSection.Settings => "Settings",
-            _ => section.ToString(),
-        };
+        => Pages.TryGetValue(section, out var page)
+            ? page.Title
+            : section.ToString();
+
+    private static ShellPageViewModel CreatePage(
+        ShellSection section,
+        string titleResourceKey,
+        string descriptionResourceKey,
+        string iconToken)
+        => new(
+            section,
+            DesktopStringResources.Get(titleResourceKey),
+            DesktopStringResources.Get(descriptionResourceKey),
+            titleResourceKey,
+            descriptionResourceKey,
+            iconToken);
+
+    private static CommandPaletteItemViewModel CreateCommandPaletteItem(
+        string id,
+        string shortcut,
+        string titleResourceKey,
+        ShellSection section)
+        => new(id, DesktopStringResources.Get(titleResourceKey), shortcut, titleResourceKey, section);
 
     private static BackendStatusBannerViewModel CreateBanner(BackendConnectionState state)
         => state switch
         {
-            BackendConnectionState.Starting => new(state, "Starting local daemon", "Sockseek is launching the backend and waiting for a secure session.", true, DesktopDesignTokens.Surface.BannerInfo, DesktopDesignTokens.Icon.BannerInfo),
-            BackendConnectionState.Connected => new(state, "Connected", "Local daemon is ready.", false, DesktopDesignTokens.Surface.BannerSuccess, DesktopDesignTokens.Icon.BannerSuccess),
-            BackendConnectionState.Restarting => new(state, "Restarting local daemon", "The backend is restarting. UI actions will resume automatically.", true, DesktopDesignTokens.Surface.BannerWarning, DesktopDesignTokens.Icon.BannerWarning),
-            BackendConnectionState.Disconnected => new(state, "Backend disconnected", "Sockseek cannot currently reach the local daemon.", true, DesktopDesignTokens.Surface.BannerDanger, DesktopDesignTokens.Icon.BannerDanger),
-            BackendConnectionState.Unauthorized => new(state, "Session expired", "The desktop shell needs a fresh local session handshake.", true, DesktopDesignTokens.Surface.BannerDanger, DesktopDesignTokens.Icon.BannerDanger),
-            _ => new(state, "Backend status unknown", "Sockseek cannot determine backend state yet.", true, DesktopDesignTokens.Surface.BannerWarning, DesktopDesignTokens.Icon.BannerWarning),
+            BackendConnectionState.Starting => CreateBanner(state, "Shell.Backend.Starting.Title", "Shell.Backend.Starting.Message", true, DesktopDesignTokens.Surface.BannerInfo, DesktopDesignTokens.Icon.BannerInfo),
+            BackendConnectionState.Connected => CreateBanner(state, "Shell.Backend.Connected.Title", "Shell.Backend.Connected.Message", false, DesktopDesignTokens.Surface.BannerSuccess, DesktopDesignTokens.Icon.BannerSuccess),
+            BackendConnectionState.Restarting => CreateBanner(state, "Shell.Backend.Restarting.Title", "Shell.Backend.Restarting.Message", true, DesktopDesignTokens.Surface.BannerWarning, DesktopDesignTokens.Icon.BannerWarning),
+            BackendConnectionState.Disconnected => CreateBanner(state, "Shell.Backend.Disconnected.Title", "Shell.Backend.Disconnected.Message", true, DesktopDesignTokens.Surface.BannerDanger, DesktopDesignTokens.Icon.BannerDanger),
+            BackendConnectionState.Unauthorized => CreateBanner(state, "Shell.Backend.Unauthorized.Title", "Shell.Backend.Unauthorized.Message", true, DesktopDesignTokens.Surface.BannerDanger, DesktopDesignTokens.Icon.BannerDanger),
+            _ => CreateBanner(state, "Shell.Backend.Unknown.Title", "Shell.Backend.Unknown.Message", true, DesktopDesignTokens.Surface.BannerWarning, DesktopDesignTokens.Icon.BannerWarning),
         };
+
+    private static BackendStatusBannerViewModel CreateBanner(
+        BackendConnectionState state,
+        string titleResourceKey,
+        string messageResourceKey,
+        bool isVisible,
+        string surfaceToken,
+        string iconToken)
+        => new(
+            state,
+            DesktopStringResources.Get(titleResourceKey),
+            DesktopStringResources.Get(messageResourceKey),
+            isVisible,
+            surfaceToken,
+            iconToken,
+            titleResourceKey,
+            messageResourceKey);
 
     private static string GetIconToken(ShellSection section)
         => section switch
