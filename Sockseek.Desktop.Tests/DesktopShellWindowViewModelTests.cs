@@ -22,6 +22,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreSame(session.Shell.PlayerBar, viewModel.PlayerBar);
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
+        Assert.IsFalse(viewModel.IsCommandPaletteOpen);
         Assert.IsFalse(viewModel.CanCopyDiagnostics);
         Assert.IsNull(viewModel.CopyDiagnosticsLabel);
         Assert.IsNull(viewModel.TryGetCopyDiagnosticsText());
@@ -90,6 +91,30 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.IsTrue(viewModel.CanStartDaemon);
         Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
         Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
+    }
+
+    [TestMethod]
+    public async Task WindowViewModel_CommandPaletteBridge_ControlsTopLevelShellPaletteState()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+
+        viewModel.OpenCommandPalette();
+        Assert.IsTrue(viewModel.IsCommandPaletteOpen);
+
+        var handledShortcut = viewModel.TryHandleShortcut("Ctrl+K");
+        Assert.IsTrue(handledShortcut);
+        Assert.IsFalse(viewModel.IsCommandPaletteOpen);
+
+        viewModel.OpenCommandPalette();
+        var executed = viewModel.TryExecuteCommandPaletteItem("navigate-downloads");
+
+        Assert.IsTrue(executed);
+        Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
+        Assert.IsFalse(viewModel.IsCommandPaletteOpen);
+        Assert.AreEqual("Sockseek — Downloads", viewModel.WindowTitle);
     }
 
     [TestMethod]

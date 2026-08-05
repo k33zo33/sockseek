@@ -50,11 +50,13 @@ public sealed class ShellBindingNotificationTests
 
         session.Shell.NavigateTo(ShellSection.Settings);
         session.Shell.SetTheme(DesktopThemePreference.Dark);
+        session.Shell.OpenCommandPalette();
         session.Shell.SetBackendState(BackendConnectionState.Disconnected);
 
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPage));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.WindowTitle));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentTheme));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.StatusBanner));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CanStartDaemon));
     }

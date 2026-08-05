@@ -8,6 +8,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
+        Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
     }
 
     public DesktopShellSession Session { get; }
@@ -31,6 +32,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
 
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
+
+    public bool IsCommandPaletteOpen => Shell.CommandPalette.IsOpen;
 
     public bool CanCopyDiagnostics => StatusBanner.CanCopyDiagnostics;
 
@@ -65,6 +68,14 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
     }
 
     public string DiagnosticsText => CreateDiagnosticsText();
+
+    public void OpenCommandPalette() => Shell.OpenCommandPalette();
+
+    public void CloseCommandPalette() => Shell.CloseCommandPalette();
+
+    public bool TryHandleShortcut(string shortcut) => Shell.TryHandleShortcut(shortcut);
+
+    public bool TryExecuteCommandPaletteItem(string itemId) => Shell.TryExecuteCommandPaletteItem(itemId);
 
     public async Task<bool> TryStartDaemonAsync(CancellationToken cancellationToken = default)
     {
@@ -130,5 +141,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
         }
+    }
+
+    private void HandleCommandPalettePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName == nameof(CommandPaletteViewModel.IsOpen))
+            OnPropertyChanged(nameof(IsCommandPaletteOpen));
     }
 }
