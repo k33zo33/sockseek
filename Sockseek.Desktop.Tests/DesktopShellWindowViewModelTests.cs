@@ -20,6 +20,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(DesktopDesignTokens.Spacing.ShellChrome, viewModel.ChromeSpacingToken);
         Assert.AreSame(session.Shell, viewModel.Shell);
         Assert.AreSame(session.Shell.PlayerBar, viewModel.PlayerBar);
+        Assert.AreSame(session.Shell.CommandPalette, viewModel.CommandPalette);
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.IsFalse(viewModel.IsCommandPaletteOpen);
@@ -102,6 +103,7 @@ public sealed class DesktopShellWindowViewModelTests
         var viewModel = new DesktopShellWindowViewModel(session);
 
         viewModel.OpenCommandPalette();
+        Assert.AreSame(session.Shell.CommandPalette, viewModel.CommandPalette);
         Assert.IsTrue(viewModel.IsCommandPaletteOpen);
 
         var handledShortcut = viewModel.TryHandleShortcut("Ctrl+K");

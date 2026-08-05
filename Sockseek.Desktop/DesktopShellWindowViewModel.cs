@@ -27,6 +27,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public PlayerBarPlaceholderViewModel PlayerBar => Session.Shell.PlayerBar;
 
+    public CommandPaletteViewModel CommandPalette => Session.Shell.CommandPalette;
+
     public ShellPageViewModel CurrentPage => Session.Shell.CurrentPage;
 
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
