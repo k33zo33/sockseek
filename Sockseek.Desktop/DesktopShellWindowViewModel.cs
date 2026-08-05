@@ -34,6 +34,10 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
 
+    public BackendConnectionState BackendState => Shell.BackendState;
+
+    public DesktopDaemonHandshake? CurrentHandshake => Shell.CurrentHandshake;
+
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
 
     public bool IsCommandPaletteOpen => Shell.CommandPalette.IsOpen;
@@ -150,10 +154,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.BackendState):
+                OnPropertyChanged(nameof(BackendState));
                 OnPropertyChanged(nameof(CanStartDaemon));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
+                OnPropertyChanged(nameof(CurrentHandshake));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
         }
