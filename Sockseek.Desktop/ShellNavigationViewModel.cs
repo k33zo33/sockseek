@@ -219,7 +219,10 @@ public sealed class ShellNavigationViewModel : ObservableObject
         bool isVisible,
         string surfaceToken,
         string iconToken)
-        => new(
+    {
+        var iconAccessibilityLabelResourceKey = titleResourceKey.Replace(".Title", ".IconLabel", StringComparison.Ordinal);
+
+        return new(
             state,
             DesktopStringResources.Get(titleResourceKey),
             DesktopStringResources.Get(messageResourceKey),
@@ -227,7 +230,10 @@ public sealed class ShellNavigationViewModel : ObservableObject
             surfaceToken,
             iconToken,
             titleResourceKey,
-            messageResourceKey);
+            messageResourceKey,
+            DesktopStringResources.Get(iconAccessibilityLabelResourceKey),
+            iconAccessibilityLabelResourceKey);
+    }
 
     private static string GetIconToken(ShellSection section)
         => section switch

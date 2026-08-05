@@ -10,7 +10,9 @@ public sealed class BackendStatusBannerViewModel
         string surfaceToken,
         string iconToken,
         string titleResourceKey,
-        string messageResourceKey)
+        string messageResourceKey,
+        string iconAccessibilityLabel,
+        string iconAccessibilityLabelResourceKey)
     {
         State = state;
         Title = title;
@@ -20,6 +22,8 @@ public sealed class BackendStatusBannerViewModel
         IconToken = iconToken;
         TitleResourceKey = titleResourceKey;
         MessageResourceKey = messageResourceKey;
+        IconAccessibilityLabel = iconAccessibilityLabel;
+        IconAccessibilityLabelResourceKey = iconAccessibilityLabelResourceKey;
     }
 
     public BackendConnectionState State { get; }
@@ -37,6 +41,10 @@ public sealed class BackendStatusBannerViewModel
     public string TitleResourceKey { get; }
 
     public string MessageResourceKey { get; }
+
+    public string IconAccessibilityLabel { get; }
+
+    public string IconAccessibilityLabelResourceKey { get; }
 
     public string TitleTypographyToken { get; } = DesktopDesignTokens.Typography.BannerTitle;
 

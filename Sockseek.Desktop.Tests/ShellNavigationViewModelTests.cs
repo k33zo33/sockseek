@@ -23,6 +23,8 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(DesktopDesignTokens.Icon.BannerInfo, viewModel.StatusBanner.IconToken);
         Assert.AreEqual("Shell.Backend.Starting.Title", viewModel.StatusBanner.TitleResourceKey);
         Assert.AreEqual("Shell.Backend.Starting.Message", viewModel.StatusBanner.MessageResourceKey);
+        Assert.AreEqual("Shell.Backend.Starting.IconLabel", viewModel.StatusBanner.IconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Backend starting status", viewModel.StatusBanner.IconAccessibilityLabel);
         Assert.IsFalse(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual(DesktopDesignTokens.Surface.CommandPalette, viewModel.CommandPalette.SurfaceToken);
         CollectionAssert.AreEqual(
@@ -138,6 +140,7 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(expectedTitle, viewModel.StatusBanner.Title);
         Assert.AreEqual(GetExpectedBannerSurfaceToken(state), viewModel.StatusBanner.SurfaceToken);
         Assert.AreEqual(GetExpectedBannerTitleResourceKey(state), viewModel.StatusBanner.TitleResourceKey);
+        Assert.AreEqual(GetExpectedBannerIconLabelResourceKey(state), viewModel.StatusBanner.IconAccessibilityLabelResourceKey);
     }
 
     [TestMethod]
@@ -221,5 +224,16 @@ public class ShellNavigationViewModelTests
             BackendConnectionState.Disconnected => "Shell.Backend.Disconnected.Title",
             BackendConnectionState.Unauthorized => "Shell.Backend.Unauthorized.Title",
             _ => "Shell.Backend.Unknown.Title"
+        };
+
+    private static string GetExpectedBannerIconLabelResourceKey(BackendConnectionState state)
+        => state switch
+        {
+            BackendConnectionState.Starting => "Shell.Backend.Starting.IconLabel",
+            BackendConnectionState.Connected => "Shell.Backend.Connected.IconLabel",
+            BackendConnectionState.Restarting => "Shell.Backend.Restarting.IconLabel",
+            BackendConnectionState.Disconnected => "Shell.Backend.Disconnected.IconLabel",
+            BackendConnectionState.Unauthorized => "Shell.Backend.Unauthorized.IconLabel",
+            _ => "Shell.Backend.Unknown.IconLabel"
         };
 }

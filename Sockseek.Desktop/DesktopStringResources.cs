@@ -33,16 +33,22 @@ public static class DesktopStringResources
         ["Shell.PlayerBar.QueueSummary"] = "Queue unavailable until playback coordinator is connected",
         ["Shell.Backend.Starting.Title"] = "Starting local daemon",
         ["Shell.Backend.Starting.Message"] = "Sockseek is launching the backend and waiting for a secure session.",
+        ["Shell.Backend.Starting.IconLabel"] = "Backend starting status",
         ["Shell.Backend.Connected.Title"] = "Connected",
         ["Shell.Backend.Connected.Message"] = "Local daemon is ready.",
+        ["Shell.Backend.Connected.IconLabel"] = "Backend connected status",
         ["Shell.Backend.Restarting.Title"] = "Restarting local daemon",
         ["Shell.Backend.Restarting.Message"] = "The backend is restarting. UI actions will resume automatically.",
+        ["Shell.Backend.Restarting.IconLabel"] = "Backend restarting status",
         ["Shell.Backend.Disconnected.Title"] = "Backend disconnected",
         ["Shell.Backend.Disconnected.Message"] = "Sockseek cannot currently reach the local daemon.",
+        ["Shell.Backend.Disconnected.IconLabel"] = "Backend disconnected status",
         ["Shell.Backend.Unauthorized.Title"] = "Session expired",
         ["Shell.Backend.Unauthorized.Message"] = "The desktop shell needs a fresh local session handshake.",
+        ["Shell.Backend.Unauthorized.IconLabel"] = "Backend session expired status",
         ["Shell.Backend.Unknown.Title"] = "Backend status unknown",
-        ["Shell.Backend.Unknown.Message"] = "Sockseek cannot determine backend state yet."
+        ["Shell.Backend.Unknown.Message"] = "Sockseek cannot determine backend state yet.",
+        ["Shell.Backend.Unknown.IconLabel"] = "Backend unknown status"
     };
 
     public static string Get(string resourceKey)
