@@ -22,24 +22,40 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreSame(session.Shell.PlayerBar, viewModel.PlayerBar);
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
+        Assert.IsFalse(viewModel.CanCopyDiagnostics);
+        Assert.IsNull(viewModel.CopyDiagnosticsLabel);
+        StringAssert.Contains(viewModel.DiagnosticsText, "Page: Home");
     }
 
     [TestMethod]
-    public async Task WindowViewModel_ReflectsNavigationAndThemeUpdatesFromShellSession()
+    public async Task WindowViewModel_ReflectsNavigationThemeAndDiagnosticsUpdatesFromShellSession()
     {
+        var supervisor = new DesktopDaemonSupervisor();
         var store = new InMemoryDesktopThemePreferenceStore(DesktopThemePreference.System);
         await using var session = new DesktopShellSession(
-            supervisor: new DesktopDaemonSupervisor(),
+            supervisor: supervisor,
             connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
             themePreferenceStore: store);
         var viewModel = new DesktopShellWindowViewModel(session);
 
         session.Shell.NavigateTo(ShellSection.Downloads);
         session.Shell.SetTheme(DesktopThemePreference.Dark);
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"secret-token\"}");
+        session.Shell.SetBackendState(BackendConnectionState.Disconnected);
 
         Assert.AreEqual("Sockseek — Downloads", viewModel.WindowTitle);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
+        Assert.IsTrue(viewModel.CanCopyDiagnostics);
+        Assert.AreEqual("Copy diagnostics", viewModel.CopyDiagnosticsLabel);
+        Assert.AreEqual("Shell.Backend.Action.CopyDiagnostics.Label", viewModel.CopyDiagnosticsLabelResourceKey);
+        Assert.AreEqual("Copy backend diagnostics", viewModel.CopyDiagnosticsHint);
+        Assert.AreEqual("Shell.Backend.Action.CopyDiagnostics.Hint", viewModel.CopyDiagnosticsHintResourceKey);
+        StringAssert.Contains(viewModel.DiagnosticsText, "Page: Downloads");
+        StringAssert.Contains(viewModel.DiagnosticsText, "Theme: Dark");
+        StringAssert.Contains(viewModel.DiagnosticsText, "Backend state: Disconnected");
+        StringAssert.Contains(viewModel.DiagnosticsText, "Backend URL: unavailable");
+        Assert.IsFalse(viewModel.DiagnosticsText.Contains("secret-token", StringComparison.Ordinal));
     }
 
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection

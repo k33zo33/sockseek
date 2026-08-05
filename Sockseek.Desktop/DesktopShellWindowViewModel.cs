@@ -30,6 +30,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
 
+    public bool CanCopyDiagnostics => StatusBanner.CanCopyDiagnostics;
+
+    public string? CopyDiagnosticsLabel => StatusBanner.CopyDiagnosticsLabel;
+
+    public string? CopyDiagnosticsLabelResourceKey => StatusBanner.CopyDiagnosticsLabelResourceKey;
+
+    public string? CopyDiagnosticsHint => StatusBanner.CopyDiagnosticsHint;
+
+    public string? CopyDiagnosticsHintResourceKey => StatusBanner.CopyDiagnosticsHintResourceKey;
+
+    public string DiagnosticsText => CreateDiagnosticsText();
+
     public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
         => new(
             WindowTitle,
@@ -50,12 +62,24 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
             case nameof(ShellNavigationViewModel.CurrentPage):
                 OnPropertyChanged(nameof(CurrentPage));
                 OnPropertyChanged(nameof(WindowTitle));
+                OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.CurrentTheme):
                 OnPropertyChanged(nameof(CurrentTheme));
+                OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.StatusBanner):
                 OnPropertyChanged(nameof(StatusBanner));
+                OnPropertyChanged(nameof(CanCopyDiagnostics));
+                OnPropertyChanged(nameof(CopyDiagnosticsLabel));
+                OnPropertyChanged(nameof(CopyDiagnosticsLabelResourceKey));
+                OnPropertyChanged(nameof(CopyDiagnosticsHint));
+                OnPropertyChanged(nameof(CopyDiagnosticsHintResourceKey));
+                OnPropertyChanged(nameof(DiagnosticsText));
+                break;
+            case nameof(ShellNavigationViewModel.BackendState):
+            case nameof(ShellNavigationViewModel.CurrentHandshake):
+                OnPropertyChanged(nameof(DiagnosticsText));
                 break;
         }
     }
