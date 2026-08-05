@@ -4,11 +4,38 @@ public sealed class DesktopDaemonSupervisor
 {
     public event EventHandler<DesktopDaemonSupervisorSnapshot>? SnapshotChanged;
 
+    private readonly IDesktopProcessLauncher? processLauncher;
+
+    public DesktopDaemonSupervisor(IDesktopProcessLauncher? processLauncher = null)
+        => this.processLauncher = processLauncher;
+
     public BackendConnectionState State { get; private set; } = BackendConnectionState.Starting;
 
     public DesktopDaemonHandshake? CurrentHandshake { get; private set; }
 
     public DesktopDaemonSupervisorSnapshot CurrentSnapshot => new(State, CurrentHandshake);
+
+    public bool CanLaunch => processLauncher is not null;
+
+    public async Task<bool> TryLaunchAsync(DesktopDaemonLaunchRequest request, CancellationToken cancellationToken = default)
+    {
+        if (processLauncher is null)
+            return false;
+
+        ResetToStarting();
+        await using var session = await processLauncher.LaunchAsync(request, cancellationToken);
+        var handshake = await DesktopDaemonStartupParser.WaitForHandshakeAsync(session.ReadOutputLinesAsync(cancellationToken), cancellationToken);
+        if (handshake is null)
+        {
+            MarkDisconnected();
+            return false;
+        }
+
+        CurrentHandshake = handshake;
+        State = BackendConnectionState.Connected;
+        OnSnapshotChanged();
+        return true;
+    }
 
     public bool TryAcceptHandshakePayload(string payload)
     {
