@@ -11,4 +11,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Sockseek.Api\Sockseek.Api.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.Json" />
+  </ItemGroup>
 </Project>
