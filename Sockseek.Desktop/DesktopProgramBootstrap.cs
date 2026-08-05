@@ -16,9 +16,6 @@ public sealed class DesktopProgramBootstrap(
         var options = DesktopProgramOptions.Parse(args, currentDirectoryProvider());
         await using var session = sessionFactory(options);
 
-        if (!session.CanStartDaemon)
-            return 2;
-
         var started = await session.StartAsync(cancellationToken);
         if (!started)
             return 2;

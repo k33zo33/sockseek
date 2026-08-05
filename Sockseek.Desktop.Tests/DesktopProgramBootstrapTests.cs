@@ -26,6 +26,23 @@ public sealed class DesktopProgramBootstrapTests
     }
 
     [TestMethod]
+    public async Task RunAsync_WhenSessionIsAlreadyConnectedAndDoesNotNeedLaunch_ReturnsZero()
+    {
+        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
+        FakeShellSession? createdSession = null;
+        var bootstrap = new DesktopProgramBootstrap(
+            runner,
+            options => createdSession = new FakeShellSession(canStartDaemon: false, startResult: true, options),
+            () => "/workspace");
+
+        var exitCode = await bootstrap.RunAsync(["--exit-after-startup"]);
+
+        Assert.AreEqual(0, exitCode);
+        Assert.IsNotNull(createdSession);
+        Assert.IsTrue(createdSession.StartCalled);
+    }
+
+    [TestMethod]
     public async Task RunAsync_WhenSessionCannotStartDaemon_ReturnsTwo()
     {
         var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
