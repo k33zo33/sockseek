@@ -16,7 +16,7 @@ public static class ServerHost
     public const string CorrelationIdHeaderName = "X-Correlation-Id";
     public const string DefaultListenUrl = "http://127.0.0.1:5030";
 
-    public static WebApplication Build(string[] args, ServerOptions? options = null, string? url = null)
+    public static WebApplication Build(string[] args, ServerOptions? options = null, string? url = null, TextWriter? startupHandshakeWriter = null)
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Logging.ClearProviders();
@@ -69,6 +69,7 @@ public static class ServerHost
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
 
         var app = builder.Build();
+        DesktopDaemonStartupHandshakeEmitter.Register(app, startupHandshakeWriter ?? Console.Out);
         CoreLoggerBridge.Configure(app.Services, (options ?? app.Services.GetRequiredService<IOptions<ServerOptions>>().Value).Engine.LogLevel);
         _ = app.Services.GetRequiredService<ServerEventBroadcaster>();
         _ = app.Services.GetRequiredService<ServerActivityLogReporter>();
