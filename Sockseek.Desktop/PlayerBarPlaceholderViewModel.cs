@@ -13,4 +13,14 @@ public sealed class PlayerBarPlaceholderViewModel
     public bool CanGoNext { get; } = false;
 
     public string QueueSummary { get; } = "Queue unavailable until playback coordinator is connected";
+
+    public string SurfaceToken { get; } = DesktopDesignTokens.Surface.PlayerBar;
+
+    public string TitleTypographyToken { get; } = DesktopDesignTokens.Typography.PlayerTitle;
+
+    public string ArtistTypographyToken { get; } = DesktopDesignTokens.Typography.PlayerSubtitle;
+
+    public string QueueIconToken { get; } = DesktopDesignTokens.Icon.PlayerQueue;
+
+    public string PaddingToken { get; } = DesktopDesignTokens.Spacing.PlayerBarPadding;
 }

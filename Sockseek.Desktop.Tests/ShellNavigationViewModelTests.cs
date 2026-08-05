@@ -14,13 +14,21 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.AreEqual("Home", viewModel.CurrentPage.Title);
         Assert.AreEqual("Shell.Home.Title", viewModel.CurrentPage.TitleResourceKey);
+        Assert.AreEqual(DesktopDesignTokens.Icon.Home, viewModel.CurrentPage.IconToken);
+        Assert.AreEqual(DesktopDesignTokens.Surface.Page, viewModel.CurrentPage.SurfaceToken);
         Assert.AreEqual(DesktopThemePreference.System, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsTrue(viewModel.StatusBanner.IsVisible);
+        Assert.AreEqual(DesktopDesignTokens.Surface.BannerInfo, viewModel.StatusBanner.SurfaceToken);
+        Assert.AreEqual(DesktopDesignTokens.Icon.BannerInfo, viewModel.StatusBanner.IconToken);
         Assert.IsFalse(viewModel.CommandPalette.IsOpen);
+        Assert.AreEqual(DesktopDesignTokens.Surface.CommandPalette, viewModel.CommandPalette.SurfaceToken);
         CollectionAssert.AreEqual(
             Enum.GetValues<ShellSection>(),
             viewModel.Items.Select(item => item.Section).ToArray());
+        CollectionAssert.AreEqual(
+            Enum.GetValues<ShellSection>().Select(GetExpectedIconToken).ToArray(),
+            viewModel.Items.Select(item => item.IconToken).ToArray());
     }
 
     [DataTestMethod]
@@ -66,6 +74,8 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual("Shell.CommandPalette.Title", viewModel.CommandPalette.TitleResourceKey);
         Assert.AreEqual(7, viewModel.CommandPalette.Items.Count);
+        Assert.AreEqual(DesktopDesignTokens.Typography.CommandPaletteTitle, viewModel.CommandPalette.TitleTypographyToken);
+        Assert.AreEqual(DesktopDesignTokens.Typography.CommandPaletteItem, viewModel.CommandPalette.ItemTypographyToken);
         Assert.IsTrue(viewModel.CommandPalette.TryGetItem("navigate-search", out var item));
         Assert.AreEqual(ShellSection.Search, item?.TargetSection);
     }
@@ -80,6 +90,8 @@ public class ShellNavigationViewModelTests
         Assert.IsFalse(viewModel.PlayerBar.CanPlayPause);
         Assert.IsFalse(viewModel.PlayerBar.CanGoPrevious);
         Assert.IsFalse(viewModel.PlayerBar.CanGoNext);
+        Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBar.SurfaceToken);
+        Assert.AreEqual(DesktopDesignTokens.Icon.PlayerQueue, viewModel.PlayerBar.QueueIconToken);
     }
 
     [DataTestMethod]
@@ -98,6 +110,7 @@ public class ShellNavigationViewModelTests
 
         Assert.AreEqual(section, viewModel.CurrentPage.Section);
         Assert.AreEqual(expectedDescription, viewModel.CurrentPage.Description);
+        Assert.AreEqual(GetExpectedIconToken(section), viewModel.CurrentPage.IconToken);
     }
 
     [DataTestMethod]
@@ -116,6 +129,7 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(state, viewModel.StatusBanner.State);
         Assert.AreEqual(visible, viewModel.StatusBanner.IsVisible);
         Assert.AreEqual(expectedTitle, viewModel.StatusBanner.Title);
+        Assert.AreEqual(GetExpectedBannerSurfaceToken(state), viewModel.StatusBanner.SurfaceToken);
     }
 
     [TestMethod]
@@ -165,4 +179,28 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(DesktopThemePreference.Light, firstViewModel.CurrentTheme);
         Assert.AreEqual(DesktopThemePreference.Light, secondViewModel.CurrentTheme);
     }
+
+    private static string GetExpectedIconToken(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => DesktopDesignTokens.Icon.Home,
+            ShellSection.Search => DesktopDesignTokens.Icon.Search,
+            ShellSection.Playlists => DesktopDesignTokens.Icon.Playlists,
+            ShellSection.Library => DesktopDesignTokens.Icon.Library,
+            ShellSection.Downloads => DesktopDesignTokens.Icon.Downloads,
+            ShellSection.Accounts => DesktopDesignTokens.Icon.Accounts,
+            ShellSection.Settings => DesktopDesignTokens.Icon.Settings,
+            _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
+        };
+
+    private static string GetExpectedBannerSurfaceToken(BackendConnectionState state)
+        => state switch
+        {
+            BackendConnectionState.Starting => DesktopDesignTokens.Surface.BannerInfo,
+            BackendConnectionState.Connected => DesktopDesignTokens.Surface.BannerSuccess,
+            BackendConnectionState.Restarting => DesktopDesignTokens.Surface.BannerWarning,
+            BackendConnectionState.Disconnected => DesktopDesignTokens.Surface.BannerDanger,
+            BackendConnectionState.Unauthorized => DesktopDesignTokens.Surface.BannerDanger,
+            _ => DesktopDesignTokens.Surface.BannerWarning
+        };
 }

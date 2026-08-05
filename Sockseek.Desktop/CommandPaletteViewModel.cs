@@ -20,6 +20,14 @@ public sealed class CommandPaletteViewModel
 
     public string PlaceholderResourceKey { get; } = "Shell.CommandPalette.Placeholder";
 
+    public string SurfaceToken { get; } = DesktopDesignTokens.Surface.CommandPalette;
+
+    public string TitleTypographyToken { get; } = DesktopDesignTokens.Typography.CommandPaletteTitle;
+
+    public string ItemTypographyToken { get; } = DesktopDesignTokens.Typography.CommandPaletteItem;
+
+    public string PaddingToken { get; } = DesktopDesignTokens.Spacing.CommandPalettePadding;
+
     public IReadOnlyList<CommandPaletteItemViewModel> Items { get; }
 
     public bool TryGetItem(string id, out CommandPaletteItemViewModel? item)
