@@ -41,8 +41,9 @@ public sealed class ShellBindingNotificationTests
     [TestMethod]
     public async Task DesktopShellWindowViewModel_ReflectsShellPropertyChanges()
     {
+        var supervisor = new DesktopDaemonSupervisor();
         await using var session = new DesktopShellSession(
-            supervisor: new DesktopDaemonSupervisor(),
+            supervisor: supervisor,
             connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
         var viewModel = new DesktopShellWindowViewModel(session);
         var changedProperties = new List<string?>();
@@ -51,6 +52,7 @@ public sealed class ShellBindingNotificationTests
         session.Shell.NavigateTo(ShellSection.Settings);
         session.Shell.SetTheme(DesktopThemePreference.Dark);
         session.Shell.OpenCommandPalette();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"window-shell-token\"}");
         session.Shell.SetBackendState(BackendConnectionState.Disconnected);
 
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPage));
@@ -59,6 +61,8 @@ public sealed class ShellBindingNotificationTests
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.StatusBanner));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendState));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentHandshake));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HasCurrentHandshake));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CanStartDaemon));
     }
 

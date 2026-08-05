@@ -25,6 +25,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
+        Assert.IsFalse(viewModel.HasCurrentHandshake);
         Assert.IsFalse(viewModel.IsCommandPaletteOpen);
         Assert.IsFalse(viewModel.CanCopyDiagnostics);
         Assert.IsNull(viewModel.CopyDiagnosticsLabel);
@@ -59,6 +60,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Disconnected, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
+        Assert.IsFalse(viewModel.HasCurrentHandshake);
         Assert.IsTrue(viewModel.CanCopyDiagnostics);
         Assert.IsFalse(viewModel.CanStartDaemon);
         Assert.AreEqual("Copy diagnostics", viewModel.CopyDiagnosticsLabel);
@@ -180,6 +182,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(BackendConnectionState.Connected, session.Shell.BackendState);
         Assert.AreEqual(BackendConnectionState.Connected, viewModel.BackendState);
         Assert.IsNotNull(viewModel.CurrentHandshake);
+        Assert.IsTrue(viewModel.HasCurrentHandshake);
         Assert.IsFalse(viewModel.IsStartingDaemon);
         Assert.IsFalse(viewModel.CanStartDaemon);
         StringAssert.Contains(viewModel.DiagnosticsText, "Backend state: Connected");

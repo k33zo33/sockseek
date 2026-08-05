@@ -38,6 +38,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public DesktopDaemonHandshake? CurrentHandshake => Shell.CurrentHandshake;
 
+    public bool HasCurrentHandshake => CurrentHandshake is not null;
+
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
 
     public bool IsCommandPaletteOpen => Shell.CommandPalette.IsOpen;
@@ -160,6 +162,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
                 OnPropertyChanged(nameof(CurrentHandshake));
+                OnPropertyChanged(nameof(HasCurrentHandshake));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
         }
