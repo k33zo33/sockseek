@@ -82,6 +82,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
         }
     }
 
+    public string? TryGetCopyDiagnosticsText()
+        => CanCopyDiagnostics
+            ? CreateDiagnosticsText()
+            : null;
+
     public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
         => new(
             WindowTitle,

@@ -24,6 +24,7 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.IsFalse(viewModel.CanCopyDiagnostics);
         Assert.IsNull(viewModel.CopyDiagnosticsLabel);
+        Assert.IsNull(viewModel.TryGetCopyDiagnosticsText());
         Assert.IsFalse(viewModel.CanStartDaemon);
         Assert.IsFalse(viewModel.IsStartingDaemon);
         Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
@@ -58,6 +59,10 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Shell.Backend.Action.CopyDiagnostics.Label", viewModel.CopyDiagnosticsLabelResourceKey);
         Assert.AreEqual("Copy backend diagnostics", viewModel.CopyDiagnosticsHint);
         Assert.AreEqual("Shell.Backend.Action.CopyDiagnostics.Hint", viewModel.CopyDiagnosticsHintResourceKey);
+        var copiedDiagnostics = viewModel.TryGetCopyDiagnosticsText();
+        Assert.IsNotNull(copiedDiagnostics);
+        StringAssert.Contains(copiedDiagnostics, "Backend state: Disconnected");
+        Assert.IsFalse(copiedDiagnostics.Contains("secret-token", StringComparison.Ordinal));
         StringAssert.Contains(viewModel.DiagnosticsText, "Page: Downloads");
         StringAssert.Contains(viewModel.DiagnosticsText, "Theme: Dark");
         StringAssert.Contains(viewModel.DiagnosticsText, "Backend state: Disconnected");
