@@ -106,6 +106,18 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual("Shell.PlayerBar.Title", viewModel.PlayerBar.TitleResourceKey);
         Assert.AreEqual("Shell.PlayerBar.Artist", viewModel.PlayerBar.ArtistResourceKey);
         Assert.AreEqual("Shell.PlayerBar.QueueSummary", viewModel.PlayerBar.QueueSummaryResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.Previous.IconLabel", viewModel.PlayerBar.PreviousIconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Previous track", viewModel.PlayerBar.PreviousIconAccessibilityLabel);
+        Assert.AreEqual("Shell.PlayerBar.PlayPause.IconLabel", viewModel.PlayerBar.PlayPauseIconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Play or pause", viewModel.PlayerBar.PlayPauseIconAccessibilityLabel);
+        Assert.AreEqual("Shell.PlayerBar.PlayPause.Hint", viewModel.PlayerBar.PlayPauseHintResourceKey);
+        Assert.AreEqual("Play or pause (Space)", viewModel.PlayerBar.PlayPauseHint);
+        Assert.AreEqual("Shell.PlayerBar.Next.IconLabel", viewModel.PlayerBar.NextIconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Next track", viewModel.PlayerBar.NextIconAccessibilityLabel);
+        Assert.AreEqual("Shell.PlayerBar.Queue.IconLabel", viewModel.PlayerBar.QueueIconAccessibilityLabelResourceKey);
+        Assert.AreEqual("Queue", viewModel.PlayerBar.QueueIconAccessibilityLabel);
+        Assert.AreEqual("Shell.PlayerBar.Queue.Hint", viewModel.PlayerBar.QueueHintResourceKey);
+        Assert.AreEqual("Queue placeholder", viewModel.PlayerBar.QueueHint);
         Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBar.SurfaceToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerQueue, viewModel.PlayerBar.QueueIconToken);
     }
