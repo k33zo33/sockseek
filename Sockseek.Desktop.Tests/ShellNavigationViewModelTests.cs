@@ -100,12 +100,20 @@ public class ShellNavigationViewModelTests
         var viewModel = new ShellNavigationViewModel();
 
         Assert.AreEqual("Nothing playing", viewModel.PlayerBar.Title);
+        Assert.AreEqual("Artwork placeholder", viewModel.PlayerBar.Artwork);
+        Assert.AreEqual("Album artwork", viewModel.PlayerBar.ArtworkIconAccessibilityLabel);
         Assert.AreEqual("Choose a local track or completed download", viewModel.PlayerBar.Artist);
+        Assert.AreEqual("00:00 / --:--", viewModel.PlayerBar.Progress);
+        Assert.AreEqual("Playback progress placeholder", viewModel.PlayerBar.ProgressHint);
         Assert.IsFalse(viewModel.PlayerBar.CanPlayPause);
         Assert.IsFalse(viewModel.PlayerBar.CanGoPrevious);
         Assert.IsFalse(viewModel.PlayerBar.CanGoNext);
         Assert.AreEqual("Shell.PlayerBar.Title", viewModel.PlayerBar.TitleResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.Artwork", viewModel.PlayerBar.ArtworkResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.Artwork.IconLabel", viewModel.PlayerBar.ArtworkIconAccessibilityLabelResourceKey);
         Assert.AreEqual("Shell.PlayerBar.Artist", viewModel.PlayerBar.ArtistResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.Progress", viewModel.PlayerBar.ProgressResourceKey);
+        Assert.AreEqual("Shell.PlayerBar.Progress.Hint", viewModel.PlayerBar.ProgressHintResourceKey);
         Assert.AreEqual("Shell.PlayerBar.QueueSummary", viewModel.PlayerBar.QueueSummaryResourceKey);
         Assert.AreEqual("Shell.PlayerBar.Previous.IconLabel", viewModel.PlayerBar.PreviousIconAccessibilityLabelResourceKey);
         Assert.AreEqual("Previous track", viewModel.PlayerBar.PreviousIconAccessibilityLabel);

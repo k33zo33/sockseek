@@ -6,9 +6,25 @@ public sealed class PlayerBarPlaceholderViewModel
 
     public string Title { get; } = DesktopStringResources.Get("Shell.PlayerBar.Title");
 
+    public string ArtworkResourceKey { get; } = "Shell.PlayerBar.Artwork";
+
+    public string Artwork { get; } = DesktopStringResources.Get("Shell.PlayerBar.Artwork");
+
+    public string ArtworkIconAccessibilityLabelResourceKey { get; } = "Shell.PlayerBar.Artwork.IconLabel";
+
+    public string ArtworkIconAccessibilityLabel { get; } = DesktopStringResources.Get("Shell.PlayerBar.Artwork.IconLabel");
+
     public string ArtistResourceKey { get; } = "Shell.PlayerBar.Artist";
 
     public string Artist { get; } = DesktopStringResources.Get("Shell.PlayerBar.Artist");
+
+    public string ProgressResourceKey { get; } = "Shell.PlayerBar.Progress";
+
+    public string Progress { get; } = DesktopStringResources.Get("Shell.PlayerBar.Progress");
+
+    public string ProgressHintResourceKey { get; } = "Shell.PlayerBar.Progress.Hint";
+
+    public string ProgressHint { get; } = DesktopStringResources.Get("Shell.PlayerBar.Progress.Hint");
 
     public bool CanGoPrevious { get; } = false;
 
