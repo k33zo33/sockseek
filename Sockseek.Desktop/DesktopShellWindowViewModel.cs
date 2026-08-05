@@ -30,6 +30,19 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
 
+    public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
+        => new(
+            WindowTitle,
+            CurrentPage.Title,
+            CurrentTheme.ToString(),
+            Shell.BackendState.ToString(),
+            StatusBanner.Title,
+            Shell.CurrentHandshake is not null,
+            Shell.CurrentHandshake?.BaseUrl);
+
+    public string CreateDiagnosticsText()
+        => CreateDiagnosticsSnapshot().ToDisplayText();
+
     private void HandleShellPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
         switch (eventArgs.PropertyName)
