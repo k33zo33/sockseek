@@ -92,4 +92,24 @@ public class DesktopDaemonSupervisorTests
         Assert.AreEqual(BackendConnectionState.Starting, supervisor.State);
         Assert.IsNull(supervisor.CurrentHandshake);
     }
+
+    [TestMethod]
+    public void StateChanges_RaiseSnapshotChangedEvent()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        var snapshots = new List<DesktopDaemonSupervisorSnapshot>();
+        supervisor.SnapshotChanged += (_, snapshot) => snapshots.Add(snapshot);
+
+        supervisor.TryAcceptHandshakePayload(ValidLoopbackPayload);
+        supervisor.MarkRestarting();
+        supervisor.MarkDisconnected();
+
+        Assert.AreEqual(3, snapshots.Count);
+        Assert.AreEqual(BackendConnectionState.Connected, snapshots[0].State);
+        Assert.IsNotNull(snapshots[0].Handshake);
+        Assert.AreEqual(BackendConnectionState.Restarting, snapshots[1].State);
+        Assert.IsNull(snapshots[1].Handshake);
+        Assert.AreEqual(BackendConnectionState.Disconnected, snapshots[2].State);
+        Assert.IsNull(snapshots[2].Handshake);
+    }
 }

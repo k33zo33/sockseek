@@ -98,4 +98,37 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(visible, viewModel.StatusBanner.IsVisible);
         Assert.AreEqual(expectedTitle, viewModel.StatusBanner.Title);
     }
+
+    [TestMethod]
+    public void Constructor_WithSupervisor_UsesExistingSupervisorSnapshot()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"shell-token\"}");
+
+        var viewModel = new ShellNavigationViewModel(supervisor);
+
+        Assert.AreEqual(BackendConnectionState.Connected, viewModel.BackendState);
+        Assert.IsNotNull(viewModel.CurrentHandshake);
+        Assert.AreEqual("shell-token", viewModel.CurrentHandshake.SessionToken);
+        Assert.IsFalse(viewModel.StatusBanner.IsVisible);
+    }
+
+    [TestMethod]
+    public void Constructor_WithSupervisor_TracksFutureSupervisorStateChanges()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        var viewModel = new ShellNavigationViewModel(supervisor);
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://localhost:5030\",\"SessionToken\":\"shell-token\"}");
+        Assert.AreEqual(BackendConnectionState.Connected, viewModel.BackendState);
+        Assert.IsNotNull(viewModel.CurrentHandshake);
+
+        supervisor.MarkRestarting();
+        Assert.AreEqual(BackendConnectionState.Restarting, viewModel.BackendState);
+        Assert.IsNull(viewModel.CurrentHandshake);
+
+        supervisor.MarkUnauthorized();
+        Assert.AreEqual(BackendConnectionState.Unauthorized, viewModel.BackendState);
+        Assert.AreEqual("Session expired", viewModel.StatusBanner.Title);
+    }
 }

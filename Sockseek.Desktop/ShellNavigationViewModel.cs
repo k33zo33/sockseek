@@ -2,6 +2,7 @@ namespace Sockseek.Desktop;
 
 public sealed class ShellNavigationViewModel
 {
+    private readonly DesktopDaemonSupervisor? supervisor;
     private static readonly IReadOnlyDictionary<string, ShellSection> ShortcutMap =
         new Dictionary<string, ShellSection>(StringComparer.OrdinalIgnoreCase)
         {
@@ -26,13 +27,24 @@ public sealed class ShellNavigationViewModel
             [ShellSection.Settings] = new(ShellSection.Settings, "Settings", "Theme, daemon, and library preferences will appear here."),
         };
 
-    public ShellNavigationViewModel()
+    public ShellNavigationViewModel(DesktopDaemonSupervisor? supervisor = null)
     {
+        this.supervisor = supervisor;
         Items = Enum.GetValues<ShellSection>()
             .Select(section => new ShellNavigationItem(section, GetDisplayName(section)))
             .ToArray();
         PlayerBar = new PlayerBarPlaceholderViewModel();
-        SetBackendState(BackendConnectionState.Starting);
+
+        if (this.supervisor is not null)
+        {
+            ApplySupervisorSnapshot(this.supervisor.CurrentSnapshot);
+            this.supervisor.SnapshotChanged += HandleSupervisorSnapshotChanged;
+        }
+        else
+        {
+            SetBackendState(BackendConnectionState.Starting);
+        }
+
         NavigateTo(ShellSection.Home);
     }
 
@@ -48,6 +60,8 @@ public sealed class ShellNavigationViewModel
 
     public BackendStatusBannerViewModel StatusBanner { get; private set; } = CreateBanner(BackendConnectionState.Starting);
 
+    public DesktopDaemonHandshake? CurrentHandshake { get; private set; }
+
     public void NavigateTo(ShellSection section)
     {
         CurrentSection = section;
@@ -57,6 +71,8 @@ public sealed class ShellNavigationViewModel
     public void SetBackendState(BackendConnectionState state)
     {
         BackendState = state;
+        if (state != BackendConnectionState.Connected)
+            CurrentHandshake = null;
         StatusBanner = CreateBanner(state);
     }
 
@@ -70,6 +86,16 @@ public sealed class ShellNavigationViewModel
 
         NavigateTo(section);
         return true;
+    }
+
+    private void HandleSupervisorSnapshotChanged(object? sender, DesktopDaemonSupervisorSnapshot snapshot)
+        => ApplySupervisorSnapshot(snapshot);
+
+    private void ApplySupervisorSnapshot(DesktopDaemonSupervisorSnapshot snapshot)
+    {
+        CurrentHandshake = snapshot.Handshake;
+        SetBackendState(snapshot.State);
+        CurrentHandshake = snapshot.Handshake;
     }
 
     private static string GetDisplayName(ShellSection section)
