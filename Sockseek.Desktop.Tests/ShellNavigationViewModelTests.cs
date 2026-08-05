@@ -129,6 +129,8 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual("Expanded player placeholder", viewModel.PlayerBar.ExpandedPlayerHint);
         Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBar.SurfaceToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerQueue, viewModel.PlayerBar.QueueIconToken);
+        Assert.AreEqual(DesktopDesignTokens.Icon.PlayerVolume, viewModel.PlayerBar.VolumeIconToken);
+        Assert.AreEqual(DesktopDesignTokens.Icon.PlayerExpanded, viewModel.PlayerBar.ExpandedPlayerIconToken);
     }
 
     [DataTestMethod]

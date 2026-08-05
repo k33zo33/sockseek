@@ -42,6 +42,8 @@ public static class DesktopDesignTokens
         public const string BannerWarning = "Icon.Banner.Warning";
         public const string BannerDanger = "Icon.Banner.Danger";
         public const string PlayerQueue = "Icon.Player.Queue";
+        public const string PlayerVolume = "Icon.Player.Volume";
+        public const string PlayerExpanded = "Icon.Player.Expanded";
     }
 
     public static class Spacing

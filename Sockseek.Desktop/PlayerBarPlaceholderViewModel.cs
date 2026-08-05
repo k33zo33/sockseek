@@ -68,5 +68,9 @@ public sealed class PlayerBarPlaceholderViewModel
 
     public string QueueIconToken { get; } = DesktopDesignTokens.Icon.PlayerQueue;
 
+    public string VolumeIconToken { get; } = DesktopDesignTokens.Icon.PlayerVolume;
+
+    public string ExpandedPlayerIconToken { get; } = DesktopDesignTokens.Icon.PlayerExpanded;
+
     public string PaddingToken { get; } = DesktopDesignTokens.Spacing.PlayerBarPadding;
 }
