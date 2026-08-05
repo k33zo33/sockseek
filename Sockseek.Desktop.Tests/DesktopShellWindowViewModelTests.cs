@@ -120,6 +120,26 @@ public sealed class DesktopShellWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task Dispose_DetachesWindowFromFurtherShellNotifications()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+
+        viewModel.Dispose();
+        viewModel.Dispose();
+
+        session.Shell.NavigateTo(ShellSection.Settings);
+        session.Shell.OpenCommandPalette();
+        session.Shell.SetTheme(DesktopThemePreference.Dark);
+
+        Assert.AreEqual(0, changedProperties.Count);
+    }
+
+    [TestMethod]
     public async Task TryStartDaemonAsync_WhenStartIsUnavailable_ReturnsFalse()
     {
         await using var session = new DesktopShellSession(

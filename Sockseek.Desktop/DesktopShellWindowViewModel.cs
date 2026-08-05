@@ -1,8 +1,9 @@
 namespace Sockseek.Desktop;
 
-public sealed class DesktopShellWindowViewModel : ObservableObject
+public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 {
     private bool isStartingDaemon;
+    private bool disposed;
 
     public DesktopShellWindowViewModel(DesktopShellSession session)
     {
@@ -71,6 +72,16 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     public string DiagnosticsText => CreateDiagnosticsText();
 
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+
+        disposed = true;
+        Session.Shell.PropertyChanged -= HandleShellPropertyChanged;
+        Session.Shell.CommandPalette.PropertyChanged -= HandleCommandPalettePropertyChanged;
+    }
+
     public void OpenCommandPalette() => Shell.OpenCommandPalette();
 
     public void CloseCommandPalette() => Shell.CloseCommandPalette();
@@ -115,6 +126,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     private void HandleShellPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
+        if (disposed)
+            return;
+
         switch (eventArgs.PropertyName)
         {
             case nameof(ShellNavigationViewModel.CurrentPage):
@@ -147,6 +161,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject
 
     private void HandleCommandPalettePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
+        if (disposed)
+            return;
+
         if (eventArgs.PropertyName == nameof(CommandPaletteViewModel.IsOpen))
             OnPropertyChanged(nameof(IsCommandPaletteOpen));
     }

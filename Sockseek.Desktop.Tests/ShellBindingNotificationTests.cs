@@ -62,6 +62,24 @@ public sealed class ShellBindingNotificationTests
     }
 
     [TestMethod]
+    public async Task DesktopShellWindowViewModel_Dispose_StopsForwardingShellNotifications()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+
+        viewModel.Dispose();
+        session.Shell.NavigateTo(ShellSection.Settings);
+        session.Shell.OpenCommandPalette();
+        session.Shell.SetBackendState(BackendConnectionState.Disconnected);
+
+        Assert.AreEqual(0, changedProperties.Count);
+    }
+
+    [TestMethod]
     public async Task DesktopShellWindowViewModel_TryStartDaemonAsync_RaisesBusyStateNotifications()
     {
         var processSession = new ControllableProcessSession();
