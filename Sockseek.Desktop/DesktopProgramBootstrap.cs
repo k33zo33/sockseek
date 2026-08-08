@@ -4,10 +4,8 @@ public sealed class DesktopProgramBootstrap(
     DesktopProgramRunner runner,
     Func<DesktopProgramOptions, IDesktopShellSession> sessionFactory,
     Func<string> currentDirectoryProvider,
-    Func<CancellationToken, Task>? waitForShutdownAsync = null)
+    IDesktopShellHost shellHost)
 {
-    private readonly Func<CancellationToken, Task> waitForShutdownAsync = waitForShutdownAsync ?? (ct => Task.Delay(Timeout.Infinite, ct));
-
     public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
         => runner.RunAsync(args, (_, ct) => RunCoreAsync(args, ct), cancellationToken);
 
@@ -23,14 +21,6 @@ public sealed class DesktopProgramBootstrap(
         if (options.ExitAfterStartup)
             return 0;
 
-        try
-        {
-            await waitForShutdownAsync(cancellationToken);
-            return 0;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return 0;
-        }
+        return await shellHost.RunAsync(session, cancellationToken);
     }
 }

@@ -5,14 +5,14 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private bool isStartingDaemon;
     private bool disposed;
 
-    public DesktopShellWindowViewModel(DesktopShellSession session)
+    public DesktopShellWindowViewModel(IDesktopShellSession session)
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
     }
 
-    public DesktopShellSession Session { get; }
+    public IDesktopShellSession Session { get; }
 
     public string TitleResourceKey { get; } = "Shell.Window.Title";
 
