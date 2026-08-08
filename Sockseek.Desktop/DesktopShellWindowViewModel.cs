@@ -26,9 +26,13 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public BackendStatusBannerViewModel StatusBanner => Session.Shell.StatusBanner;
 
+    public IReadOnlyList<ShellNavigationItem> NavigationItems => Session.Shell.Items;
+
     public PlayerBarPlaceholderViewModel PlayerBar => Session.Shell.PlayerBar;
 
     public CommandPaletteViewModel CommandPalette => Session.Shell.CommandPalette;
+
+    public ShellSection CurrentSection => Session.Shell.CurrentSection;
 
     public ShellPageViewModel CurrentPage => Session.Shell.CurrentPage;
 
@@ -137,6 +141,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
         switch (eventArgs.PropertyName)
         {
+            case nameof(ShellNavigationViewModel.CurrentSection):
+                OnPropertyChanged(nameof(CurrentSection));
+                break;
             case nameof(ShellNavigationViewModel.CurrentPage):
                 OnPropertyChanged(nameof(CurrentPage));
                 OnPropertyChanged(nameof(WindowTitle));

@@ -19,9 +19,11 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(DesktopDesignTokens.Surface.AppCanvas, viewModel.SurfaceToken);
         Assert.AreEqual(DesktopDesignTokens.Spacing.ShellChrome, viewModel.ChromeSpacingToken);
         Assert.AreSame(session.Shell, viewModel.Shell);
+        CollectionAssert.AreEqual(session.Shell.Items.ToArray(), viewModel.NavigationItems.ToArray());
         Assert.AreSame(session.Shell.PlayerBar, viewModel.PlayerBar);
         Assert.AreSame(session.Shell.CommandPalette, viewModel.CommandPalette);
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
+        Assert.AreEqual(ShellSection.Home, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
@@ -56,6 +58,7 @@ public sealed class DesktopShellWindowViewModelTests
         session.Shell.SetBackendState(BackendConnectionState.Disconnected);
 
         Assert.AreEqual("Sockseek — Downloads", viewModel.WindowTitle);
+        Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Disconnected, viewModel.BackendState);
@@ -120,6 +123,7 @@ public sealed class DesktopShellWindowViewModelTests
         var executed = viewModel.TryExecuteCommandPaletteItem("navigate-downloads");
 
         Assert.IsTrue(executed);
+        Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
         Assert.IsFalse(viewModel.IsCommandPaletteOpen);
         Assert.AreEqual("Sockseek — Downloads", viewModel.WindowTitle);

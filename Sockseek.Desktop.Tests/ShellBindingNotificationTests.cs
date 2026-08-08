@@ -55,6 +55,7 @@ public sealed class ShellBindingNotificationTests
         supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"window-shell-token\"}");
         session.Shell.SetBackendState(BackendConnectionState.Disconnected);
 
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentSection));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPage));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.WindowTitle));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentTheme));
