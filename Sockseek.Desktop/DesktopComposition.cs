@@ -5,6 +5,19 @@ public static class DesktopComposition
     public const string SingleInstanceMutexName = "Sockseek.Desktop.SingleInstance";
 
     public static IDesktopProgramFlow CreateProgramFlow(
+        IDesktopShellHost shellHost,
+        Func<string>? currentDirectoryProvider = null,
+        Func<DesktopProgramOptions, IDesktopShellSession>? sessionFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(shellHost);
+
+        return new DesktopProgramBootstrap(
+            sessionFactory ?? CreateShellSession,
+            currentDirectoryProvider ?? Directory.GetCurrentDirectory,
+            shellHost);
+    }
+
+    public static IDesktopProgramFlow CreateProgramFlow(
         IDesktopShellWindowLifetime windowLifetime,
         Func<string>? currentDirectoryProvider = null,
         Func<DesktopProgramOptions, IDesktopShellSession>? sessionFactory = null,
@@ -13,10 +26,7 @@ public static class DesktopComposition
         ArgumentNullException.ThrowIfNull(windowLifetime);
 
         var shellHost = (shellHostFactory ?? CreateShellHost)(windowLifetime);
-        return new DesktopProgramBootstrap(
-            sessionFactory ?? CreateShellSession,
-            currentDirectoryProvider ?? Directory.GetCurrentDirectory,
-            shellHost);
+        return CreateProgramFlow(shellHost, currentDirectoryProvider, sessionFactory);
     }
 
     private static IDesktopShellHost CreateShellHost(IDesktopShellWindowLifetime windowLifetime)

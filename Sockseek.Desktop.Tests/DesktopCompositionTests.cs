@@ -47,6 +47,24 @@ public sealed class DesktopCompositionTests
     }
 
     [TestMethod]
+    public async Task CreateProgramFlow_WithDirectShellHost_UsesInjectedHost()
+    {
+        var shellHost = new FakeShellHost(exitCode: 4);
+        FakeShellSession? createdSession = null;
+        var programFlow = DesktopComposition.CreateProgramFlow(
+            shellHost,
+            currentDirectoryProvider: () => "/workspace",
+            sessionFactory: options => createdSession = new FakeShellSession(options, startResult: true));
+
+        var exitCode = await programFlow.RunAsync([]);
+
+        Assert.AreEqual(4, exitCode);
+        Assert.IsNotNull(createdSession);
+        Assert.IsTrue(createdSession.StartCalled);
+        Assert.AreEqual(1, shellHost.RunCallCount);
+    }
+
+    [TestMethod]
     public async Task CreateProgramFlow_UsesInjectedShellHostFactory()
     {
         var windowLifetime = new FakeWindowLifetime();
@@ -76,6 +94,14 @@ public sealed class DesktopCompositionTests
         var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateProgramFlow(null!));
 
         Assert.AreEqual("windowLifetime", exception.ParamName);
+    }
+
+    [TestMethod]
+    public void CreateProgramFlow_WhenShellHostIsNull_ThrowsArgumentNullException()
+    {
+        var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateProgramFlow((IDesktopShellHost)null!));
+
+        Assert.AreEqual("shellHost", exception.ParamName);
     }
 
     [TestMethod]
