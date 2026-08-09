@@ -6,81 +6,78 @@ namespace Sockseek.Desktop.Tests;
 public sealed class DesktopShellWindowHostTests
 {
     [TestMethod]
-    public async Task RunAsync_CreatesWindowViewModelAndReturnsDelegateExitCode()
+    public void Constructor_WhenLifetimeIsNull_ThrowsArgumentNullException()
+    {
+        var exception = Assert.ThrowsException<ArgumentNullException>(() => new DesktopShellWindowHost(null!));
+
+        Assert.AreEqual("windowLifetime", exception.ParamName);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_CreatesWindowViewModelAndReturnsLifetimeExitCode()
     {
         await using var session = new FakeShellSession();
-        DesktopShellWindowViewModel? receivedWindow = null;
-        var host = new DesktopShellWindowHost((windowViewModel, _) =>
-        {
-            receivedWindow = windowViewModel;
-            return Task.FromResult(5);
-        });
+        var lifetime = new CapturingWindowLifetime { ExitCode = 5 };
+        var host = new DesktopShellWindowHost(lifetime);
 
         var exitCode = await host.RunAsync(session);
 
         Assert.AreEqual(5, exitCode);
-        Assert.IsNotNull(receivedWindow);
-        Assert.AreSame(session, receivedWindow.Session);
-        Assert.AreEqual(BackendConnectionState.Starting, receivedWindow.BackendState);
+        Assert.IsNotNull(lifetime.ReceivedWindow);
+        Assert.AreSame(session, lifetime.ReceivedWindow.Session);
+        Assert.AreEqual(BackendConnectionState.Starting, lifetime.ReceivedWindow.BackendState);
     }
 
     [TestMethod]
-    public async Task RunAsync_DisposesWindowViewModelAfterDelegateCompletes()
+    public async Task RunAsync_DisposesWindowViewModelAfterLifetimeCompletes()
     {
         await using var session = new FakeShellSession();
-        DesktopShellWindowViewModel? receivedWindow = null;
-        var host = new DesktopShellWindowHost(async (windowViewModel, _) =>
+        var lifetime = new CapturingWindowLifetime
         {
-            receivedWindow = windowViewModel;
-            await Task.Yield();
-            return 0;
-        });
+            OnRunAsync = (_, _) => Task.FromResult(0)
+        };
+        var host = new DesktopShellWindowHost(lifetime);
 
         await host.RunAsync(session);
 
-        Assert.IsNotNull(receivedWindow);
+        Assert.IsNotNull(lifetime.ReceivedWindow);
 
         var changedProperties = new List<string?>();
-        receivedWindow.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+        lifetime.ReceivedWindow.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
         session.Shell.NavigateTo(ShellSection.Settings);
 
         Assert.AreEqual(0, changedProperties.Count);
     }
 
     [TestMethod]
-    public async Task RunAsync_ForwardsCancellationTokenToDelegate()
+    public async Task RunAsync_ForwardsCancellationTokenToLifetime()
     {
         await using var session = new FakeShellSession();
-        CancellationToken receivedToken = default;
         var cancellationSource = new CancellationTokenSource();
-        var host = new DesktopShellWindowHost((_, cancellationToken) =>
-        {
-            receivedToken = cancellationToken;
-            return Task.FromResult(0);
-        });
+        var lifetime = new CapturingWindowLifetime();
+        var host = new DesktopShellWindowHost(lifetime);
 
         await host.RunAsync(session, cancellationSource.Token);
 
-        Assert.AreEqual(cancellationSource.Token, receivedToken);
+        Assert.AreEqual(cancellationSource.Token, lifetime.ReceivedCancellationToken);
     }
 
     [TestMethod]
-    public async Task RunAsync_WhenDelegateThrows_DisposesWindowViewModel()
+    public async Task RunAsync_WhenLifetimeThrows_DisposesWindowViewModel()
     {
         await using var session = new FakeShellSession();
-        DesktopShellWindowViewModel? receivedWindow = null;
-        var host = new DesktopShellWindowHost((windowViewModel, _) =>
+        var lifetime = new CapturingWindowLifetime
         {
-            receivedWindow = windowViewModel;
-            throw new InvalidOperationException("boom");
-        });
+            OnRunAsync = (_, _) => throw new InvalidOperationException("boom")
+        };
+        var host = new DesktopShellWindowHost(lifetime);
 
         await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => host.RunAsync(session));
 
-        Assert.IsNotNull(receivedWindow);
+        Assert.IsNotNull(lifetime.ReceivedWindow);
 
         var changedProperties = new List<string?>();
-        receivedWindow.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+        lifetime.ReceivedWindow.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
         session.Shell.NavigateTo(ShellSection.Library);
 
         Assert.AreEqual(0, changedProperties.Count);
@@ -96,5 +93,25 @@ public sealed class DesktopShellWindowHostTests
             => Task.FromResult(true);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class CapturingWindowLifetime : IDesktopShellWindowLifetime
+    {
+        public int ExitCode { get; init; }
+
+        public Func<DesktopShellWindowViewModel, CancellationToken, Task<int>>? OnRunAsync { get; init; }
+
+        public DesktopShellWindowViewModel? ReceivedWindow { get; private set; }
+
+        public CancellationToken ReceivedCancellationToken { get; private set; }
+
+        public Task<int> RunAsync(DesktopShellWindowViewModel windowViewModel, CancellationToken cancellationToken = default)
+        {
+            ReceivedWindow = windowViewModel;
+            ReceivedCancellationToken = cancellationToken;
+            return OnRunAsync is not null
+                ? OnRunAsync(windowViewModel, cancellationToken)
+                : Task.FromResult(ExitCode);
+        }
     }
 }
