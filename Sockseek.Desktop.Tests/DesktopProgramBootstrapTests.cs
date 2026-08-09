@@ -6,13 +6,24 @@ namespace Sockseek.Desktop.Tests;
 public sealed class DesktopProgramBootstrapTests
 {
     [TestMethod]
+    public void RunAsync_WhenArgsAreNull_ThrowsArgumentNullException()
+    {
+        var bootstrap = new DesktopProgramBootstrap(
+            options => new FakeShellSession(canStartDaemon: true, startResult: true, options),
+            () => "/workspace",
+            new FakeShellHost());
+
+        var exception = Assert.ThrowsException<ArgumentNullException>(() => bootstrap.RunAsync(null!, CancellationToken.None));
+
+        Assert.AreEqual("args", exception.ParamName);
+    }
+
+    [TestMethod]
     public async Task RunAsync_ExitAfterStartup_StartsShellSessionAndReturnsZero()
     {
-        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost();
         FakeShellSession? createdSession = null;
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => createdSession = new FakeShellSession(canStartDaemon: true, startResult: true, options),
             () => "/workspace",
             shellHost);
@@ -31,11 +42,9 @@ public sealed class DesktopProgramBootstrapTests
     [TestMethod]
     public async Task RunAsync_WhenSessionIsAlreadyConnectedAndDoesNotNeedLaunch_ReturnsZero()
     {
-        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost();
         FakeShellSession? createdSession = null;
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => createdSession = new FakeShellSession(canStartDaemon: false, startResult: true, options),
             () => "/workspace",
             shellHost);
@@ -51,10 +60,8 @@ public sealed class DesktopProgramBootstrapTests
     [TestMethod]
     public async Task RunAsync_WhenSessionCannotStartDaemon_ReturnsTwoForExitAfterStartup()
     {
-        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost();
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => new FakeShellSession(canStartDaemon: false, startResult: false, options),
             () => "/workspace",
             shellHost);
@@ -68,10 +75,8 @@ public sealed class DesktopProgramBootstrapTests
     [TestMethod]
     public async Task RunAsync_WhenDaemonStartFails_ReturnsTwoForExitAfterStartup()
     {
-        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost();
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => new FakeShellSession(canStartDaemon: true, startResult: false, options),
             () => "/workspace",
             shellHost);
@@ -85,11 +90,9 @@ public sealed class DesktopProgramBootstrapTests
     [TestMethod]
     public async Task RunAsync_WhenDaemonStartFailsInInteractiveMode_StillHostsShell()
     {
-        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost(exitCode: 7);
         FakeShellSession? createdSession = null;
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => createdSession = new FakeShellSession(canStartDaemon: true, startResult: false, options),
             () => "/workspace",
             shellHost);
@@ -107,11 +110,9 @@ public sealed class DesktopProgramBootstrapTests
     [TestMethod]
     public async Task RunAsync_WhenStartupSucceedsAndAppKeepsRunning_DelegatesToShellHost()
     {
-        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost(exitCode: 7);
         FakeShellSession? createdSession = null;
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => createdSession = new FakeShellSession(canStartDaemon: true, startResult: true, options),
             () => "/workspace",
             shellHost);
@@ -132,17 +133,6 @@ public sealed class DesktopProgramBootstrapTests
 
         Assert.AreEqual("/custom", options.WorkspaceRoot);
         Assert.IsTrue(options.ExitAfterStartup);
-    }
-
-    private sealed class AlwaysFirstInstanceGate : IDesktopSingleInstanceGate
-    {
-        public ValueTask<IDesktopSingleInstanceLease?> TryAcquireAsync(CancellationToken cancellationToken = default)
-            => ValueTask.FromResult<IDesktopSingleInstanceLease?>(new Lease());
-
-        private sealed class Lease : IDesktopSingleInstanceLease
-        {
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-        }
     }
 
     private sealed class FakeShellSession(bool canStartDaemon, bool startResult, DesktopProgramOptions options) : IDesktopShellSession

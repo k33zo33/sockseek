@@ -6,17 +6,16 @@ internal static class Program
 
     private static Task<int> Main(string[] args)
     {
-        var runner = new DesktopProgramRunner(new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));
         var shellHost = new DesktopShellWindowHost(new HeadlessDesktopShellWindowLifetime());
         var bootstrap = new DesktopProgramBootstrap(
-            runner,
             options => new DesktopShellSession(
                 supervisor: new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher()),
                 themePreferenceStore: new DesktopFileThemePreferenceStore(DesktopSettingsPaths.GetThemePreferenceFilePath()),
                 workspaceRoot: options.WorkspaceRoot),
             Directory.GetCurrentDirectory,
             shellHost);
+        var applicationBootstrap = new HeadlessDesktopApplicationBootstrap(new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));
 
-        return bootstrap.RunAsync(args);
+        return applicationBootstrap.RunAsync(bootstrap, args);
     }
 }

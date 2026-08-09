@@ -1,16 +1,17 @@
 namespace Sockseek.Desktop;
 
 public sealed class DesktopProgramBootstrap(
-    DesktopProgramRunner runner,
     Func<DesktopProgramOptions, IDesktopShellSession> sessionFactory,
     Func<string> currentDirectoryProvider,
     IDesktopShellHost shellHost)
 {
     public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
-        => runner.RunAsync(args, (_, ct) => RunCoreAsync(args, ct), cancellationToken);
+        => RunCoreAsync(args, cancellationToken);
 
-    private async Task<int> RunCoreAsync(string[] args, CancellationToken cancellationToken)
+    internal async Task<int> RunCoreAsync(string[] args, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(args);
+
         var options = DesktopProgramOptions.Parse(args, currentDirectoryProvider());
         await using var session = sessionFactory(options);
 
