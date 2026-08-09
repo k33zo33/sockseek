@@ -66,6 +66,15 @@ public sealed class ShellBindingNotificationTests
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentTheme));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.StatusBanner));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerTitle));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerTitleResourceKey));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerMessage));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerMessageResourceKey));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsBackendBannerVisible));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerSurfaceToken));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerIconToken));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerIconAccessibilityLabel));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerIconAccessibilityLabelResourceKey));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendState));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentHandshake));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HasCurrentHandshake));

@@ -26,6 +26,24 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public BackendStatusBannerViewModel StatusBanner => Session.Shell.StatusBanner;
 
+    public string BackendBannerTitle => StatusBanner.Title;
+
+    public string BackendBannerTitleResourceKey => StatusBanner.TitleResourceKey;
+
+    public string BackendBannerMessage => StatusBanner.Message;
+
+    public string BackendBannerMessageResourceKey => StatusBanner.MessageResourceKey;
+
+    public bool IsBackendBannerVisible => StatusBanner.IsVisible;
+
+    public string BackendBannerSurfaceToken => StatusBanner.SurfaceToken;
+
+    public string BackendBannerIconToken => StatusBanner.IconToken;
+
+    public string BackendBannerIconAccessibilityLabel => StatusBanner.IconAccessibilityLabel;
+
+    public string BackendBannerIconAccessibilityLabelResourceKey => StatusBanner.IconAccessibilityLabelResourceKey;
+
     public IReadOnlyList<ShellNavigationItem> NavigationItems => Session.Shell.Items;
 
     public PlayerBarPlaceholderViewModel PlayerBar => Session.Shell.PlayerBar;
@@ -170,6 +188,15 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 break;
             case nameof(ShellNavigationViewModel.StatusBanner):
                 OnPropertyChanged(nameof(StatusBanner));
+                OnPropertyChanged(nameof(BackendBannerTitle));
+                OnPropertyChanged(nameof(BackendBannerTitleResourceKey));
+                OnPropertyChanged(nameof(BackendBannerMessage));
+                OnPropertyChanged(nameof(BackendBannerMessageResourceKey));
+                OnPropertyChanged(nameof(IsBackendBannerVisible));
+                OnPropertyChanged(nameof(BackendBannerSurfaceToken));
+                OnPropertyChanged(nameof(BackendBannerIconToken));
+                OnPropertyChanged(nameof(BackendBannerIconAccessibilityLabel));
+                OnPropertyChanged(nameof(BackendBannerIconAccessibilityLabelResourceKey));
                 OnPropertyChanged(nameof(CanCopyDiagnostics));
                 OnPropertyChanged(nameof(CopyDiagnosticsLabel));
                 OnPropertyChanged(nameof(CopyDiagnosticsLabelResourceKey));
