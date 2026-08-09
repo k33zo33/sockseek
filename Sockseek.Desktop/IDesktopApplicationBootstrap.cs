@@ -2,5 +2,5 @@ namespace Sockseek.Desktop;
 
 public interface IDesktopApplicationBootstrap
 {
-    Task<int> RunAsync(DesktopProgramBootstrap bootstrap, string[] args, CancellationToken cancellationToken = default);
+    Task<int> RunAsync(IDesktopProgramFlow programFlow, string[] args, CancellationToken cancellationToken = default);
 }

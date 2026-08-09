@@ -3,12 +3,12 @@ namespace Sockseek.Desktop;
 public sealed class DesktopProgramBootstrap(
     Func<DesktopProgramOptions, IDesktopShellSession> sessionFactory,
     Func<string> currentDirectoryProvider,
-    IDesktopShellHost shellHost)
+    IDesktopShellHost shellHost) : IDesktopProgramFlow
 {
     public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
         => RunCoreAsync(args, cancellationToken);
 
-    internal async Task<int> RunCoreAsync(string[] args, CancellationToken cancellationToken)
+    private async Task<int> RunCoreAsync(string[] args, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
 
