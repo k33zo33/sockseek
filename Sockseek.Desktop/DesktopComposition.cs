@@ -29,8 +29,12 @@ public static class DesktopComposition
         return CreateProgramFlow(shellHost, currentDirectoryProvider, sessionFactory);
     }
 
-    private static IDesktopShellHost CreateShellHost(IDesktopShellWindowLifetime windowLifetime)
-        => new DesktopShellWindowHost(windowLifetime);
+    public static IDesktopShellHost CreateShellHost(IDesktopShellWindowLifetime windowLifetime)
+    {
+        ArgumentNullException.ThrowIfNull(windowLifetime);
+
+        return new DesktopShellWindowHost(windowLifetime);
+    }
 
     public static IDesktopApplicationBootstrap CreateApplicationBootstrap(IDesktopSingleInstanceGate? singleInstanceGate = null)
         => new SingleInstanceDesktopApplicationBootstrap(singleInstanceGate ?? new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));

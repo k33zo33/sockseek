@@ -65,6 +65,17 @@ public sealed class DesktopCompositionTests
     }
 
     [TestMethod]
+    public void CreateShellHost_ReturnsDesktopShellWindowHost()
+    {
+        var lifetime = new FakeWindowLifetime();
+
+        var shellHost = DesktopComposition.CreateShellHost(lifetime);
+
+        Assert.IsNotNull(shellHost);
+        Assert.IsInstanceOfType<DesktopShellWindowHost>(shellHost);
+    }
+
+    [TestMethod]
     public async Task CreateProgramFlow_UsesInjectedShellHostFactory()
     {
         var windowLifetime = new FakeWindowLifetime();
@@ -102,6 +113,14 @@ public sealed class DesktopCompositionTests
         var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateProgramFlow((IDesktopShellHost)null!));
 
         Assert.AreEqual("shellHost", exception.ParamName);
+    }
+
+    [TestMethod]
+    public void CreateShellHost_WhenWindowLifetimeIsNull_ThrowsArgumentNullException()
+    {
+        var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateShellHost(null!));
+
+        Assert.AreEqual("windowLifetime", exception.ParamName);
     }
 
     [TestMethod]
