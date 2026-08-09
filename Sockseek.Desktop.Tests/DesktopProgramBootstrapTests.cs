@@ -49,7 +49,7 @@ public sealed class DesktopProgramBootstrapTests
     }
 
     [TestMethod]
-    public async Task RunAsync_WhenSessionCannotStartDaemon_ReturnsTwo()
+    public async Task RunAsync_WhenSessionCannotStartDaemon_ReturnsTwoForExitAfterStartup()
     {
         var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost();
@@ -66,7 +66,7 @@ public sealed class DesktopProgramBootstrapTests
     }
 
     [TestMethod]
-    public async Task RunAsync_WhenDaemonStartFails_ReturnsTwo()
+    public async Task RunAsync_WhenDaemonStartFails_ReturnsTwoForExitAfterStartup()
     {
         var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
         var shellHost = new FakeShellHost();
@@ -80,6 +80,28 @@ public sealed class DesktopProgramBootstrapTests
 
         Assert.AreEqual(2, exitCode);
         Assert.AreEqual(0, shellHost.RunCallCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_WhenDaemonStartFailsInInteractiveMode_StillHostsShell()
+    {
+        var runner = new DesktopProgramRunner(new AlwaysFirstInstanceGate());
+        var shellHost = new FakeShellHost(exitCode: 7);
+        FakeShellSession? createdSession = null;
+        var bootstrap = new DesktopProgramBootstrap(
+            runner,
+            options => createdSession = new FakeShellSession(canStartDaemon: true, startResult: false, options),
+            () => "/workspace",
+            shellHost);
+
+        var exitCode = await bootstrap.RunAsync(["--workspace-root", "/custom"]);
+
+        Assert.AreEqual(7, exitCode);
+        Assert.IsNotNull(createdSession);
+        Assert.IsTrue(createdSession.StartCalled);
+        Assert.AreSame(createdSession, shellHost.ReceivedSession);
+        Assert.AreEqual(1, shellHost.RunCallCount);
+        Assert.IsTrue(createdSession.Disposed);
     }
 
     [TestMethod]

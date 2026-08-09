@@ -15,11 +15,8 @@ public sealed class DesktopProgramBootstrap(
         await using var session = sessionFactory(options);
 
         var started = await session.StartAsync(cancellationToken);
-        if (!started)
-            return 2;
-
         if (options.ExitAfterStartup)
-            return 0;
+            return started ? 0 : 2;
 
         return await shellHost.RunAsync(session, cancellationToken);
     }

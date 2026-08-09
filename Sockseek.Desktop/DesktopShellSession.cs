@@ -36,9 +36,16 @@ public sealed class DesktopShellSession : IDesktopShellSession
             return true;
 
         if (!CanStartDaemon || workspaceRoot is null)
+        {
+            Supervisor.MarkDisconnected();
             return false;
+        }
 
-        return await Supervisor.TryLaunchAsync(launchRequestFactory(workspaceRoot), cancellationToken);
+        var started = await Supervisor.TryLaunchAsync(launchRequestFactory(workspaceRoot), cancellationToken);
+        if (!started)
+            Supervisor.MarkDisconnected();
+
+        return started;
     }
 
     public async ValueTask DisposeAsync()

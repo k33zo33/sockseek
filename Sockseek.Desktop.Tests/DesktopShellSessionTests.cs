@@ -57,17 +57,40 @@ public sealed class DesktopShellSessionTests
     }
 
     [TestMethod]
-    public async Task StartAsync_WithoutWorkspaceRoot_ReturnsFalse()
+    public async Task StartAsync_WithoutWorkspaceRoot_ReturnsFalseAndMarksShellDisconnected()
     {
         await using var session = new DesktopShellSession(
             supervisor: new DesktopDaemonSupervisor(new FakeProcessLauncher()),
             connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
 
         var started = await session.StartAsync();
+        await session.RecoveryCoordinator.WhenIdleAsync();
 
         Assert.IsFalse(started);
-        Assert.AreEqual(BackendConnectionState.Starting, session.Shell.BackendState);
+        Assert.AreEqual(BackendConnectionState.Disconnected, session.Shell.BackendState);
         Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, session.RecoveryCoordinator.EventsState);
+    }
+
+    [TestMethod]
+    public async Task StartAsync_WhenLaunchFails_ReturnsFalseAndMarksShellDisconnected()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(new FakeProcessLauncher()),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            workspaceRoot: "/workspace",
+            launchRequestFactory: root => new DesktopDaemonLaunchRequest(
+                "dotnet",
+                "run --project Sockseek.Server/Sockseek.Server.csproj",
+                root,
+                new Dictionary<string, string?>()));
+
+        var started = await session.StartAsync();
+        await session.RecoveryCoordinator.WhenIdleAsync();
+
+        Assert.IsFalse(started);
+        Assert.AreEqual(BackendConnectionState.Disconnected, session.Shell.BackendState);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, session.RecoveryCoordinator.EventsState);
+        Assert.IsNull(session.Shell.CurrentHandshake);
     }
 
     [TestMethod]
