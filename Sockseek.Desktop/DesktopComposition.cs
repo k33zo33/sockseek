@@ -7,16 +7,20 @@ public static class DesktopComposition
     public static IDesktopProgramFlow CreateProgramFlow(
         IDesktopShellWindowLifetime windowLifetime,
         Func<string>? currentDirectoryProvider = null,
-        Func<DesktopProgramOptions, IDesktopShellSession>? sessionFactory = null)
+        Func<DesktopProgramOptions, IDesktopShellSession>? sessionFactory = null,
+        Func<IDesktopShellWindowLifetime, IDesktopShellHost>? shellHostFactory = null)
     {
         ArgumentNullException.ThrowIfNull(windowLifetime);
 
-        var shellHost = new DesktopShellWindowHost(windowLifetime);
+        var shellHost = (shellHostFactory ?? CreateShellHost)(windowLifetime);
         return new DesktopProgramBootstrap(
             sessionFactory ?? CreateShellSession,
             currentDirectoryProvider ?? Directory.GetCurrentDirectory,
             shellHost);
     }
+
+    private static IDesktopShellHost CreateShellHost(IDesktopShellWindowLifetime windowLifetime)
+        => new DesktopShellWindowHost(windowLifetime);
 
     public static IDesktopApplicationBootstrap CreateHeadlessApplicationBootstrap(IDesktopSingleInstanceGate? singleInstanceGate = null)
         => new HeadlessDesktopApplicationBootstrap(singleInstanceGate ?? new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));

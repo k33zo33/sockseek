@@ -47,6 +47,30 @@ public sealed class DesktopCompositionTests
     }
 
     [TestMethod]
+    public async Task CreateProgramFlow_UsesInjectedShellHostFactory()
+    {
+        var windowLifetime = new FakeWindowLifetime();
+        var shellHost = new FakeShellHost(exitCode: 9);
+        IDesktopShellWindowLifetime? receivedWindowLifetime = null;
+        var programFlow = DesktopComposition.CreateProgramFlow(
+            windowLifetime,
+            currentDirectoryProvider: () => "/workspace",
+            sessionFactory: options => new FakeShellSession(options, startResult: true),
+            shellHostFactory: lifetime =>
+            {
+                receivedWindowLifetime = lifetime;
+                return shellHost;
+            });
+
+        var exitCode = await programFlow.RunAsync([]);
+
+        Assert.AreEqual(9, exitCode);
+        Assert.AreSame(windowLifetime, receivedWindowLifetime);
+        Assert.AreEqual(1, shellHost.RunCallCount);
+        Assert.AreEqual(0, windowLifetime.RunCallCount);
+    }
+
+    [TestMethod]
     public void CreateProgramFlow_WhenWindowLifetimeIsNull_ThrowsArgumentNullException()
     {
         var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateProgramFlow(null!));
@@ -110,6 +134,17 @@ public sealed class DesktopCompositionTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakeShellHost(int exitCode) : IDesktopShellHost
+    {
+        public int RunCallCount { get; private set; }
+
+        public Task<int> RunAsync(IDesktopShellSession session, CancellationToken cancellationToken = default)
+        {
+            RunCallCount++;
+            return Task.FromResult(exitCode);
+        }
     }
 
     private sealed class FakeProgramFlow(int exitCode) : IDesktopProgramFlow
