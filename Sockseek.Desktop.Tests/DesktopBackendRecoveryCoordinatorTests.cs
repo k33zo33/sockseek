@@ -106,6 +106,90 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         Assert.IsFalse(createdConnections[0].Disposed);
     }
 
+    [TestMethod]
+    public async Task ConnectedSnapshot_WhenEventConnectionStartFails_MarksDisconnectedWithoutFaultingCoordinator()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        var createdConnections = new List<FakeDesktopEventHubConnection>();
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake =>
+            {
+                var connection = new FakeDesktopEventHubConnection(handshake)
+                {
+                    StartException = new InvalidOperationException("boom")
+                };
+                createdConnections.Add(connection);
+                return connection;
+            });
+
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(1, createdConnections.Count);
+        Assert.AreEqual(1, createdConnections[0].StartCallCount);
+        Assert.IsTrue(createdConnections[0].Disposed);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+    }
+
+    [TestMethod]
+    public async Task ConnectedSnapshot_WhenSubscribeAllFails_MarksDisconnectedWithoutFaultingCoordinator()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        var createdConnections = new List<FakeDesktopEventHubConnection>();
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake =>
+            {
+                var connection = new FakeDesktopEventHubConnection(handshake)
+                {
+                    SubscribeAllException = new InvalidOperationException("boom")
+                };
+                createdConnections.Add(connection);
+                return connection;
+            });
+
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(1, createdConnections.Count);
+        Assert.AreEqual(1, createdConnections[0].StartCallCount);
+        Assert.AreEqual(1, createdConnections[0].SubscribeAllCallCount);
+        Assert.IsTrue(createdConnections[0].Disposed);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+    }
+
+    [TestMethod]
+    public async Task FailedConnectionStartup_DoesNotPreventLaterSuccessfulReconnect()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        var attempts = 0;
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake =>
+            {
+                attempts++;
+                return attempts == 1
+                    ? new FakeDesktopEventHubConnection(handshake) { StartException = new InvalidOperationException("boom") }
+                    : new FakeDesktopEventHubConnection(handshake);
+            });
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        await coordinator.WhenIdleAsync();
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+
+        supervisor.MarkRestarting();
+        await coordinator.WhenIdleAsync();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5040\",\"SessionToken\":\"token-2\"}");
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(2, attempts);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Connected, coordinator.EventsState);
+    }
+
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection
     {
         public DesktopDaemonHandshake Handshake { get; } = handshake;
@@ -132,6 +216,8 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         public int StopCallCount { get; private set; }
         public int SubscribeAllCallCount { get; private set; }
         public bool Disposed { get; private set; }
+        public Exception? StartException { get; init; }
+        public Exception? SubscribeAllException { get; init; }
 
         public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
             => _ = handler;
@@ -143,6 +229,9 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             StartCallCount++;
+            if (StartException is not null)
+                return Task.FromException(StartException);
+
             return Task.CompletedTask;
         }
 
@@ -157,6 +246,9 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             SubscribeAllCallCount++;
+            if (SubscribeAllException is not null)
+                return Task.FromException(SubscribeAllException);
+
             return Task.CompletedTask;
         }
 

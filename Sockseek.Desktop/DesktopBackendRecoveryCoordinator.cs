@@ -83,7 +83,6 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
                     await manager.DisposeAsync().ConfigureAwait(false);
                     activeHandshake = null;
                     SetEventsState(DesktopBackendEventsConnectionState.Disconnected);
-                    throw;
                 }
 
                 return;
