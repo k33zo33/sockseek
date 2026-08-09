@@ -66,11 +66,12 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
                     return;
 
                 await DisposeActiveManagerAsync().ConfigureAwait(false);
-                var manager = new DesktopBackendEventsReconnectManager(connectionFactory(snapshot.Handshake));
-                manager.StateChanged += HandleManagerStateChanged;
 
+                DesktopBackendEventsReconnectManager? manager = null;
                 try
                 {
+                    manager = new DesktopBackendEventsReconnectManager(connectionFactory(snapshot.Handshake));
+                    manager.StateChanged += HandleManagerStateChanged;
                     await manager.StartAsync().ConfigureAwait(false);
                     await manager.SubscribeAllAsync().ConfigureAwait(false);
                     activeManager = manager;
@@ -79,8 +80,12 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
                 }
                 catch
                 {
-                    manager.StateChanged -= HandleManagerStateChanged;
-                    await manager.DisposeAsync().ConfigureAwait(false);
+                    if (manager is not null)
+                    {
+                        manager.StateChanged -= HandleManagerStateChanged;
+                        await manager.DisposeAsync().ConfigureAwait(false);
+                    }
+
                     activeHandshake = null;
                     SetEventsState(DesktopBackendEventsConnectionState.Disconnected);
                 }

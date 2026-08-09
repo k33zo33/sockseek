@@ -162,6 +162,57 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
     }
 
     [TestMethod]
+    public async Task ConnectedSnapshot_WhenConnectionFactoryThrows_MarksDisconnectedWithoutFaultingCoordinator()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        var factoryCallCount = 0;
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            _ =>
+            {
+                factoryCallCount++;
+                throw new InvalidOperationException("boom");
+            });
+
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(1, factoryCallCount);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+    }
+
+    [TestMethod]
+    public async Task FailedConnectionFactory_DoesNotPreventLaterSuccessfulReconnect()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        var factoryCallCount = 0;
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake =>
+            {
+                factoryCallCount++;
+                if (factoryCallCount == 1)
+                    throw new InvalidOperationException("boom");
+
+                return new FakeDesktopEventHubConnection(handshake);
+            });
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        await coordinator.WhenIdleAsync();
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+
+        supervisor.MarkRestarting();
+        await coordinator.WhenIdleAsync();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5040\",\"SessionToken\":\"token-2\"}");
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(2, factoryCallCount);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Connected, coordinator.EventsState);
+    }
+
+    [TestMethod]
     public async Task FailedConnectionStartup_DoesNotPreventLaterSuccessfulReconnect()
     {
         var supervisor = new DesktopDaemonSupervisor();
