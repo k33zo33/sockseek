@@ -21,6 +21,17 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreSame(session.Shell, viewModel.Shell);
         CollectionAssert.AreEqual(session.Shell.Items.ToArray(), viewModel.NavigationItems.ToArray());
         Assert.AreSame(session.Shell.PlayerBar, viewModel.PlayerBar);
+        Assert.AreEqual("Nothing playing", viewModel.PlayerBarTitle);
+        Assert.AreEqual("Shell.PlayerBar.Title", viewModel.PlayerBarTitleResourceKey);
+        Assert.AreEqual("Artwork placeholder", viewModel.PlayerBarArtwork);
+        Assert.AreEqual("Shell.PlayerBar.Artwork", viewModel.PlayerBarArtworkResourceKey);
+        Assert.AreEqual("Choose a local track or completed download", viewModel.PlayerBarArtist);
+        Assert.AreEqual("Shell.PlayerBar.Artist", viewModel.PlayerBarArtistResourceKey);
+        Assert.AreEqual("00:00 / --:--", viewModel.PlayerBarProgress);
+        Assert.AreEqual("Shell.PlayerBar.Progress", viewModel.PlayerBarProgressResourceKey);
+        Assert.AreEqual("Queue unavailable until playback coordinator is connected", viewModel.PlayerBarQueueSummary);
+        Assert.AreEqual("Shell.PlayerBar.QueueSummary", viewModel.PlayerBarQueueSummaryResourceKey);
+        Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBarSurfaceToken);
         Assert.AreSame(session.Shell.CommandPalette, viewModel.CommandPalette);
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
         Assert.AreEqual("Starting local daemon", viewModel.BackendBannerTitle);

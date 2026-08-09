@@ -48,6 +48,28 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public PlayerBarPlaceholderViewModel PlayerBar => Session.Shell.PlayerBar;
 
+    public string PlayerBarTitle => PlayerBar.Title;
+
+    public string PlayerBarTitleResourceKey => PlayerBar.TitleResourceKey;
+
+    public string PlayerBarArtwork => PlayerBar.Artwork;
+
+    public string PlayerBarArtworkResourceKey => PlayerBar.ArtworkResourceKey;
+
+    public string PlayerBarArtist => PlayerBar.Artist;
+
+    public string PlayerBarArtistResourceKey => PlayerBar.ArtistResourceKey;
+
+    public string PlayerBarProgress => PlayerBar.Progress;
+
+    public string PlayerBarProgressResourceKey => PlayerBar.ProgressResourceKey;
+
+    public string PlayerBarQueueSummary => PlayerBar.QueueSummary;
+
+    public string PlayerBarQueueSummaryResourceKey => PlayerBar.QueueSummaryResourceKey;
+
+    public string PlayerBarSurfaceToken => PlayerBar.SurfaceToken;
+
     public CommandPaletteViewModel CommandPalette => Session.Shell.CommandPalette;
 
     public ShellSection CurrentSection => Session.Shell.CurrentSection;
