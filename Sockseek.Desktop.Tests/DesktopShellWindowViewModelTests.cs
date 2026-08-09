@@ -25,6 +25,11 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Home, viewModel.CurrentPage.Section);
+        Assert.AreEqual("Home", viewModel.CurrentPageTitle);
+        Assert.AreEqual("Shell.Home.Title", viewModel.CurrentPageTitleResourceKey);
+        Assert.AreEqual("Backend status, recent activity, and onboarding live here.", viewModel.CurrentPageDescription);
+        Assert.AreEqual("Shell.Home.Description", viewModel.CurrentPageDescriptionResourceKey);
+        Assert.AreEqual(DesktopDesignTokens.Icon.Home, viewModel.CurrentPageIconToken);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
         Assert.IsFalse(viewModel.HasCurrentHandshake);
@@ -60,6 +65,11 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Sockseek — Downloads", viewModel.WindowTitle);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
+        Assert.AreEqual("Downloads", viewModel.CurrentPageTitle);
+        Assert.AreEqual("Shell.Downloads.Title", viewModel.CurrentPageTitleResourceKey);
+        Assert.AreEqual("Active and completed download workflows will appear here.", viewModel.CurrentPageDescription);
+        Assert.AreEqual("Shell.Downloads.Description", viewModel.CurrentPageDescriptionResourceKey);
+        Assert.AreEqual(DesktopDesignTokens.Icon.Downloads, viewModel.CurrentPageIconToken);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Disconnected, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);

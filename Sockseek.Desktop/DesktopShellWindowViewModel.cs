@@ -36,6 +36,16 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public ShellPageViewModel CurrentPage => Session.Shell.CurrentPage;
 
+    public string CurrentPageTitle => CurrentPage.Title;
+
+    public string CurrentPageTitleResourceKey => CurrentPage.TitleResourceKey;
+
+    public string CurrentPageDescription => CurrentPage.Description;
+
+    public string CurrentPageDescriptionResourceKey => CurrentPage.DescriptionResourceKey;
+
+    public string CurrentPageIconToken => CurrentPage.IconToken;
+
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
 
     public BackendConnectionState BackendState => Shell.BackendState;
@@ -146,6 +156,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 break;
             case nameof(ShellNavigationViewModel.CurrentPage):
                 OnPropertyChanged(nameof(CurrentPage));
+                OnPropertyChanged(nameof(CurrentPageTitle));
+                OnPropertyChanged(nameof(CurrentPageTitleResourceKey));
+                OnPropertyChanged(nameof(CurrentPageDescription));
+                OnPropertyChanged(nameof(CurrentPageDescriptionResourceKey));
+                OnPropertyChanged(nameof(CurrentPageIconToken));
                 OnPropertyChanged(nameof(WindowTitle));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
