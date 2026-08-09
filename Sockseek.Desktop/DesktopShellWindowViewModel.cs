@@ -68,6 +68,64 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public string PlayerBarQueueSummaryResourceKey => PlayerBar.QueueSummaryResourceKey;
 
+    public bool CanGoPrevious => PlayerBar.CanGoPrevious;
+
+    public string PreviousIconAccessibilityLabel => PlayerBar.PreviousIconAccessibilityLabel;
+
+    public string PreviousIconAccessibilityLabelResourceKey => PlayerBar.PreviousIconAccessibilityLabelResourceKey;
+
+    public string PreviousIconToken => PlayerBar.PreviousIconToken;
+
+    public bool CanPlayPause => PlayerBar.CanPlayPause;
+
+    public string PlayPauseIconAccessibilityLabel => PlayerBar.PlayPauseIconAccessibilityLabel;
+
+    public string PlayPauseIconAccessibilityLabelResourceKey => PlayerBar.PlayPauseIconAccessibilityLabelResourceKey;
+
+    public string PlayPauseHint => PlayerBar.PlayPauseHint;
+
+    public string PlayPauseHintResourceKey => PlayerBar.PlayPauseHintResourceKey;
+
+    public string PlayPauseIconToken => PlayerBar.PlayPauseIconToken;
+
+    public bool CanGoNext => PlayerBar.CanGoNext;
+
+    public string NextIconAccessibilityLabel => PlayerBar.NextIconAccessibilityLabel;
+
+    public string NextIconAccessibilityLabelResourceKey => PlayerBar.NextIconAccessibilityLabelResourceKey;
+
+    public string NextIconToken => PlayerBar.NextIconToken;
+
+    public string QueueIconAccessibilityLabel => PlayerBar.QueueIconAccessibilityLabel;
+
+    public string QueueIconAccessibilityLabelResourceKey => PlayerBar.QueueIconAccessibilityLabelResourceKey;
+
+    public string QueueHint => PlayerBar.QueueHint;
+
+    public string QueueHintResourceKey => PlayerBar.QueueHintResourceKey;
+
+    public string QueueIconToken => PlayerBar.QueueIconToken;
+
+    public string VolumeIconAccessibilityLabel => PlayerBar.VolumeIconAccessibilityLabel;
+
+    public string VolumeIconAccessibilityLabelResourceKey => PlayerBar.VolumeIconAccessibilityLabelResourceKey;
+
+    public string VolumeHint => PlayerBar.VolumeHint;
+
+    public string VolumeHintResourceKey => PlayerBar.VolumeHintResourceKey;
+
+    public string VolumeIconToken => PlayerBar.VolumeIconToken;
+
+    public string ExpandedPlayerIconAccessibilityLabel => PlayerBar.ExpandedPlayerIconAccessibilityLabel;
+
+    public string ExpandedPlayerIconAccessibilityLabelResourceKey => PlayerBar.ExpandedPlayerIconAccessibilityLabelResourceKey;
+
+    public string ExpandedPlayerHint => PlayerBar.ExpandedPlayerHint;
+
+    public string ExpandedPlayerHintResourceKey => PlayerBar.ExpandedPlayerHintResourceKey;
+
+    public string ExpandedPlayerIconToken => PlayerBar.ExpandedPlayerIconToken;
+
     public string PlayerBarSurfaceToken => PlayerBar.SurfaceToken;
 
     public CommandPaletteViewModel CommandPalette => Session.Shell.CommandPalette;
