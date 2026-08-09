@@ -32,8 +32,11 @@ public static class DesktopComposition
     private static IDesktopShellHost CreateShellHost(IDesktopShellWindowLifetime windowLifetime)
         => new DesktopShellWindowHost(windowLifetime);
 
+    public static IDesktopApplicationBootstrap CreateApplicationBootstrap(IDesktopSingleInstanceGate? singleInstanceGate = null)
+        => new SingleInstanceDesktopApplicationBootstrap(singleInstanceGate ?? new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));
+
     public static IDesktopApplicationBootstrap CreateHeadlessApplicationBootstrap(IDesktopSingleInstanceGate? singleInstanceGate = null)
-        => new HeadlessDesktopApplicationBootstrap(singleInstanceGate ?? new MutexDesktopSingleInstanceGate(SingleInstanceMutexName));
+        => CreateApplicationBootstrap(singleInstanceGate);
 
     private static IDesktopShellSession CreateShellSession(DesktopProgramOptions options)
         => new DesktopShellSession(

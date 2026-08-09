@@ -3,12 +3,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Sockseek.Desktop.Tests;
 
 [TestClass]
-public sealed class HeadlessDesktopApplicationBootstrapTests
+public sealed class SingleInstanceDesktopApplicationBootstrapTests
 {
     [TestMethod]
     public void RunAsync_WhenProgramFlowIsNull_ThrowsArgumentNullException()
     {
-        var applicationBootstrap = new HeadlessDesktopApplicationBootstrap(new FakeSingleInstanceGate(acquireLease: true));
+        var applicationBootstrap = new SingleInstanceDesktopApplicationBootstrap(new FakeSingleInstanceGate(acquireLease: true));
 
         var exception = Assert.ThrowsException<ArgumentNullException>(() => applicationBootstrap.RunAsync(null!, [], CancellationToken.None));
 
@@ -18,7 +18,7 @@ public sealed class HeadlessDesktopApplicationBootstrapTests
     [TestMethod]
     public void RunAsync_WhenArgsAreNull_ThrowsArgumentNullException()
     {
-        var applicationBootstrap = new HeadlessDesktopApplicationBootstrap(new FakeSingleInstanceGate(acquireLease: true));
+        var applicationBootstrap = new SingleInstanceDesktopApplicationBootstrap(new FakeSingleInstanceGate(acquireLease: true));
         var programFlow = new DesktopProgramBootstrap(
             options => new FakeShellSession(canStartDaemon: true, startResult: true, options),
             () => "/workspace",
@@ -39,7 +39,7 @@ public sealed class HeadlessDesktopApplicationBootstrapTests
             options => createdSession = new FakeShellSession(canStartDaemon: true, startResult: true, options),
             () => "/workspace",
             shellHost);
-        var applicationBootstrap = new HeadlessDesktopApplicationBootstrap(gate);
+        var applicationBootstrap = new SingleInstanceDesktopApplicationBootstrap(gate);
 
         var exitCode = await applicationBootstrap.RunAsync(programFlow, []);
 
@@ -60,7 +60,7 @@ public sealed class HeadlessDesktopApplicationBootstrapTests
             options => new FakeShellSession(canStartDaemon: true, startResult: true, options),
             () => "/workspace",
             shellHost);
-        var applicationBootstrap = new HeadlessDesktopApplicationBootstrap(gate);
+        var applicationBootstrap = new SingleInstanceDesktopApplicationBootstrap(gate);
 
         var exitCode = await applicationBootstrap.RunAsync(programFlow, []);
 
@@ -72,7 +72,7 @@ public sealed class HeadlessDesktopApplicationBootstrapTests
     [TestMethod]
     public void Constructor_WhenSingleInstanceGateIsNull_ThrowsArgumentNullException()
     {
-        var exception = Assert.ThrowsException<ArgumentNullException>(() => new HeadlessDesktopApplicationBootstrap(null!));
+        var exception = Assert.ThrowsException<ArgumentNullException>(() => new SingleInstanceDesktopApplicationBootstrap(null!));
 
         Assert.AreEqual("singleInstanceGate", exception.ParamName);
     }

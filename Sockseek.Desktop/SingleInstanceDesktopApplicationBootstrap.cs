@@ -1,6 +1,6 @@
 namespace Sockseek.Desktop;
 
-public sealed class HeadlessDesktopApplicationBootstrap(IDesktopSingleInstanceGate singleInstanceGate) : IDesktopApplicationBootstrap
+public sealed class SingleInstanceDesktopApplicationBootstrap(IDesktopSingleInstanceGate singleInstanceGate) : IDesktopApplicationBootstrap
 {
     private readonly IDesktopSingleInstanceGate singleInstanceGate = singleInstanceGate ?? throw new ArgumentNullException(nameof(singleInstanceGate));
 

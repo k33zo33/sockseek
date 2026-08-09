@@ -105,10 +105,10 @@ public sealed class DesktopCompositionTests
     }
 
     [TestMethod]
-    public async Task CreateHeadlessApplicationBootstrap_UsesInjectedSingleInstanceGate()
+    public async Task CreateApplicationBootstrap_UsesInjectedSingleInstanceGate()
     {
         var gate = new FakeSingleInstanceGate(acquireLease: true);
-        var bootstrap = DesktopComposition.CreateHeadlessApplicationBootstrap(gate);
+        var bootstrap = DesktopComposition.CreateApplicationBootstrap(gate);
         var programFlow = new FakeProgramFlow(exitCode: 3);
 
         var exitCode = await bootstrap.RunAsync(programFlow, []);
@@ -119,10 +119,10 @@ public sealed class DesktopCompositionTests
     }
 
     [TestMethod]
-    public async Task CreateHeadlessApplicationBootstrap_WhenLeaseIsUnavailable_DoesNotRunProgramFlow()
+    public async Task CreateApplicationBootstrap_WhenLeaseIsUnavailable_DoesNotRunProgramFlow()
     {
         var gate = new FakeSingleInstanceGate(acquireLease: false);
-        var bootstrap = DesktopComposition.CreateHeadlessApplicationBootstrap(gate);
+        var bootstrap = DesktopComposition.CreateApplicationBootstrap(gate);
         var programFlow = new FakeProgramFlow(exitCode: 3);
 
         var exitCode = await bootstrap.RunAsync(programFlow, []);
@@ -130,6 +130,20 @@ public sealed class DesktopCompositionTests
         Assert.AreEqual(1, exitCode);
         Assert.AreEqual(1, gate.TryAcquireCallCount);
         Assert.AreEqual(0, programFlow.RunCallCount);
+    }
+
+    [TestMethod]
+    public async Task CreateHeadlessApplicationBootstrap_DelegatesToGenericApplicationBootstrap()
+    {
+        var gate = new FakeSingleInstanceGate(acquireLease: true);
+        var bootstrap = DesktopComposition.CreateHeadlessApplicationBootstrap(gate);
+        var programFlow = new FakeProgramFlow(exitCode: 3);
+
+        var exitCode = await bootstrap.RunAsync(programFlow, []);
+
+        Assert.AreEqual(3, exitCode);
+        Assert.AreEqual(1, gate.TryAcquireCallCount);
+        Assert.AreEqual(1, programFlow.RunCallCount);
     }
 
     private sealed class FakeWindowLifetime : IDesktopShellWindowLifetime
