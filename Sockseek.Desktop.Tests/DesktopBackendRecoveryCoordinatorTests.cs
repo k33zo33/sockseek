@@ -213,6 +213,67 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
     }
 
     [TestMethod]
+    public async Task Restarting_WhenConnectionDisposeThrows_StillFallsBackToDisconnected()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        var createdConnections = new List<FakeDesktopEventHubConnection>();
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake =>
+            {
+                var connection = new FakeDesktopEventHubConnection(handshake)
+                {
+                    DisposeException = new InvalidOperationException("boom")
+                };
+                createdConnections.Add(connection);
+                return connection;
+            });
+
+        await coordinator.WhenIdleAsync();
+        supervisor.MarkRestarting();
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(1, createdConnections.Count);
+        Assert.IsTrue(createdConnections[0].Disposed);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+    }
+
+    [TestMethod]
+    public async Task FailedConnectionStartup_WhenCleanupDisposeThrows_StillAllowsLaterReconnect()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        var attempts = 0;
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake =>
+            {
+                attempts++;
+                return attempts == 1
+                    ? new FakeDesktopEventHubConnection(handshake)
+                    {
+                        StartException = new InvalidOperationException("boom"),
+                        DisposeException = new InvalidOperationException("dispose-boom")
+                    }
+                    : new FakeDesktopEventHubConnection(handshake);
+            });
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        await coordinator.WhenIdleAsync();
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Disconnected, coordinator.EventsState);
+
+        supervisor.MarkRestarting();
+        await coordinator.WhenIdleAsync();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5040\",\"SessionToken\":\"token-2\"}");
+        await coordinator.WhenIdleAsync();
+
+        Assert.AreEqual(2, attempts);
+        Assert.AreEqual(DesktopBackendEventsConnectionState.Connected, coordinator.EventsState);
+    }
+
+    [TestMethod]
     public async Task FailedConnectionStartup_DoesNotPreventLaterSuccessfulReconnect()
     {
         var supervisor = new DesktopDaemonSupervisor();
@@ -269,6 +330,7 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         public bool Disposed { get; private set; }
         public Exception? StartException { get; init; }
         public Exception? SubscribeAllException { get; init; }
+        public Exception? DisposeException { get; init; }
 
         public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
             => _ = handler;
@@ -312,7 +374,9 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         public ValueTask DisposeAsync()
         {
             Disposed = true;
-            return ValueTask.CompletedTask;
+            return DisposeException is null
+                ? ValueTask.CompletedTask
+                : ValueTask.FromException(DisposeException);
         }
     }
 }

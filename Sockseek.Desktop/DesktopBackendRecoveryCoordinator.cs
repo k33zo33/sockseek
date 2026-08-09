@@ -83,7 +83,7 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
                     if (manager is not null)
                     {
                         manager.StateChanged -= HandleManagerStateChanged;
-                        await manager.DisposeAsync().ConfigureAwait(false);
+                        await TryDisposeManagerAsync(manager).ConfigureAwait(false);
                     }
 
                     activeHandshake = null;
@@ -117,8 +117,20 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
         activeManager = null;
         activeHandshake = null;
         manager.StateChanged -= HandleManagerStateChanged;
-        await manager.DisposeAsync().ConfigureAwait(false);
+        await TryDisposeManagerAsync(manager).ConfigureAwait(false);
         SetEventsState(DesktopBackendEventsConnectionState.Disconnected);
+    }
+
+    private static async ValueTask TryDisposeManagerAsync(DesktopBackendEventsReconnectManager manager)
+    {
+        try
+        {
+            await manager.DisposeAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // Recovery teardown must remain best-effort so the shell can fall back to disconnected state.
+        }
     }
 
     private void HandleManagerStateChanged(object? sender, DesktopBackendEventsConnectionState state)
