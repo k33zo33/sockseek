@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -43,8 +44,19 @@ public sealed class SockseekApiClient
     }
 
     /// <summary>Creates an <see cref="HttpClient"/> with a normalized daemon base address.</summary>
-    public static HttpClient CreateHttpClient(string serverUrl)
-        => new() { BaseAddress = NormalizeServerUrl(serverUrl) };
+    public static HttpClient CreateHttpClient(string serverUrl, string? sessionToken = null)
+    {
+        var client = new HttpClient { BaseAddress = NormalizeServerUrl(serverUrl) };
+        ApplySessionToken(client, sessionToken);
+        return client;
+    }
+
+    public static void ApplySessionToken(HttpClient httpClient, string? sessionToken)
+    {
+        httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(sessionToken)
+            ? null
+            : new AuthenticationHeaderValue("Bearer", sessionToken);
+    }
 
     public async Task<JobSummaryDto> SubmitExtractJobAsync(SubmitExtractJobRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/extract", request, ct);
@@ -75,6 +87,27 @@ public sealed class SockseekApiClient
 
     public async Task<JobSummaryDto> SubmitJobListAsync(SubmitJobListRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/lists", request, ct);
+
+    public async Task<SystemInfoDto> GetSystemInfoAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/system/info", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SystemInfoDto>(response, ct);
+    }
+
+    public async Task<SystemHealthDto> GetSystemHealthAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/system/health", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SystemHealthDto>(response, ct);
+    }
+
+    public async Task<SystemCapabilitiesDto> GetSystemCapabilitiesAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/system/capabilities", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SystemCapabilitiesDto>(response, ct);
+    }
 
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
@@ -201,11 +234,11 @@ public sealed class SockseekApiClient
     public async Task<JobSummaryDto?> StartRetrieveFolderAsync(Guid searchJobId, RetrieveFolderRequestDto request, CancellationToken ct = default)
         => await PostOptionalSummaryAsync($"api/jobs/{searchJobId}/retrieve-folder", request, ct);
 
-    public async Task<int> RetrieveFolderAndWaitAsync(Guid searchJobId, RetrieveFolderRequestDto request, CancellationToken ct = default)
+    public async Task<RetrieveFolderJobPayloadDto?> RetrieveFolderAndWaitAsync(Guid searchJobId, RetrieveFolderRequestDto request, CancellationToken ct = default)
     {
         var summary = await StartRetrieveFolderAsync(searchJobId, request, ct);
         if (summary == null)
-            return 0;
+            return null;
 
         while (true)
         {
@@ -217,9 +250,7 @@ public sealed class SockseekApiClient
                 continue;
             }
 
-            return detail.Payload is RetrieveFolderJobPayloadDto payload
-                ? payload.NewFilesFoundCount
-                : 0;
+            return detail.Payload as RetrieveFolderJobPayloadDto;
         }
     }
 
@@ -232,6 +263,15 @@ public sealed class SockseekApiClient
     public async Task<bool> CompleteManualSelectionAsync(Guid jobId, CancellationToken ct = default)
     {
         using var response = await http.PostAsync($"api/jobs/{jobId}/manual/complete", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(response, ct);
+        return true;
+    }
+
+    public async Task<bool> SkipManualSelectionAsync(Guid jobId, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/jobs/{jobId}/manual/skip", null, ct);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return false;
         await EnsureSuccessAsync(response, ct);
@@ -336,7 +376,17 @@ public sealed class SockseekApiClient
     {
         try
         {
-            return JsonSerializer.Deserialize<ApiErrorDto>(body, SockseekApiJson.CreateSerializerOptions())?.Error;
+            var options = SockseekApiJson.CreateSerializerOptions();
+            var appError = JsonSerializer.Deserialize<AppErrorDto>(body, options);
+            if (appError != null
+                && (!string.IsNullOrWhiteSpace(appError.Code)
+                    || !string.IsNullOrWhiteSpace(appError.Message)
+                    || !string.IsNullOrWhiteSpace(appError.CorrelationId)))
+            {
+                return $"{appError.Code}: {appError.Message} (correlationId: {appError.CorrelationId})";
+            }
+
+            return JsonSerializer.Deserialize<ApiErrorDto>(body, options)?.Error;
         }
         catch (JsonException)
         {

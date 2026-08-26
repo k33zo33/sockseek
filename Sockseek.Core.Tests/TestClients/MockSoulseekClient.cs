@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Sockseek.Core.Services;
 using Soulseek;
 
 namespace Tests.ClientTests
@@ -6,6 +7,12 @@ namespace Tests.ClientTests
     public partial class MockSoulseekClient : ISoulseekClient
     {
         public IReadOnlyCollection<Transfer> Downloads => throw new NotImplementedException();
+
+        // Soulseek.NET hard-codes the real client's major version; this test fake
+        // mirrors v10's value only to satisfy ISoulseekClient.
+        public int MajorVersion => 170;
+
+        public int MinorVersion => SockseekSoulseekClientIdentity.MinorVersion;
 
         public SoulseekClientStates State { get; private set; } = SoulseekClientStates.Connected | SoulseekClientStates.LoggedIn;
 
@@ -19,14 +26,18 @@ namespace Tests.ClientTests
         private int failingSearches;
 
         public int SearchesCancelledMidDelay { get; private set; }
+        public int ConnectCallCount;
         public int SearchCallCount;
         public int DownloadCallCount;
         public int BrowseCallCount;
         public int DownloadCallCountAtFirstBrowse = -1;
         public Action? BrowseStarted;
+        public Func<string, string, CancellationToken, Task>? BeforeDownloadStartsAsync;
         public Func<string, string, CancellationToken, Task>? BeforeDownloadCompletesAsync;
+        public Func<string, string, TransferStates, CancellationToken, Task>? AfterDownloadStateChangedAsync;
         public bool BrowseReturnsBasenames { get; set; }
         public bool IsDisposed { get; private set; }
+        public Exception? ConnectException { get; set; }
 
         public void FailNextDownloadWithDisconnect(string username)
             => disconnectingUsers.Add(username);
@@ -37,11 +48,23 @@ namespace Tests.ClientTests
         public void FailNextSearch()
             => Interlocked.Increment(ref failingSearches);
 
-        public MockSoulseekClient(List<Soulseek.SearchResponse> index, int searchDelayMs = 0, IEnumerable<string>? failingUsers = null)
+        public void RaiseKickedFromServer(bool disconnect = true)
+        {
+            if (disconnect)
+                State = SoulseekClientStates.None;
+            KickedFromServer?.Invoke(this, EventArgs.Empty);
+        }
+
+        public MockSoulseekClient(
+            List<Soulseek.SearchResponse> index,
+            int searchDelayMs = 0,
+            IEnumerable<string>? failingUsers = null,
+            SoulseekClientStates initialState = SoulseekClientStates.Connected | SoulseekClientStates.LoggedIn)
         {
             this.index         = index;
             this.searchDelayMs = searchDelayMs;
             this.failingUsers  = new HashSet<string>(failingUsers ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            State = initialState;
         }
 
         public static MockSoulseekClient FromLocalPaths(bool useTags, params string[] localPaths)
@@ -125,6 +148,14 @@ namespace Tests.ClientTests
 
         public Task ConnectAsync(string address, int port, string username, string password, CancellationToken? cancellationToken = null)
         {
+            Interlocked.Increment(ref ConnectCallCount);
+
+            if (ConnectException != null)
+            {
+                State = SoulseekClientStates.None;
+                return Task.FromException(ConnectException);
+            }
+
             State = SoulseekClientStates.Connected | SoulseekClientStates.LoggedIn;
             return Task.CompletedTask;
         }
@@ -312,6 +343,7 @@ namespace Tests.ClientTests
         private async Task<Transfer> DownloadAsyncInternal(string username, string remoteFilename, Func<Task<Stream>> outputStreamFactory, long? size = null, long startOffset = 0, int? token = null, TransferOptions? options = null, CancellationToken? cancellationToken = null)
         {
             Interlocked.Increment(ref DownloadCallCount);
+            var ct = cancellationToken.GetValueOrDefault(CancellationToken.None);
 
             if (!State.HasFlag(SoulseekClientStates.Connected) || !State.HasFlag(SoulseekClientStates.LoggedIn))
                 throw new SoulseekClientException($"Mock client is disconnected while downloading from user {username}");
@@ -324,6 +356,9 @@ namespace Tests.ClientTests
                 State = SoulseekClientStates.None;
                 throw new SoulseekClientException($"Simulated disconnect during download for user {username}");
             }
+
+            if (BeforeDownloadStartsAsync != null)
+                await BeforeDownloadStartsAsync(username, remoteFilename, ct);
 
             var transferToken = token ?? Random.Shared.Next();
             long fileSize;
@@ -371,16 +406,16 @@ namespace Tests.ClientTests
             {
                 try
                 {
-                    var ct = cancellationToken.GetValueOrDefault(CancellationToken.None);
-
                     Transfer MakeTransfer(TransferStates state, long bytes, double speed = 0, DateTime? startTime = null, DateTime? endTime = null) =>
                         new Transfer(TransferDirection.Download, username, remoteFilename, transferToken,
                             state, fileSize, startOffset, bytes, speed, startTime, endTime);
 
-                    void FireState(TransferStates state, long bytes = 0, double speed = 0, DateTime? t0 = null)
+                    async Task FireStateAsync(TransferStates state, long bytes = 0, double speed = 0, DateTime? t0 = null)
                     {
                         transfer = MakeTransfer(state, bytes, speed, t0);
                         options?.StateChanged?.Invoke((state, transfer));
+                        if (AfterDownloadStateChangedAsync != null)
+                            await AfterDownloadStateChangedAsync(username, remoteFilename, state, ct);
                     }
 
                     void FireProgress(long bytes, long prev, double speed, DateTime t0)
@@ -392,7 +427,7 @@ namespace Tests.ClientTests
                     // Always fire Queued (R) before acquiring the per-user slot —
                     // this mirrors real Soulseek where the peer queues your request
                     // while serving another file to you.
-                    FireState(TransferStates.Queued | TransferStates.Remotely);
+                    await FireStateAsync(TransferStates.Queued | TransferStates.Remotely);
 
                     var userSem = GetUserSemaphore(username);
                     await userSem.WaitAsync(ct);
@@ -400,14 +435,14 @@ namespace Tests.ClientTests
                     {
 
                     // Initialising — peer has accepted the transfer
-                    FireState(TransferStates.Initializing);
+                    await FireStateAsync(TransferStates.Initializing);
 
                     using var outputStream = await outputStreamFactory();
                     var startTime = DateTime.UtcNow;
                     var bytesTransferred = startOffset;
                     const int chunkSize = 16384;
 
-                    FireState(TransferStates.InProgress, bytesTransferred, 0, startTime);
+                    await FireStateAsync(TransferStates.InProgress, bytesTransferred, 0, startTime);
 
                     if (BeforeDownloadCompletesAsync != null)
                         await BeforeDownloadCompletesAsync(username, remoteFilename, ct);

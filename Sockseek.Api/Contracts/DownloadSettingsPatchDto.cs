@@ -1,5 +1,6 @@
 using Sockseek.Core;
 using Sockseek.Core.Models;
+using Sockseek.Core.Services;
 using Sockseek.Core.Settings;
 
 namespace Sockseek.Api;
@@ -31,10 +32,14 @@ public sealed record OutputSettingsPatchDto(
     bool? HasConfiguredIndex = null,
     string? M3uFilePath = null,
     string? IndexFilePath = null,
-    string? FailedAlbumPath = null,
+    IncompleteAlbumActionSettingsPatchDto? IncompleteAlbumAction = null,
     CollectionPatchDto<string>? OnComplete = null,
     bool? AlbumArtOnly = null,
     AlbumArtOption? AlbumArtOption = null);
+
+public sealed record IncompleteAlbumActionSettingsPatchDto(
+    IncompleteAlbumActionKind? Kind = null,
+    string? Path = null);
 
 public sealed record SearchSettingsPatchDto(
     FileConditionsPatchDto? NecessaryCond = null,
@@ -53,6 +58,7 @@ public sealed record SearchSettingsPatchDto(
     bool? RemoveSingleCharSearchTerms = null,
     bool? NoBrowseFolder = null,
     bool? Relax = null,
+    bool? StrictAlbumQuality = null,
     bool? ArtistMaybeWrong = null,
     bool? IsAggregate = null,
     int? MinSharesAggregate = null,
@@ -103,7 +109,11 @@ public sealed record ExtractionSettingsPatchDto(
     int? Offset = null,
     bool? Reverse = null,
     bool? RemoveTracksFromSource = null,
-    bool? IsAlbum = null,
+    // Nullable by design: null lets the input source decide. String input and string
+    // lines inside list files then use the 3.0 album default; explicit Song/Album
+    // only affects ambiguous string interpretation.
+    ExtractionMode? RequestedMode = null,
+    bool? UpgradeToAlbum = null,
     bool? SetAlbumMinTrackCount = null,
     bool? SetAlbumMaxTrackCount = null);
 
@@ -189,9 +199,14 @@ public static class DownloadSettingsPatchDtoMapper
         if (patch.HasConfiguredIndex is { } hasConfiguredIndex) target.HasConfiguredIndex = hasConfiguredIndex;
         if (patch.M3uFilePath is { } m3uFilePath) target.M3uFilePath = m3uFilePath;
         if (patch.IndexFilePath is { } indexFilePath) target.IndexFilePath = indexFilePath;
-        if (patch.FailedAlbumPath is { } failedAlbumPath) target.FailedAlbumPath = failedAlbumPath;
+        if (patch.IncompleteAlbumAction is { } incompleteAlbumAction)
+        {
+            target.IncompleteAlbumAction.Kind = incompleteAlbumAction.Kind;
+            target.IncompleteAlbumAction.Path = incompleteAlbumAction.Path;
+        }
         if (patch.OnComplete is { } onComplete)
         {
+            ValidateOnCompletePatch(onComplete);
             target.OnComplete ??= [];
             onComplete.ApplyTo(target.OnComplete);
         }
@@ -218,6 +233,7 @@ public static class DownloadSettingsPatchDtoMapper
         if (patch.RemoveSingleCharSearchTerms is { } removeSingleCharSearchTerms) target.RemoveSingleCharSearchTerms = removeSingleCharSearchTerms;
         if (patch.NoBrowseFolder is { } noBrowseFolder) target.NoBrowseFolder = noBrowseFolder;
         if (patch.Relax is { } relax) target.Relax = relax;
+        if (patch.StrictAlbumQuality is { } strictAlbumQuality) target.StrictAlbumQuality = strictAlbumQuality;
         if (patch.ArtistMaybeWrong is { } artistMaybeWrong) target.ArtistMaybeWrong = artistMaybeWrong;
         if (patch.IsAggregate is { } isAggregate) target.IsAggregate = isAggregate;
         if (patch.MinSharesAggregate is { } minSharesAggregate) target.MinSharesAggregate = minSharesAggregate;
@@ -288,7 +304,8 @@ public static class DownloadSettingsPatchDtoMapper
         if (patch.Offset is { } offset) target.Offset = offset;
         if (patch.Reverse is { } reverse) target.Reverse = reverse;
         if (patch.RemoveTracksFromSource is { } removeTracksFromSource) target.RemoveTracksFromSource = removeTracksFromSource;
-        if (patch.IsAlbum is { } isAlbum) target.IsAlbum = isAlbum;
+        if (patch.RequestedMode is { } requestedMode) target.RequestedMode = requestedMode;
+        if (patch.UpgradeToAlbum is { } upgradeToAlbum) target.UpgradeToAlbum = upgradeToAlbum;
         if (patch.SetAlbumMinTrackCount is { } setAlbumMinTrackCount) target.SetAlbumMinTrackCount = setAlbumMinTrackCount;
         if (patch.SetAlbumMaxTrackCount is { } setAlbumMaxTrackCount) target.SetAlbumMaxTrackCount = setAlbumMaxTrackCount;
     }
@@ -398,7 +415,8 @@ public static class DownloadSettingsPatchDtoMapper
                 case "Output.HasConfiguredIndex": Output.HasConfiguredIndex = Bool(op); break;
                 case "Output.M3uFilePath": Output.M3uFilePath = op.StringValue; break;
                 case "Output.IndexFilePath": Output.IndexFilePath = op.StringValue; break;
-                case "Output.FailedAlbumPath": Output.FailedAlbumPath = op.StringValue; break;
+                case "Output.IncompleteAlbumAction.Kind": Output.IncompleteAlbumAction.SetKind(op.IncompleteAlbumActionKindValue); break;
+                case "Output.IncompleteAlbumAction.Path": Output.IncompleteAlbumAction.SetPath(op.StringValue); break;
                 case "Output.OnComplete": Output.OnComplete = Collection(Output.OnComplete, op); break;
                 case "Output.AlbumArtOnly": Output.AlbumArtOnly = Bool(op); break;
                 case "Output.AlbumArtOption": Output.AlbumArtOption = op.AlbumArtOptionValue; break;
@@ -415,6 +433,7 @@ public static class DownloadSettingsPatchDtoMapper
                 case "Search.RemoveSingleCharSearchTerms": Search.RemoveSingleCharSearchTerms = Bool(op); break;
                 case "Search.NoBrowseFolder": Search.NoBrowseFolder = Bool(op); break;
                 case "Search.Relax": Search.Relax = Bool(op); break;
+                case "Search.StrictAlbumQuality": Search.StrictAlbumQuality = Bool(op); break;
                 case "Search.ArtistMaybeWrong": Search.ArtistMaybeWrong = Bool(op); break;
                 case "Search.IsAggregate": Search.IsAggregate = Bool(op); break;
                 case "Search.MinSharesAggregate": Search.MinSharesAggregate = Int(op); break;
@@ -479,7 +498,8 @@ public static class DownloadSettingsPatchDtoMapper
                 case "Extraction.Offset": Extraction.Offset = Int(op); break;
                 case "Extraction.Reverse": Extraction.Reverse = Bool(op); break;
                 case "Extraction.RemoveTracksFromSource": Extraction.RemoveTracksFromSource = Bool(op); break;
-                case "Extraction.IsAlbum": Extraction.IsAlbum = Bool(op); break;
+                case "Extraction.RequestedMode": Extraction.RequestedMode = op.ExtractionModeValue; break;
+                case "Extraction.UpgradeToAlbum": Extraction.UpgradeToAlbum = Bool(op); break;
                 case "Extraction.SetAlbumMinTrackCount": Extraction.SetAlbumMinTrackCount = Bool(op); break;
                 case "Extraction.SetAlbumMaxTrackCount": Extraction.SetAlbumMaxTrackCount = Bool(op); break;
 
@@ -547,11 +567,34 @@ public static class DownloadSettingsPatchDtoMapper
 
     private sealed class OutputBuilder
     {
-        public string? ParentDir, NameFormat, InvalidReplaceStr, M3uFilePath, IndexFilePath, FailedAlbumPath;
+        public string? ParentDir, NameFormat, InvalidReplaceStr, M3uFilePath, IndexFilePath;
+        public IncompleteAlbumActionBuilder IncompleteAlbumAction { get; } = new();
         public bool? WritePlaylist, WriteIndex, HasConfiguredIndex, AlbumArtOnly;
         public AlbumArtOption? AlbumArtOption;
         public CollectionPatchDto<string>? OnComplete;
-        public OutputSettingsPatchDto Build() => new(ParentDir, NameFormat, InvalidReplaceStr, WritePlaylist, WriteIndex, HasConfiguredIndex, M3uFilePath, IndexFilePath, FailedAlbumPath, OnComplete, AlbumArtOnly, AlbumArtOption);
+        public OutputSettingsPatchDto Build() => new(ParentDir, NameFormat, InvalidReplaceStr, WritePlaylist, WriteIndex, HasConfiguredIndex, M3uFilePath, IndexFilePath, IncompleteAlbumAction.Build(), OnComplete, AlbumArtOnly, AlbumArtOption);
+    }
+
+    private sealed class IncompleteAlbumActionBuilder
+    {
+        private bool touched;
+        private IncompleteAlbumActionKind? kind;
+        private string? path;
+
+        public void SetKind(IncompleteAlbumActionKind? value)
+        {
+            kind = value;
+            touched = true;
+        }
+
+        public void SetPath(string? value)
+        {
+            path = value;
+            touched = true;
+        }
+
+        public IncompleteAlbumActionSettingsPatchDto? Build()
+            => touched ? new IncompleteAlbumActionSettingsPatchDto(kind, path) : null;
     }
 
     private sealed class SearchBuilder
@@ -562,8 +605,8 @@ public static class DownloadSettingsPatchDtoMapper
         public FolderConditionsBuilder PreferredFolderCond { get; } = new();
         public int? SearchTimeout, MaxStaleTime, DownrankOn, IgnoreOn, FastSearchDelay, MinSharesAggregate, AggregateLengthTol;
         public double? FastSearchMinUpSpeed;
-        public bool? FastSearch, DesperateSearch, NoRemoveSpecialChars, RemoveSingleCharSearchTerms, NoBrowseFolder, Relax, ArtistMaybeWrong, IsAggregate;
-        public SearchSettingsPatchDto Build() => new(NecessaryCond.Build(), PreferredCond.Build(), NecessaryFolderCond.Build(), PreferredFolderCond.Build(), SearchTimeout, MaxStaleTime, DownrankOn, IgnoreOn, FastSearch, FastSearchDelay, FastSearchMinUpSpeed, DesperateSearch, NoRemoveSpecialChars, RemoveSingleCharSearchTerms, NoBrowseFolder, Relax, ArtistMaybeWrong, IsAggregate, MinSharesAggregate, AggregateLengthTol);
+        public bool? FastSearch, DesperateSearch, NoRemoveSpecialChars, RemoveSingleCharSearchTerms, NoBrowseFolder, Relax, StrictAlbumQuality, ArtistMaybeWrong, IsAggregate;
+        public SearchSettingsPatchDto Build() => new(NecessaryCond.Build(), PreferredCond.Build(), NecessaryFolderCond.Build(), PreferredFolderCond.Build(), SearchTimeout, MaxStaleTime, DownrankOn, IgnoreOn, FastSearch, FastSearchDelay, FastSearchMinUpSpeed, DesperateSearch, NoRemoveSpecialChars, RemoveSingleCharSearchTerms, NoBrowseFolder, Relax, StrictAlbumQuality, ArtistMaybeWrong, IsAggregate, MinSharesAggregate, AggregateLengthTol);
     }
 
     private sealed class FileConditionsBuilder
@@ -610,8 +653,9 @@ public static class DownloadSettingsPatchDtoMapper
         public string? Input;
         public InputType? InputType;
         public int? MaxTracks, Offset;
-        public bool? Reverse, RemoveTracksFromSource, IsAlbum, SetAlbumMinTrackCount, SetAlbumMaxTrackCount;
-        public ExtractionSettingsPatchDto Build() => new(Input, InputType, MaxTracks, Offset, Reverse, RemoveTracksFromSource, IsAlbum, SetAlbumMinTrackCount, SetAlbumMaxTrackCount);
+        public ExtractionMode? RequestedMode;
+        public bool? Reverse, RemoveTracksFromSource, UpgradeToAlbum, SetAlbumMinTrackCount, SetAlbumMaxTrackCount;
+        public ExtractionSettingsPatchDto Build() => new(Input, InputType, MaxTracks, Offset, Reverse, RemoveTracksFromSource, RequestedMode, UpgradeToAlbum, SetAlbumMinTrackCount, SetAlbumMaxTrackCount);
     }
 
     private sealed class TransferBuilder
@@ -658,6 +702,12 @@ public static class DownloadSettingsPatchDtoMapper
         => op.Operation == SettingOperationKind.Append
             ? current == null ? new CollectionPatchDto<string>(Append: op.StringListValue ?? []) : current with { Append = [.. current.Append ?? [], .. op.StringListValue ?? []] }
             : current == null ? new CollectionPatchDto<string>(Replace: op.StringListValue ?? []) : current with { Replace = op.StringListValue ?? [] };
+
+    private static void ValidateOnCompletePatch(CollectionPatchDto<string> patch)
+    {
+        OnCompleteExecutor.ValidateCommands(patch.Replace);
+        OnCompleteExecutor.ValidateCommands(patch.Append);
+    }
 
     private static CollectionPatchDto<RegexRuleDto> RegexCollection(CollectionPatchDto<RegexRuleDto>? current, DownloadSettingOperationDto op)
         => op.Operation == SettingOperationKind.Append

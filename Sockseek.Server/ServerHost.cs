@@ -1,16 +1,23 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sockseek.Api;
+using Sockseek.Application.Soulseek;
 
 namespace Sockseek.Server;
 
 public static class ServerHost
 {
-    public static WebApplication Build(string[] args, ServerOptions? options = null, string? url = null)
+    public const string CorrelationIdHeaderName = "X-Correlation-Id";
+    public const string DefaultListenUrl = "http://127.0.0.1:5030";
+
+    public static WebApplication Build(string[] args, ServerOptions? options = null, string? url = null, TextWriter? startupHandshakeWriter = null)
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Logging.ClearProviders();
@@ -21,8 +28,7 @@ public static class ServerHost
         });
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 
-        if (!string.IsNullOrWhiteSpace(url))
-            builder.WebHost.UseUrls(url);
+        builder.WebHost.UseUrls(ResolveListenUrl(url, builder.Configuration[WebHostDefaults.ServerUrlsKey]));
 
         if (options != null)
             builder.Services.AddSingleton<IOptions<ServerOptions>>(Options.Create(options));
@@ -57,19 +63,88 @@ public static class ServerHost
         });
         builder.Services.AddSingleton<EngineSupervisor>();
         builder.Services.AddSingleton(sp => sp.GetRequiredService<EngineSupervisor>().StateStore);
+        builder.Services.AddSingleton<ISoulseekEngineGateway, ServerSoulseekEngineGateway>();
+        builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
 
         var app = builder.Build();
+        DesktopDaemonStartupHandshakeEmitter.Register(app, startupHandshakeWriter ?? Console.Out);
         CoreLoggerBridge.Configure(app.Services, (options ?? app.Services.GetRequiredService<IOptions<ServerOptions>>().Value).Engine.LogLevel);
         _ = app.Services.GetRequiredService<ServerEventBroadcaster>();
         _ = app.Services.GetRequiredService<ServerActivityLogReporter>();
+
+        app.Use(async (context, next) =>
+        {
+            var correlationId = context.Request.Headers.TryGetValue(CorrelationIdHeaderName, out var incoming)
+                && !string.IsNullOrWhiteSpace(incoming)
+                ? incoming.ToString()
+                : Guid.NewGuid().ToString("n");
+
+            context.TraceIdentifier = correlationId;
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+            await next();
+        });
+
+        app.UseExceptionHandler(v1Errors => v1Errors.Run(context =>
+        {
+            var feature = context.Features.Get<IExceptionHandlerFeature>();
+            var correlationId = GetCorrelationId(context);
+            if (feature?.Error != null)
+                Sockseek.Core.SockseekLog.Daemon.Error(feature.Error, $"Unhandled server error ({correlationId})");
+
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+
+            if (context.Request.Path.StartsWithSegments("/api/v1"))
+            {
+                return context.Response.WriteAsJsonAsync(new AppErrorDto(
+                    Code: "internal_error",
+                    Message: "An unexpected server error occurred.",
+                    CorrelationId: correlationId));
+            }
+
+            return context.Response.WriteAsJsonAsync(new ApiErrorDto($"Unexpected server error. CorrelationId: {correlationId}"));
+        }));
+
+        app.Use(async (context, next) =>
+        {
+            if (!RequiresSessionToken(context.Request.Path))
+            {
+                await next();
+                return;
+            }
+
+            var sessionTokens = context.RequestServices.GetRequiredService<ServerSessionTokenProvider>();
+            var authorization = context.Request.Headers[HeaderNames.Authorization].ToString();
+            if (sessionTokens.Matches(authorization))
+            {
+                await next();
+                return;
+            }
+
+            var correlationId = GetCorrelationId(context);
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.Headers[CorrelationIdHeaderName] = correlationId;
+            context.Response.Headers[HeaderNames.WWWAuthenticate] = ServerSessionTokenProvider.AuthorizationScheme;
+            await context.Response.WriteAsJsonAsync(new AppErrorDto(
+                Code: "unauthorized",
+                Message: "A valid local session token is required for this API endpoint.",
+                CorrelationId: correlationId));
+        });
 
         app.MapOpenApi("/api/openapi.json");
         MapEndpoints(app);
         return app;
     }
+
+    public static string ResolveListenUrl(string? url, string? configuredUrl = null)
+        => !string.IsNullOrWhiteSpace(url)
+            ? url
+            : !string.IsNullOrWhiteSpace(configuredUrl)
+                ? configuredUrl
+                : DefaultListenUrl;
 
     private static string GetOpenApiVersion()
     {
@@ -87,10 +162,32 @@ public static class ServerHost
         app.MapGet("/", () => Results.Redirect("/api/server/info"))
             .ExcludeFromDescription();
 
+        app.MapGet("/health", (HttpContext context, EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemHealth(GetCorrelationId(context))))
+            .WithTags("System")
+            .WithSummary("Gets a minimal daemon health response.")
+            .Produces<SystemHealthDto>();
+
         app.MapGet("/api/server/info", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetInfo()))
             .WithTags("Server")
             .WithSummary("Gets server identity and protocol information.")
             .Produces<ServerInfoDto>();
+        app.MapGet("/api/v1/system/info", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemInfo()))
+            .WithTags("System")
+            .WithSummary("Gets versioned application API system information.")
+            .Produces<SystemInfoDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+        app.MapGet("/api/v1/system/health", (HttpContext context, EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemHealth(GetCorrelationId(context))))
+            .WithTags("System")
+            .WithSummary("Gets application API health and correlation metadata.")
+            .Produces<SystemHealthDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+        app.MapGet("/api/v1/system/capabilities", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetSystemCapabilities()))
+            .WithTags("System")
+            .WithSummary("Gets the versioned application API capability snapshot.")
+            .Produces<SystemCapabilitiesDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
         app.MapGet("/api/server/status", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetStatus()))
             .WithTags("Server")
             .WithSummary("Gets current daemon and Soulseek client status.")
@@ -352,6 +449,18 @@ public static class ServerHost
             .Produces(StatusCodes.Status202Accepted)
             .Produces(StatusCodes.Status404NotFound);
 
+        app.MapPost("/api/jobs/{jobId:guid}/manual/skip", async (Guid jobId, EngineSupervisor supervisor) =>
+        {
+            return await supervisor.SkipManualSelectionAsync(jobId)
+                ? Results.Accepted($"/api/jobs/{jobId}")
+                : Results.NotFound();
+        })
+            .WithTags("Jobs")
+            .WithSummary("Skips a manual-selection job without starting additional downloads.")
+            .WithDescription("Use this when a DownloadBehavior.Manual job reached AwaitingSelection and the caller wants to record an explicit user skip.")
+            .Produces(StatusCodes.Status202Accepted)
+            .Produces(StatusCodes.Status404NotFound);
+
         app.MapPost("/api/jobs/{jobId:guid}/cancel", (Guid jobId, EngineSupervisor supervisor) =>
         {
             return supervisor.CancelJob(jobId)
@@ -509,6 +618,17 @@ public static class ServerHost
 
         app.MapHub<ServerEventHub>("/api/events");
     }
+
+    private static bool RequiresSessionToken(PathString path)
+    {
+        if (!path.StartsWithSegments("/api/v1", StringComparison.Ordinal))
+            return false;
+
+        return !path.StartsWithSegments("/api/v1/system/health", StringComparison.Ordinal);
+    }
+
+    private static string GetCorrelationId(HttpContext context)
+        => context.TraceIdentifier;
 
     private static async Task<IResult> SubmitJobAsync(Func<Task<JobSummaryDto>> submit)
     {

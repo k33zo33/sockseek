@@ -17,7 +17,6 @@ public sealed record AggregateAlbumProjection(AlbumQuery Query);
 public class SearchJob : Job
 {
     private readonly Lock _projectionCacheLock = new();
-    private readonly Dictionary<string, (int Revision, bool IsComplete, object Value)> _projectionCache = [];
     private readonly Dictionary<string, object> _incrementalProjectionStates = [];
 
     public string QueryText { get; }
@@ -99,7 +98,6 @@ public class SearchJob : Job
                     search,
                     userSuccessCounts,
                     useInfer: false,
-                    useLevenshtein: false,
                     requireFileSatisfies: !projection.IncludeFullResults),
                 (projector, results) => projector.AddRange(results),
                 projector => projector.Snapshot()
@@ -289,7 +287,8 @@ public class SearchJob : Job
                     return cachedSnapshot;
                 }
 
-                cachedSnapshot = new SearchProjectionSnapshot<TItem>(revision, snapshot(projector), isComplete);
+                var items = snapshot(projector);
+                cachedSnapshot = new SearchProjectionSnapshot<TItem>(revision, items, isComplete);
                 return cachedSnapshot;
             }
         }

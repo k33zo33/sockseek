@@ -87,6 +87,8 @@ public sealed class ServerEventCoalescer : IDisposable
             if (type == "workflow.upserted" && payload is WorkflowSummaryDto workflow)
             {
                 pendingWorkflowUpserted[workflow.WorkflowId] = workflow;
+                if (workflow.State is ServerWorkflowState.Completed or ServerWorkflowState.Failed)
+                    FlushCore();
                 return;
             }
 
@@ -198,6 +200,7 @@ public sealed class ServerEventCoalescer : IDisposable
             JobStartedEventDto e => e.Summary.WorkflowId,
             JobStatusEventDto e => e.Summary.WorkflowId,
             JobMessageEventDto e => e.Summary.WorkflowId,
+            WorkflowMessageEventDto e => e.WorkflowId,
             JobActivityChangedEventDto e => e.Summary.WorkflowId,
             SongSearchingEventDto e => e.WorkflowId,
             DownloadStartedEventDto e => e.WorkflowId,
@@ -209,8 +212,6 @@ public sealed class ServerEventCoalescer : IDisposable
             AlbumTrackDownloadStartedEventDto e => e.Summary.WorkflowId,
             AlbumStateChangedEventDto e => e.Summary.WorkflowId,
             JobFolderRetrievingEventDto e => e.Summary.WorkflowId,
-            OnCompleteStartedEventDto e => e.WorkflowId,
-            OnCompleteEndedEventDto e => e.WorkflowId,
             TrackBatchResolvedEventDto e => e.Summary.WorkflowId,
             _ => null,
         };
@@ -240,8 +241,6 @@ public sealed class ServerEventCoalescer : IDisposable
             AlbumTrackDownloadStartedEventDto e => e.Summary.JobId,
             AlbumStateChangedEventDto e => e.Summary.JobId,
             JobFolderRetrievingEventDto e => e.Summary.JobId,
-            OnCompleteStartedEventDto e => e.JobId,
-            OnCompleteEndedEventDto e => e.JobId,
             TrackBatchResolvedEventDto e => e.Summary.JobId,
             _ => null,
         };

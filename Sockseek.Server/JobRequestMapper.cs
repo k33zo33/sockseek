@@ -9,6 +9,9 @@ namespace Sockseek.Server;
 
 public static class JobRequestMapper
 {
+    public const int MaxSearchTextLength = 1024;
+    public const int MaxSearchUriLength = 4096;
+
     public static ExtractJob CreateExtractJob(SubmitExtractJobRequestDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Input))
@@ -32,7 +35,10 @@ public static class JobRequestMapper
     }
 
     public static SearchJob CreateSearchJob(SubmitSearchJobRequestDto request)
-        => new(request.QueryText);
+    {
+        ValidateSearchText(request.QueryText, nameof(request.QueryText));
+        return new(request.QueryText);
+    }
 
     public static SearchJob CreateTrackSearchJob(SubmitTrackSearchJobRequestDto request)
         => new(ToSongQuery(request.SongQuery), request.IncludeFullResults);
@@ -79,24 +85,92 @@ public static class JobRequestMapper
         }
     }
 
-    public static SongQuery ToSongQuery(SongQueryDto dto) => new()
+    public static SongQuery ToSongQuery(SongQueryDto dto)
     {
-        Artist = dto.Artist ?? "",
-        Title = dto.Title ?? "",
-        Album = dto.Album ?? "",
-        URI = dto.Uri ?? "",
-        Length = dto.Length ?? -1,
-        ArtistMaybeWrong = dto.ArtistMaybeWrong,
-    };
+        ValidateSearchText(dto.Artist, nameof(dto.Artist), allowEmpty: true);
+        ValidateSearchText(dto.Title, nameof(dto.Title), allowEmpty: true);
+        ValidateSearchText(dto.Album, nameof(dto.Album), allowEmpty: true);
+        ValidateSearchText(dto.Uri, nameof(dto.Uri), maxLength: MaxSearchUriLength, allowEmpty: true);
 
-    public static AlbumQuery ToAlbumQuery(AlbumQueryDto dto) => new()
+        return new()
+        {
+            Artist = dto.Artist ?? "",
+            Title = dto.Title ?? "",
+            Album = dto.Album ?? "",
+            URI = dto.Uri ?? "",
+            Length = dto.Length ?? -1,
+            ArtistMaybeWrong = dto.ArtistMaybeWrong,
+        };
+    }
+
+    public static AlbumQuery ToAlbumQuery(AlbumQueryDto dto)
     {
-        Artist = dto.Artist ?? "",
-        Album = dto.Album ?? "",
-        SearchHint = dto.SearchHint ?? "",
-        URI = dto.Uri ?? "",
-        ArtistMaybeWrong = dto.ArtistMaybeWrong,
-    };
+        ValidateSearchText(dto.Artist, nameof(dto.Artist), allowEmpty: true);
+        ValidateSearchText(dto.Album, nameof(dto.Album), allowEmpty: true);
+        ValidateSearchText(dto.SearchHint, nameof(dto.SearchHint), allowEmpty: true);
+        ValidateSearchText(dto.Uri, nameof(dto.Uri), maxLength: MaxSearchUriLength, allowEmpty: true);
+
+        return new()
+        {
+            Artist = dto.Artist ?? "",
+            Album = dto.Album ?? "",
+            SearchHint = dto.SearchHint ?? "",
+            URI = dto.Uri ?? "",
+            ArtistMaybeWrong = dto.ArtistMaybeWrong,
+        };
+    }
+
+    private static void ValidateSearchText(
+        string? value,
+        string fieldName,
+        int maxLength = MaxSearchTextLength,
+        bool allowEmpty = false)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (allowEmpty)
+                return;
+            throw new ArgumentException($"{fieldName} is required");
+        }
+
+        if (value.Length > maxLength)
+            throw new ArgumentException($"{fieldName} is too long; maximum length is {maxLength} characters");
+    }
+
+    public static AlbumFolder ToAlbumFolder(AlbumFolderDto dto)
+        => new(
+            dto.Username,
+            dto.FolderPath,
+            dto.Files?.Select(ToAlbumFile).ToList() ?? [])
+        {
+            IsFullyRetrieved = dto.IsFullyRetrieved,
+        };
+
+    private static AlbumFile ToAlbumFile(FileCandidateDto dto)
+    {
+        var candidate = ToFileCandidate(dto);
+        return AlbumFile.WithLazyQuery(
+            () => Searcher.InferSongQuery(candidate.Filename, new SongQuery()),
+            candidate);
+    }
+
+    private static FileCandidate ToFileCandidate(FileCandidateDto dto)
+        => new(
+            new Soulseek.SearchResponse(
+                dto.Username,
+                token: -1,
+                dto.Peer.HasFreeUploadSlot ?? false,
+                dto.Peer.UploadSpeed ?? -1,
+                queueLength: -1,
+                fileList: null),
+            new Soulseek.File(
+                code: 0,
+                dto.Filename,
+                dto.Size,
+                dto.Extension ?? Path.GetExtension(dto.Filename),
+                dto.Attributes?.Select(attr => new Soulseek.FileAttribute(
+                    Enum.Parse<Soulseek.FileAttributeType>(attr.Type),
+                    attr.Value))));
 
     public static Job CreateJob(JobDraftDto item)
         => item switch
@@ -161,10 +235,14 @@ public static class JobRequestMapper
         if (albumJob.Config == null || albumJob.Results.Count == 0)
             return albumJob.Results.ToList();
 
+        // Search results are already projected/ranked by the engine; re-project only
+        // after folder retrieval has changed the visible folder contents.
+        if (albumJob.Results.All(folder => !folder.IsFullyRetrieved))
+            return albumJob.Results.ToList();
+
         var rawResults = albumJob.Results
             .SelectMany(folder => folder.Files)
-            .Select(song => song.ResolvedTarget)
-            .OfType<FileCandidate>()
+            .Select(file => file.Candidate)
             .Select(candidate => (Response: candidate.Response, File: candidate.File))
             .ToList();
 
@@ -204,6 +282,66 @@ public static class JobRequestMapper
             .FirstOrDefault(folder => string.Equals(folder.Username, folderRef.Username, StringComparison.Ordinal)
                 && string.Equals(folder.FolderPath, folderRef.FolderPath, StringComparison.Ordinal));
 
+    public static AlbumFolder ApplySelectedFolderSnapshot(AlbumFolder resolvedFolder, StartFolderDownloadRequestDto request)
+    {
+        if (request.SelectedFolder == null)
+            return resolvedFolder;
+
+        if (!string.Equals(request.SelectedFolder.Username, request.Folder.Username, StringComparison.Ordinal)
+            || !string.Equals(request.SelectedFolder.FolderPath, request.Folder.FolderPath, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Selected folder snapshot does not match the requested folder reference.");
+        }
+
+        ValidateSelectedFolderSnapshot(request.SelectedFolder);
+
+        return ToAlbumFolder(request.SelectedFolder);
+    }
+
+    private static void ValidateSelectedFolderSnapshot(AlbumFolderDto folder)
+    {
+        if (folder.Files == null)
+            return;
+
+        foreach (var file in folder.Files)
+        {
+            if (!string.Equals(file.Username, folder.Username, StringComparison.Ordinal)
+                || !string.Equals(file.Ref.Username, folder.Username, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Selected folder snapshot contains a file from a different user.");
+            }
+
+            if (!IsInFolderPath(file.Filename, folder.FolderPath)
+                || !IsInFolderPath(file.Ref.Filename, folder.FolderPath))
+            {
+                throw new ArgumentException("Selected folder snapshot contains a file outside the requested folder.");
+            }
+        }
+    }
+
+    public static AlbumFolder? BuildRelatedFolder(AlbumFolderRefDto folderRef, IEnumerable<AlbumFolder> knownFolders)
+    {
+        var seedFiles = knownFolders
+            .Where(folder => string.Equals(folder.Username, folderRef.Username, StringComparison.Ordinal)
+                && PathsAreRelated(folder.FolderPath, folderRef.FolderPath))
+            .SelectMany(folder => folder.Files)
+            .Where(file => file.Filename.StartsWith(folderRef.FolderPath + "\\", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return seedFiles.Count == 0
+            ? null
+            : new AlbumFolder(folderRef.Username, folderRef.FolderPath, seedFiles);
+    }
+
+    private static bool PathsAreRelated(string left, string right)
+        => left.Equals(right, StringComparison.OrdinalIgnoreCase)
+            || left.StartsWith(right.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)
+            || right.StartsWith(left.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsInFolderPath(string filename, string folderPath)
+        => filename.StartsWith(folderPath.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)
+            || filename.Equals(folderPath.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
+
     public static AlbumFolder ApplyFolderDownloadSelection(AlbumFolder folder, AlbumFolderDownloadSelectionDto? selection)
     {
         if (selection?.ExactFiles == true && selection.Files is not { Count: > 0 })
@@ -217,8 +355,7 @@ public static class JobRequestMapper
             .ToHashSet();
 
         var files = folder.Files
-            .Where(song => song.ResolvedTarget != null
-                && selected.Contains((song.ResolvedTarget.Username, song.ResolvedTarget.Filename)))
+            .Where(file => selected.Contains((file.Candidate.Username, file.Candidate.Filename)))
             .ToList();
 
         if (files.Count != selected.Count)

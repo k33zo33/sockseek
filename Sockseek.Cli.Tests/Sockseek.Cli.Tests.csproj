@@ -8,15 +8,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.7.3" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.7.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Sockseek.Api/Sockseek.Api.csproj" />
     <ProjectReference Include="../Sockseek.Core/Sockseek.Core.csproj" />
     <ProjectReference Include="../Sockseek.Cli/Sockseek.Cli.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Sockseek.Core.Tests/TestClients/MockSoulseekClient.cs" Link="TestClients/MockSoulseekClient.cs" />
+    <Compile Include="../Sockseek.Core.Tests/TestClients/MockSoulseekClientNotImpl.cs" Link="TestClients/MockSoulseekClientNotImpl.cs" />
   </ItemGroup>
 
 </Project>

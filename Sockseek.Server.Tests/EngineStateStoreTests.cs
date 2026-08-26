@@ -33,6 +33,20 @@ public class EngineStateStoreTests
     }
 
     [TestMethod]
+    public void SongPayload_IncludesDownloadSource()
+    {
+        var store = new EngineStateStore();
+        var song = new SongJob(new SongQuery { Artist = "Artist", Title = "Track" });
+        song.SetDone("C:/music/track.mp3", downloadSource: SongDownloadSource.Fallback);
+
+        Register(store, song);
+
+        var payload = store.GetJobDetail(song.Id)?.Payload as SongJobPayloadDto;
+        Assert.IsNotNull(payload);
+        Assert.AreEqual(ServerSongDownloadSource.Fallback, payload.DownloadSource);
+    }
+
+    [TestMethod]
     public void JobSummary_ExposesLifecycleActivityAndTerminalOutcome()
     {
         var store = new EngineStateStore();
@@ -48,6 +62,28 @@ public class EngineStateStoreTests
         Assert.AreEqual(ServerJobActivityPhase.SearchRateLimited, summary.ActivityPhase);
         Assert.AreEqual(until, summary.ActivityUntilUtc);
         Assert.AreEqual(ServerJobTerminalOutcome.None, summary.TerminalOutcome);
+    }
+
+    [TestMethod]
+    public void JobDiscoveryChanged_UpdatesSummaryDiscoveryCounts()
+    {
+        var store = new EngineStateStore();
+        var album = new AlbumJob(new AlbumQuery { Artist = "Artist", Album = "Album" });
+        JobSummaryDto? published = null;
+        store.JobUpserted += summary => published = summary;
+
+        Register(store, album);
+
+        album.Discovery = new DiscoverySummary { RawResultCount = 123, LockedFileCount = 4 };
+        DiscoveryChanged(store, album);
+
+        var summary = store.GetJobSummary(album.Id);
+        Assert.IsNotNull(summary);
+        Assert.AreEqual(123, summary.DiscoveryRawResultCount);
+        Assert.AreEqual(4, summary.DiscoveryLockedFileCount);
+        Assert.IsNotNull(published);
+        Assert.AreEqual(123, published.DiscoveryRawResultCount);
+        Assert.AreEqual(4, published.DiscoveryLockedFileCount);
     }
 
     [TestMethod]
@@ -333,6 +369,25 @@ public class EngineStateStoreTests
         Assert.IsNull(payload.ResultDraft);
     }
 
+    [TestMethod]
+    public void AutoProcessedExtractResult_GetsDisplayIdBeforeRegistration()
+    {
+        var store = new EngineStateStore();
+        var extract = new ExtractJob("input.csv", InputType.CSV)
+        {
+            AutoProcessResult = true,
+        };
+        var result = new JobList("batch") { WorkflowId = extract.WorkflowId };
+        extract.Result = result;
+
+        Register(store, extract);
+        ResultCreated(store, extract, result);
+
+        var resultSummary = store.GetJobSummary(result.Id);
+        Assert.IsNotNull(resultSummary);
+        Assert.AreNotEqual(0, resultSummary.DisplayId);
+    }
+
     private static void Register(EngineStateStore store, Job job, Job? parent = null)
     {
         typeof(EngineStateStore)
@@ -344,6 +399,13 @@ public class EngineStateStoreTests
     {
         typeof(EngineStateStore)
             .GetMethod("OnJobStateChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(store, [job]);
+    }
+
+    private static void DiscoveryChanged(EngineStateStore store, Job job)
+    {
+        typeof(EngineStateStore)
+            .GetMethod("OnJobDiscoveryChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(store, [job]);
     }
 

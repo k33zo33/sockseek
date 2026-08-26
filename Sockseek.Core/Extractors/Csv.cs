@@ -2,6 +2,7 @@ using Sockseek.Core.Models;
 using Sockseek.Core.Jobs;
 using System.Text.RegularExpressions;
 using Sockseek.Core.Settings;
+using System.Globalization;
 
 namespace Sockseek.Core.Extractors;
     public partial class CsvExtractor : IExtractor, IInputMatcher
@@ -70,6 +71,7 @@ namespace Sockseek.Core.Extractors;
             string timeUnit = "s", bool ytParse = false, IJobLog? log = null)
         {
             log ??= ExtractorContext.None.Log;
+            ValidateTimeFormat(timeUnit);
             var rows = new List<object>();
             using var sr = new StreamReader(path, System.Text.Encoding.UTF8);
             var parser = new SmallestCSV.SmallestCSVParser(sr);
@@ -78,6 +80,9 @@ namespace Sockseek.Core.Extractors;
             var header = parser.ReadNextRow();
             while (header == null || header.Count == 0 || !header.Any(t => t.Trim().Length > 0))
             {
+                if (header == null)
+                    return rows;
+
                 index++;
                 header = parser.ReadNextRow();
             }
@@ -234,20 +239,39 @@ namespace Sockseek.Core.Extractors;
             if (string.IsNullOrEmpty(format))
                 throw new ArgumentException("Duration format string empty");
             duration = LettersRegex().Replace(duration, "");
-            var formatParts   = NonWordRegex().Split(format);
+            var formatParts   = NonWordRegex().Split(format).Where(s => !string.IsNullOrEmpty(s)).ToArray();
             var durationParts = NonWordRegex().Split(duration).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+            if (durationParts.Length < formatParts.Length)
+                throw new FormatException($"Duration '{duration}' does not match time format '{format}'.");
 
             double totalSeconds = 0;
             for (int i = 0; i < formatParts.Length; i++)
             {
                 switch (formatParts[i])
                 {
-                    case "h":  totalSeconds += double.Parse(durationParts[i]) * 3600; break;
-                    case "m":  totalSeconds += double.Parse(durationParts[i]) * 60;   break;
-                    case "s":  totalSeconds += double.Parse(durationParts[i]);         break;
-                    case "ms": totalSeconds += double.Parse(durationParts[i]) / Math.Pow(10, durationParts[i].Length); break;
+                    case "h":  totalSeconds += double.Parse(durationParts[i], CultureInfo.InvariantCulture) * 3600; break;
+                    case "m":  totalSeconds += double.Parse(durationParts[i], CultureInfo.InvariantCulture) * 60;   break;
+                    case "s":  totalSeconds += double.Parse(durationParts[i], CultureInfo.InvariantCulture);         break;
+                    case "ms": totalSeconds += double.Parse(durationParts[i], CultureInfo.InvariantCulture) / Math.Pow(10, durationParts[i].Length); break;
                 }
             }
             return totalSeconds;
+        }
+
+        public static void ValidateTimeFormat(string format)
+        {
+            var parts = NonWordRegex()
+                .Split(format)
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .ToArray();
+
+            if (parts.Length == 0)
+                throw new ArgumentException("Invalid CSV time format: expected at least one of h, m, s, or ms.");
+
+            foreach (var part in parts)
+            {
+                if (part is not ("h" or "m" or "s" or "ms"))
+                    throw new ArgumentException($"Invalid CSV time format unit '{part}'. Supported units are h, m, s, and ms.");
+            }
         }
     }

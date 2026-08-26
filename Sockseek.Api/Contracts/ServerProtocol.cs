@@ -62,6 +62,7 @@ public enum ServerJobActivityPhase
     RunningChildren,
     Organizing,
     RunningOnComplete,
+    RunningFallback,
 }
 
 /// <summary>Terminal result for completed jobs.</summary>
@@ -74,6 +75,15 @@ public enum ServerJobTerminalOutcome
     Skipped,
     Cancelled,
     PartialSuccess,
+}
+
+/// <summary>Source that produced a terminal song download.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ServerSongDownloadSource>))]
+public enum ServerSongDownloadSource
+{
+    None,
+    Soulseek,
+    Fallback,
 }
 
 /// <summary>Reason a terminal job was skipped.</summary>
@@ -140,8 +150,6 @@ public enum ServerJobFailureReason
     InvalidSearchString,
     /// <summary>The job exhausted download retry attempts.</summary>
     OutOfDownloadRetries,
-    /// <summary>No acceptable candidate file or folder was found.</summary>
-    NoSuitableFileFound,
     /// <summary>All attempted downloads failed.</summary>
     AllDownloadsFailed,
     /// <summary>Failure did not match a more specific reason.</summary>
@@ -152,6 +160,10 @@ public enum ServerJobFailureReason
     Cancelled,
     /// <summary>One or more child jobs failed and no child completed successfully.</summary>
     ChildJobsFailed,
+    /// <summary>The Soulseek search returned no results.</summary>
+    NoSearchResults,
+    /// <summary>Soulseek returned results, but none matched the requested filters or projection.</summary>
+    NoMatchingResults,
 }
 
 /// <summary>
@@ -241,12 +253,13 @@ public static class ServerProtocol
         public const ServerJobFailureReason None = ServerJobFailureReason.None;
         public const ServerJobFailureReason InvalidSearchString = ServerJobFailureReason.InvalidSearchString;
         public const ServerJobFailureReason OutOfDownloadRetries = ServerJobFailureReason.OutOfDownloadRetries;
-        public const ServerJobFailureReason NoSuitableFileFound = ServerJobFailureReason.NoSuitableFileFound;
         public const ServerJobFailureReason AllDownloadsFailed = ServerJobFailureReason.AllDownloadsFailed;
         public const ServerJobFailureReason Other = ServerJobFailureReason.Other;
         public const ServerJobFailureReason ExtractionFailed = ServerJobFailureReason.ExtractionFailed;
         public const ServerJobFailureReason Cancelled = ServerJobFailureReason.Cancelled;
         public const ServerJobFailureReason ChildJobsFailed = ServerJobFailureReason.ChildJobsFailed;
+        public const ServerJobFailureReason NoSearchResults = ServerJobFailureReason.NoSearchResults;
+        public const ServerJobFailureReason NoMatchingResults = ServerJobFailureReason.NoMatchingResults;
     }
 
     /// <summary>

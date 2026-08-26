@@ -43,7 +43,7 @@ namespace Sockseek.Core.Extractors;
             if (_yt.GetDeleted)
             {
                 context.Log.Info("Getting deleted videos..");
-                var archive = new YouTube.YouTubeArchiveRetriever(context.Log);
+                using var archive = new YouTube.YouTubeArchiveRetriever(context.Log);
                 deleted = await archive.RetrieveDeleted(input, printFailed: _yt.DeletedOnly);
             }
             if (!_yt.DeletedOnly)
@@ -88,7 +88,7 @@ namespace Sockseek.Core.Extractors;
 
     public static partial class YouTube
     {
-        private static readonly YoutubeClient? youtube = new YoutubeClient();
+        private static readonly YoutubeClient youtube = new YoutubeClient();
         private static YouTubeService? youtubeService = null;
         private static string apiKey = "";
 
@@ -109,16 +109,19 @@ namespace Sockseek.Core.Extractors;
         {
             log ??= ExtractorContext.None.Log;
             StartService();
+            var service = RequireService();
 
             string playlistId = await UrlToId(url);
 
-            var playlistRequest = youtubeService.Playlists.List("snippet");
+            var playlistRequest = service.Playlists.List("snippet");
             playlistRequest.Id = playlistId;
-            var playlistResponse = playlistRequest.Execute();
+            var playlistResponse = await playlistRequest.ExecuteAsync();
+            if (playlistResponse.Items.Count == 0)
+                throw new InvalidOperationException($"Could not retrieve YouTube playlist '{playlistId}'.");
 
             string playlistName = playlistResponse.Items[0].Snippet.Title;
 
-            var playlistItemsRequest = youtubeService.PlaylistItems.List("snippet,contentDetails");
+            var playlistItemsRequest = service.PlaylistItems.List("snippet,contentDetails");
             playlistItemsRequest.PlaylistId = playlistId;
             playlistItemsRequest.MaxResults = Math.Min(max, 100);
 
@@ -128,7 +131,7 @@ namespace Sockseek.Core.Extractors;
 
             while (playlistItemsRequest != null && count < max + offset)
             {
-                var playlistItemsResponse = playlistItemsRequest.Execute();
+                var playlistItemsResponse = await playlistItemsRequest.ExecuteAsync();
                 foreach (var playlistItem in playlistItemsResponse.Items)
                 {
                     if (count >= offset)
@@ -144,9 +147,9 @@ namespace Sockseek.Core.Extractors;
                             var length = 0;
                             var desc = "";
 
-                            var videoRequest = youtubeService.Videos.List("contentDetails,snippet");
+                            var videoRequest = service.Videos.List("contentDetails,snippet");
                             videoRequest.Id = playlistItem.Snippet.ResourceId.VideoId;
-                            var videoResponse = videoRequest.Execute();
+                            var videoResponse = await videoRequest.ExecuteAsync();
 
                             title = playlistItem.Snippet.Title;
                             if (videoResponse.Items.Count == 0) continue;
@@ -280,7 +283,7 @@ namespace Sockseek.Core.Extractors;
                 o.title = vid.Title;
                 o.uploader = vid.Author.ChannelTitle;
                 o.desc = vid.Description;
-                o.length = (int)vid.Duration.Value.TotalSeconds;
+                o.length = vid.Duration.HasValue ? (int)vid.Duration.Value.TotalSeconds : -1;
             }
             catch
             {
@@ -289,9 +292,10 @@ namespace Sockseek.Core.Extractors;
                     try
                     {
                         StartService();
-                        var videoRequest = youtubeService.Videos.List("contentDetails,snippet");
+                        var service = RequireService();
+                        var videoRequest = service.Videos.List("contentDetails,snippet");
                         videoRequest.Id = id;
-                        var videoResponse = videoRequest.Execute();
+                        var videoResponse = await videoRequest.ExecuteAsync();
                         o.title = videoResponse.Items[0].Snippet.Title;
                         o.uploader = videoResponse.Items[0].Snippet.ChannelTitle;
                         o.length = (int)XmlConvert.ToTimeSpan(videoResponse.Items[0].ContentDetails.Duration).TotalSeconds;
@@ -318,6 +322,9 @@ namespace Sockseek.Core.Extractors;
             }
         }
 
+        private static YouTubeService RequireService()
+            => youtubeService ?? throw new InvalidOperationException("YouTube API service was not started.");
+
         public static void StopService()
         {
             youtubeService = null;
@@ -326,7 +333,7 @@ namespace Sockseek.Core.Extractors;
         public static async Task<Dictionary<string, SongJob>> GetDictYtExplode(string url, int max = int.MaxValue, int offset = 0, IJobLog? log = null)
         {
             log ??= ExtractorContext.None.Log;
-            var youtube = new YoutubeClient();
+            using var youtube = new YoutubeClient();
             var playlist = await youtube.Playlists.GetAsync(url);
             var songs = new Dictionary<string, SongJob>();
             int count = 0;
@@ -338,7 +345,7 @@ namespace Sockseek.Core.Extractors;
                     var title = video.Title;
                     var uploader = video.Author.ChannelTitle;
                     var ytId = video.Id.Value;
-                    var length = (int)video.Duration.Value.TotalSeconds;
+                    var length = video.Duration.HasValue ? (int)video.Duration.Value.TotalSeconds : -1;
 
                     var song = await ParseSongInfo(title, uploader, ytId, length, log: log);
                     song.ItemNumber = count + 1;
@@ -353,7 +360,7 @@ namespace Sockseek.Core.Extractors;
 
         public static async Task<string> GetPlaylistTitle(string url)
         {
-            var youtube = new YoutubeClient();
+            using var youtube = new YoutubeClient();
             var playlist = await youtube.Playlists.GetAsync(url);
             return playlist.Title;
         }
@@ -361,7 +368,7 @@ namespace Sockseek.Core.Extractors;
         public static async Task<(string, List<SongJob>)> GetSongsYtExplode(string url, int max = int.MaxValue, int offset = 0, IJobLog? log = null)
         {
             log ??= ExtractorContext.None.Log;
-            var youtube = new YoutubeClient();
+            using var youtube = new YoutubeClient();
             var playlist = await youtube.Playlists.GetAsync(url);
             var playlistTitle = playlist.Title;
             var songs = new List<SongJob>();
@@ -374,7 +381,7 @@ namespace Sockseek.Core.Extractors;
                     var title = video.Title;
                     var uploader = video.Author.ChannelTitle;
                     var ytId = video.Id.Value;
-                    var length = (int)video.Duration.Value.TotalSeconds;
+                    var length = video.Duration.HasValue ? (int)video.Duration.Value.TotalSeconds : -1;
 
                     var song = await ParseSongInfo(title, uploader, ytId, length, log: log);
                     song.ItemNumber = count + 1;
@@ -400,103 +407,10 @@ namespace Sockseek.Core.Extractors;
             return playlist.Id.ToString();
         }
 
-        [GeneratedRegex(@"^(\d+) === ([\w-]+) === (.+)$")]
-        private static partial Regex YtdlpOutputRegex();
-
         [GeneratedRegex(@"document\.title\s*=\s*""(.+?) - YouTube"";")]
         private static partial Regex DocumentTitleRegex();
 
-        public static async Task<List<(int length, string id, string title)>> YtdlpSearch(SongQuery query, IJobLog? log = null)
-        {
-            log ??= ExtractorContext.None.Log;
-            Process process = new Process();
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = "yt-dlp";
-            string search = query.Artist.Length > 0 ? $"{query.Artist} - {query.Title}" : query.Title;
-            startInfo.Arguments = $"\"ytsearch3:{search}\" --print \"%(duration>%s)s === %(id)s === %(title)s\"";
-            startInfo.RedirectStandardOutput = true;
-            startInfo.RedirectStandardError = true;
-            startInfo.UseShellExecute = false;
-            process.StartInfo = startInfo;
-            process.OutputDataReceived += (sender, e) => { log.Info(e.Data ?? ""); };
-            process.ErrorDataReceived += (sender, e) => { log.Info(e.Data ?? ""); };
-
-            log.Debug($"{startInfo.FileName} {startInfo.Arguments}");
-            process.Start();
-
-            List<(int, string, string)> results = new List<(int, string, string)>();
-            string output;
-            while ((output = process.StandardOutput.ReadLine()) != null)
-            {
-                Match match = YtdlpOutputRegex().Match(output);
-                if (match.Success)
-                {
-                    int seconds = int.Parse(match.Groups[1].Value);
-                    string id = match.Groups[2].Value;
-                    string title = match.Groups[3].Value;
-                    results.Add((seconds, id, title));
-                }
-            }
-
-            process.WaitForExit();
-            return results;
-        }
-
-        public static async Task<string> YtdlpDownload(string id, string savePathNoExt, string ytdlpArgument = "", IJobLog? log = null)
-        {
-            log ??= ExtractorContext.None.Log;
-            var process = new Process();
-            var startInfo = new ProcessStartInfo();
-
-            bool isCustomPath = ytdlpArgument.Length > 0 && !ytdlpArgument.Contains("{savepath-noext}.%(ext)s") && !ytdlpArgument.Contains("{savepath}.%(ext)s");
-
-            if (ytdlpArgument.Length == 0)
-                ytdlpArgument = "\"{id}\" -f bestaudio/best -ci -o \"{savepath-noext}.%(ext)s\" -x";
-
-            startInfo.FileName = "yt-dlp";
-            startInfo.Arguments = ytdlpArgument
-                .Replace("{id}", id)
-                .Replace("{savepath}", savePathNoExt)
-                .Replace("{savepath-noext}", savePathNoExt)
-                .Replace("{savedir}", Path.GetDirectoryName(savePathNoExt));
-
-            startInfo.RedirectStandardOutput = true;
-            startInfo.RedirectStandardError = true;
-            startInfo.UseShellExecute = false;
-            process.StartInfo = startInfo;
-
-            log.Debug($"{startInfo.FileName} {startInfo.Arguments}");
-            process.Start();
-            process.WaitForExit();
-
-            if (File.Exists(savePathNoExt + ".opus"))
-                return savePathNoExt + ".opus";
-
-            string parentDirectory = Path.GetDirectoryName(savePathNoExt);
-            string fileName = Path.GetFileName(savePathNoExt);
-
-            var musicFiles = Enumerable.Empty<string>();
-            try
-            {
-                musicFiles = Directory.GetFiles(parentDirectory, fileName + ".*", SearchOption.TopDirectoryOnly)
-                    .Where(file => Utils.IsMusicFile(file) || Utils.IsVideoFile(file))
-                    .OrderByDescending(file => Utils.IsMusicFile(file))
-                    .ThenBy(file => Utils.IsVideoFile(file));
-            }
-            catch (DirectoryNotFoundException) { }
-
-            if (!musicFiles.Any())
-            {
-                if (isCustomPath)
-                    log.Debug($"Could not find yt-dlp output file. This is expected if using a custom output path argument.");
-                else
-                    throw new FileNotFoundException($"Could not find yt-dlp output file after download in {parentDirectory}/{fileName}.*");
-            }
-
-            return musicFiles.FirstOrDefault() ?? "";
-        }
-
-        public class YouTubeArchiveRetriever
+            public class YouTubeArchiveRetriever : IDisposable
         {
             private readonly HttpClient _client;
             private readonly IJobLog _log;
@@ -510,7 +424,7 @@ namespace Sockseek.Core.Extractors;
 
             public async Task<List<SongJob>> RetrieveDeleted(string url, bool printFailed = true)
             {
-                var deletedVideoUrls = new BlockingCollection<string>();
+                using var deletedVideoUrls = new BlockingCollection<string>();
 
                 int totalCount = 0;
                 int archivedCount = 0;
@@ -521,7 +435,7 @@ namespace Sockseek.Core.Extractors;
                 int workerCount = 4;
                 var workers = new List<Task>();
 
-                var process = new Process
+                using var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -584,7 +498,7 @@ namespace Sockseek.Core.Extractors;
                 }
 
                 await Task.WhenAll(workers);
-                process.WaitForExit();
+                await process.WaitForExitAsync();
                 deletedVideoUrls.CompleteAdding();
                 _log.Info($"Deleted metadata total/archived/retrieved: {totalCount}/{archivedCount}/{songs.Count}");
 
@@ -605,6 +519,12 @@ namespace Sockseek.Core.Extractors;
                 }
 
                 return songs.ToList();
+            }
+
+            public void Dispose()
+            {
+                _client.Dispose();
+                GC.SuppressFinalize(this);
             }
 
             private async Task<List<string>?> GetOldestArchiveUrls(string url, int limit)

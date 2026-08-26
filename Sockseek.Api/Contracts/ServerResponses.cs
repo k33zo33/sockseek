@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Sockseek.Core;
 
 namespace Sockseek.Api;
 
@@ -9,6 +10,35 @@ public sealed record ServerInfoDto(
     string Name,
     string Version,
     DateTimeOffset StartedAtUtc);
+
+/// <summary>
+/// Versioned application API system information for the future desktop client.
+/// </summary>
+public sealed record SystemInfoDto(
+    string Name,
+    string Version,
+    string Commit,
+    DateTimeOffset StartedAtUtc,
+    SystemCapabilitiesDto Capabilities);
+
+/// <summary>
+/// Lightweight readiness/health response for daemon process checks.
+/// </summary>
+public sealed record SystemHealthDto(
+    string Status,
+    DateTimeOffset StartedAtUtc,
+    int RestartCount,
+    string CorrelationId);
+
+/// <summary>
+/// Snapshot of application-layer capabilities exposed by the versioned API.
+/// </summary>
+public sealed record SystemCapabilitiesDto(
+    bool LegacyApi,
+    bool VersionedApi,
+    bool SignalR,
+    bool StructuredErrors,
+    bool CorrelationIds);
 
 /// <summary>
 /// Current daemon and engine activity counters.
@@ -49,6 +79,14 @@ public sealed record ApiErrorDto(
     string Error);
 
 /// <summary>
+/// Structured error response for versioned application API endpoints.
+/// </summary>
+public sealed record AppErrorDto(
+    string Code,
+    string Message,
+    string CorrelationId);
+
+/// <summary>
 /// Response body returned when cancelling a workflow.
 /// </summary>
 public sealed record CancelWorkflowResponseDto(
@@ -79,6 +117,7 @@ public sealed record ResourceActionDto(
 /// <param name="ResultJobId">For extract jobs, the semantic result job produced by extraction.</param>
 /// <param name="SourceJobId">Provenance link for independently submitted follow-up jobs, such as downloads started from search results.</param>
 /// <param name="AvailableActions">Actions currently valid for this job.</param>
+/// <param name="PrintOption">Effective print mode for this job, when print-only behavior is active.</param>
 public sealed record JobSummaryDto(
     Guid JobId,
     int DisplayId,
@@ -96,12 +135,13 @@ public sealed record JobSummaryDto(
     Guid? ParentJobId,
     Guid? ResultJobId,
     Guid? SourceJobId,
-    int? DiscoveryResultCount,
+    int? DiscoveryRawResultCount,
     int? DiscoveryLockedFileCount,
     IReadOnlyList<string> AppliedAutoProfiles,
     IReadOnlyList<ResourceActionDto> AvailableActions,
     string? FailureDetail = null,
-    ServerJobCancellationSource CancellationSource = ServerJobCancellationSource.None)
+    ServerJobCancellationSource CancellationSource = ServerJobCancellationSource.None,
+    PrintOption PrintOption = PrintOption.None)
 {
     public JobSummaryDto()
         : this(
@@ -146,7 +186,7 @@ public sealed record JobSummaryDto(
         Guid? ParentJobId,
         Guid? ResultJobId,
         Guid? SourceJobId,
-        int? DiscoveryResultCount,
+        int? DiscoveryRawResultCount,
         int? DiscoveryLockedFileCount,
         IReadOnlyList<string> AppliedAutoProfiles,
         IReadOnlyList<ResourceActionDto> AvailableActions,
@@ -168,7 +208,7 @@ public sealed record JobSummaryDto(
             ParentJobId,
             ResultJobId,
             SourceJobId,
-            DiscoveryResultCount,
+            DiscoveryRawResultCount,
             DiscoveryLockedFileCount,
             AppliedAutoProfiles,
             AvailableActions,
@@ -232,4 +272,3 @@ public sealed record JobQuery(
     Guid? WorkflowId,
     bool IncludeAll,
     ServerJobSkipReason? SkipReason = null);
-

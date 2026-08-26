@@ -14,7 +14,8 @@ namespace Sockseek.Core.Extractors;
 
         public static bool InputMatches(string input)
         {
-            return input.IsInternetUrl() && input.ToLower().Contains("musicbrainz.org");
+            return input.IsInternetUrl()
+                && input.Contains("musicbrainz.org", StringComparison.OrdinalIgnoreCase);
         }
 
         public async Task<Job> GetTracks(string input, ExtractionSettings extraction, ExtractorContext? context = null)
@@ -24,7 +25,7 @@ namespace Sockseek.Core.Extractors;
             var offset    = extraction.Offset;
             var reverse   = extraction.Reverse;
 
-            var musicBrainzClient = new MusicBrainzClient(context.Log);
+            using var musicBrainzClient = new MusicBrainzClient(context.Log);
 
             int max = reverse ? int.MaxValue : maxTracks;
             int off = reverse ? 0 : offset;
@@ -68,7 +69,7 @@ namespace Sockseek.Core.Extractors;
         }
     }
 
-    public class MusicBrainzClient
+    public class MusicBrainzClient : IDisposable
     {
         private readonly HttpClient _httpClient;
         private readonly IJobLog _log;
@@ -92,8 +93,8 @@ namespace Sockseek.Core.Extractors;
             var response = await _httpClient.GetStringAsync(url);
             var release = JsonDocument.Parse(response).RootElement;
 
-            var artistCredit = release.GetProperty("artist-credit")[0].GetProperty("name").GetString();
-            var albumTitle = release.GetProperty("title").GetString();
+            var artistCredit = release.GetProperty("artist-credit")[0].GetProperty("name").GetString() ?? "";
+            var albumTitle = release.GetProperty("title").GetString() ?? "";
 
             int totalTracks = 0;
             if (release.TryGetProperty("media", out var media))
@@ -143,6 +144,9 @@ namespace Sockseek.Core.Extractors;
                 bestRelease = releases.First();
 
             var releaseMbid = bestRelease.GetProperty("id").GetString();
+            if (string.IsNullOrWhiteSpace(releaseMbid))
+                throw new InvalidOperationException("MusicBrainz release group did not include a release id.");
+
             _log.Info($"Found release '{bestRelease.GetProperty("title").GetString()}' ({releaseMbid}) in release group. Getting album info...");
             return await GetReleaseAsAlbum(releaseMbid, max, offset, extraction, true);
         }
@@ -173,10 +177,10 @@ namespace Sockseek.Core.Extractors;
                 {
                     if (count >= max) break;
 
-                    var artistCredit = release.GetProperty("artist-credit")[0].GetProperty("name").GetString();
-                    var albumTitle = release.GetProperty("title").GetString();
+                    var artistCredit = release.GetProperty("artist-credit")[0].GetProperty("name").GetString() ?? "";
+                    var albumTitle = release.GetProperty("title").GetString() ?? "";
                     var trackCount = release.GetProperty("track-count").GetInt32();
-                    var releaseId = release.GetProperty("id").GetString();
+                    var releaseId = release.GetProperty("id").GetString() ?? "";
 
                     var query = new AlbumQuery
                     {
@@ -201,5 +205,11 @@ namespace Sockseek.Core.Extractors;
 
             _log.Info($"Found {queue.Jobs.Count} releases in collection '{collectionName}'");
             return queue;
+        }
+
+        public void Dispose()
+        {
+            _httpClient.Dispose();
+            GC.SuppressFinalize(this);
         }
     }

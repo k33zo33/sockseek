@@ -142,10 +142,8 @@ public class RemoteCliBackendTests
         finally
         {
             await app.StopAsync();
-            if (Directory.Exists(musicRoot))
-                Directory.Delete(musicRoot, true);
-            if (Directory.Exists(outputDir))
-                Directory.Delete(outputDir, true);
+            await DeleteDirectoryIfExistsWithRetryAsync(musicRoot);
+            await DeleteDirectoryIfExistsWithRetryAsync(outputDir);
         }
     }
 
@@ -270,14 +268,31 @@ public class RemoteCliBackendTests
             await using var backend = new RemoteCliBackend(url);
             await backend.StartAsync();
 
+            var workflowId = Guid.NewGuid();
+            var terminalAlbumActivitySeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            backend.EventReceived += envelope =>
+            {
+                if (envelope.WorkflowId == workflowId
+                    && envelope.Type == "album.state-changed"
+                    && envelope.Payload is AlbumStateChangedEventDto album
+                    && album.Summary.LifecycleState == ServerJobLifecycleState.Terminal)
+                {
+                    terminalAlbumActivitySeen.TrySetResult();
+                }
+            };
+
             var summary = await backend.SubmitExtractJobAsync(
                 new SubmitExtractJobRequestDto(
                     "Artist Album",
                     "String",
                     Options: new SubmissionOptionsDto(
+                        WorkflowId: workflowId,
                         DownloadSettings: ConfigManager.CreateCliDownloadSettingsPatch(["-a", "--no-browse-folder"]))));
 
             await WaitForWorkflowStateAsync(backend, summary.WorkflowId, ServerWorkflowState.Completed);
+            await AwaitOrFailAsync(
+                terminalAlbumActivitySeen.Task,
+                "Timed out waiting for the remote terminal album activity event.");
 
             await WaitForConditionAsync(
                 () => Task.FromResult(Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Length >= 2),
@@ -392,10 +407,10 @@ public class RemoteCliBackendTests
                         Interlocked.Increment(ref pickerCalls);
                         var folder = request.Folders.First();
                         return new InteractiveModeManager.RunResult(
+                            InteractiveModeManager.RunAction.Accept,
                             0,
                             folder,
                             RetrieveCurrentFolder: true,
-                            ExitInteractiveMode: false,
                             request.FilterStr);
                     }
                     finally
@@ -493,10 +508,12 @@ public class RemoteCliBackendTests
                     Interlocked.Increment(ref pickerCalls);
                     var folder = request.Folders.FirstOrDefault();
                     return Task.FromResult(new InteractiveModeManager.RunResult(
+                        folder == null
+                            ? InteractiveModeManager.RunAction.SkipCurrent
+                            : InteractiveModeManager.RunAction.Accept,
                         folder == null ? -1 : 0,
                         folder,
                         RetrieveCurrentFolder: true,
-                        ExitInteractiveMode: false,
                         request.FilterStr));
                 },
                 pollInterval: TimeSpan.FromMilliseconds(10));
@@ -587,10 +604,10 @@ public class RemoteCliBackendTests
                     promptedBuckets.Add(request.PromptJob.ToString(noInfo: true));
                     var folder = request.Folders.First();
                     return Task.FromResult(new InteractiveModeManager.RunResult(
+                        InteractiveModeManager.RunAction.Accept,
                         0,
                         folder,
                         RetrieveCurrentFolder: true,
-                        ExitInteractiveMode: false,
                         request.FilterStr));
                 },
                 pollInterval: TimeSpan.FromMilliseconds(10));
@@ -870,13 +887,13 @@ public class RemoteCliBackendTests
                     "String",
                     Options: new SubmissionOptionsDto(
                         OutputParentDir: outputDir,
-                        DownloadSettings: ConfigManager.CreateCliDownloadSettingsPatch(["Artist - Track One", "--print-results"]))));
+                        DownloadSettings: ConfigManager.CreateCliDownloadSettingsPatch(["Artist - Track One", "--song", "--print-results"]))));
 
             await WaitForWorkflowStateAsync(backend, summary.WorkflowId, ServerWorkflowState.Completed);
 
             using var output = new StringWriter();
             Console.SetOut(output);
-            await Sockseek.Cli.Program.PrintRemoteResultsAsync(backend, summary.WorkflowId, printSettings, CancellationToken.None);
+            await Sockseek.Cli.Program.PrintRemoteRequestedOutputAsync(backend, summary.WorkflowId, printSettings, CancellationToken.None);
 
             string rendered = output.ToString();
             StringAssert.Contains(rendered, "Results for Artist - Track One");
@@ -896,16 +913,16 @@ public class RemoteCliBackendTests
     }
 
     [TestMethod]
-    public async Task RemoteCliBackend_PrintTracks_RendersPlannedTracksFromWorkflowSnapshot()
+    public async Task RemoteCliBackend_PrintJobs_RendersInputJobsFromWorkflowSnapshot()
     {
-        string inputPath = Path.Combine(Path.GetTempPath(), "Sockseek-remote-print-tracks-" + Guid.NewGuid() + ".txt");
-        string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-remote-print-tracks-out-" + Guid.NewGuid());
+        string inputPath = Path.Combine(Path.GetTempPath(), "Sockseek-remote-print-jobs-" + Guid.NewGuid() + ".txt");
+        string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-remote-print-jobs-out-" + Guid.NewGuid());
         Directory.CreateDirectory(outputDir);
         string existingAlbumDir = Path.Combine(outputDir, "Artist Two", "Album Two");
         Directory.CreateDirectory(existingAlbumDir);
         File.WriteAllText(Path.Combine(outputDir, "Artist One - Track One.mp3"), "already here");
         File.WriteAllText(Path.Combine(existingAlbumDir, "01. Artist Two - Album Track.mp3"), "already here");
-        File.WriteAllLines(inputPath, ["\"Artist One - Track One\"", "a:\"Artist Two - Album Two\""]);
+        File.WriteAllLines(inputPath, ["s:\"Artist One - Track One\"", "a:\"Artist Two - Album Two\""]);
 
         int port = GetFreeTcpPort();
         string url = $"http://127.0.0.1:{port}";
@@ -936,7 +953,7 @@ public class RemoteCliBackendTests
 
             var printSettings = new DownloadSettings
             {
-                PrintOption = PrintOption.Tracks,
+                PrintOption = PrintOption.Jobs,
                 Output =
                 {
                     ParentDir = outputDir,
@@ -950,20 +967,21 @@ public class RemoteCliBackendTests
                     "List",
                     Options: new SubmissionOptionsDto(
                         OutputParentDir: outputDir,
-                        DownloadSettings: ConfigManager.CreateCliDownloadSettingsPatch([inputPath, "--input-type", "list", "--print-tracks"]))));
+                        DownloadSettings: ConfigManager.CreateCliDownloadSettingsPatch([inputPath, "--input-type", "list", "--print", "jobs"]))));
 
             await WaitForWorkflowStateAsync(backend, summary.WorkflowId, ServerWorkflowState.Completed);
 
             using var output = new StringWriter();
             Console.SetOut(output);
-            await Sockseek.Cli.Program.PrintRemotePlannedOutputAsync(backend, summary.WorkflowId, printSettings, CancellationToken.None);
+            await Sockseek.Cli.Program.PrintRemoteRequestedOutputAsync(backend, summary.WorkflowId, printSettings, CancellationToken.None);
 
             string rendered = output.ToString();
-            StringAssert.Contains(rendered, "Artist One - Track One");
-            StringAssert.Contains(rendered, "Artist Two - Album Two");
-            StringAssert.Contains(rendered, "already exist");
+            StringAssert.Contains(rendered, "2 jobs:");
+            StringAssert.Contains(rendered, "Song: Artist One - Track One");
+            StringAssert.Contains(rendered, "Album: Artist Two - Album Two");
+            Assert.IsFalse(rendered.Contains("already exist", StringComparison.OrdinalIgnoreCase), rendered);
             Assert.AreEqual(2, Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Length,
-                "Remote print-tracks mode should not download files.");
+                "Remote print-jobs mode should not download files.");
         }
         finally
         {
@@ -1083,6 +1101,18 @@ public class RemoteCliBackendTests
         Assert.Fail($"Timed out waiting for event '{eventType}'. Seen: {string.Join(", ", seenTypes.Distinct().OrderBy(x => x))}");
     }
 
+    private static async Task AwaitOrFailAsync(Task task, string failureMessage, int timeoutMs = 5000)
+    {
+        try
+        {
+            await task.WaitAsync(TimeSpan.FromMilliseconds(timeoutMs));
+        }
+        catch (TimeoutException)
+        {
+            Assert.Fail(failureMessage);
+        }
+    }
+
     private static async Task WaitForWorkflowStateAsync(ICliBackend backend, Guid workflowId, ServerWorkflowState expectedState, int timeoutMs = 5000)
     {
         using var timeout = new CancellationTokenSource(timeoutMs);
@@ -1196,6 +1226,31 @@ public class RemoteCliBackendTests
         }
 
         Assert.Fail(failureMessage);
+    }
+
+    private static async Task DeleteDirectoryIfExistsWithRetryAsync(string path)
+    {
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                    Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (IOException) when (attempt < 4)
+            {
+                await Task.Delay(100);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 4)
+            {
+                await Task.Delay(100);
+            }
+        }
     }
 
     private sealed class StaticResponseHandler(HttpResponseMessage response) : HttpMessageHandler

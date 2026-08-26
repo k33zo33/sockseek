@@ -48,9 +48,9 @@ internal sealed class RemoteCliBackend : ICliBackend, IAsyncDisposable
         connection.On<WorkflowUpdateBatchDto>("workflowUpdateBatch", batch =>
         {
             var update = workflowStore.Apply(RehydrateBatch(batch));
-            WorkflowUpdated?.Invoke(update);
             foreach (var envelope in update.Events)
                 EventReceived?.Invoke(envelope);
+            WorkflowUpdated?.Invoke(update);
 
             if (update.SequenceGapDetected)
                 _ = HydrateWorkflowSnapshotAsync(update.WorkflowId);
@@ -162,9 +162,9 @@ internal sealed class RemoteCliBackend : ICliBackend, IAsyncDisposable
                 return;
 
             var update = workflowStore.ApplySnapshot(workflow, replaceKnownWorkflowJobs: true);
-            WorkflowUpdated?.Invoke(update);
             foreach (var envelope in update.Events)
                 EventReceived?.Invoke(envelope);
+            WorkflowUpdated?.Invoke(update);
         }
         catch (Exception ex)
         {
@@ -199,7 +199,7 @@ internal sealed class RemoteCliBackend : ICliBackend, IAsyncDisposable
     public Task<JobSummaryDto?> StartRetrieveFolderAsync(Guid searchJobId, RetrieveFolderRequestDto request, CancellationToken ct = default)
         => api.StartRetrieveFolderAsync(searchJobId, request, ct);
 
-    public Task<int> RetrieveFolderAndWaitAsync(Guid searchJobId, RetrieveFolderRequestDto request, CancellationToken ct = default)
+    public Task<RetrieveFolderJobPayloadDto?> RetrieveFolderAndWaitAsync(Guid searchJobId, RetrieveFolderRequestDto request, CancellationToken ct = default)
         => api.RetrieveFolderAndWaitAsync(searchJobId, request, ct);
 
     public Task<IReadOnlyList<JobSummaryDto>?> StartFileDownloadsAsync(Guid searchJobId, StartFileDownloadsRequestDto request, CancellationToken ct = default)
@@ -210,6 +210,9 @@ internal sealed class RemoteCliBackend : ICliBackend, IAsyncDisposable
 
     public Task<bool> CompleteManualSelectionAsync(Guid jobId, CancellationToken ct = default)
         => api.CompleteManualSelectionAsync(jobId, ct);
+
+    public Task<bool> SkipManualSelectionAsync(Guid jobId, CancellationToken ct = default)
+        => api.SkipManualSelectionAsync(jobId, ct);
 
     public Task<bool> CancelJobAsync(Guid jobId, CancellationToken ct = default)
         => api.CancelJobAsync(jobId, ct);

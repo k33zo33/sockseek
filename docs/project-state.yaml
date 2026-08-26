@@ -1,0 +1,33 @@
+project:
+  name: Sockseek UI
+  repository: k33zo33/sockseek
+  license: AGPL-3.0
+  product_mode: local-first-desktop
+  external_provider_audio: forbidden
+
+baseline:
+  branch: master
+  documented_commit: ef36306c86046757d76d6c1158a48c7b2f58dc2c
+  upstream: fiso64/sockseek
+  upstream_sync_required: true
+
+active_sprint:
+  id: 4
+  slug: avalonia-desktop-shell
+  file: docs/sprints/sprint-04-avalonia-desktop-shell.md
+  status: in_progress
+
+completed_sprints:
+  - 0
+  - 1
+  - 2
+  - 3
+blocked_by: []
+
+locked_decisions:
+  - adr/0001-agpl-path-a.md
+  - adr/0002-local-first.md
+  - adr/0003-external-providers-playlist-only.md
+  - adr/0004-avalonia-desktop-ui.md
+  - adr/0005-separate-local-daemon.md
+  - adr/0006-sqlite-ef-core.md

@@ -7,6 +7,7 @@ using Sockseek.Core.Settings;
 using Sockseek.Cli;
 using Sockseek.Server;
 using Sockseek.Api;
+using Tests.ClientTests;
 
 namespace Tests.EndToEnd;
 
@@ -136,10 +137,12 @@ public class CliEndToEndTests
                         Interlocked.Increment(ref pickerCalls);
                         var folder = request.Folders.FirstOrDefault();
                         return new InteractiveModeManager.RunResult(
+                            folder == null
+                                ? InteractiveModeManager.RunAction.SkipCurrent
+                                : InteractiveModeManager.RunAction.Accept,
                             folder == null ? -1 : 0,
                             folder,
                             RetrieveCurrentFolder: true,
-                            ExitInteractiveMode: false,
                             request.FilterStr);
                     }
                     finally
@@ -170,6 +173,177 @@ public class CliEndToEndTests
         {
             if (File.Exists(listPath)) File.Delete(listPath);
             if (Directory.Exists(musicRoot)) Directory.Delete(musicRoot, true);
+            if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task InteractiveAlbumSelection_ShiftSSkipsRemainingNewAlbumPrompts()
+    {
+        var outputDir = Path.Combine(Path.GetTempPath(), "slsk-mock-out-interactive-skip-rest-" + Guid.NewGuid());
+        var listPath = Path.Combine(Path.GetTempPath(), "slsk-list-skip-rest-" + Guid.NewGuid() + ".txt");
+        Directory.CreateDirectory(outputDir);
+        File.WriteAllText(listPath,
+            "a:\"Artist One - Album One\"" + "\n" +
+            "a:\"Artist Two - Album Two\"");
+
+        try
+        {
+            var client = new MockSoulseekClient(
+            [
+                SearchResponse("user1", @"Artist One\Album One\01. Artist One - Track One.mp3"),
+                SearchResponse("user2", @"Artist Two\Album Two\01. Artist Two - Track Two.mp3"),
+            ]);
+            var (app, rootSettings) = CreateInteractiveListEngine(client, listPath, outputDir);
+            var backend = new LocalCliBackend(app, rootSettings);
+
+            var pickerCalls = 0;
+            var coordinator = new InteractiveCliCoordinator(
+                backend,
+                new CliSettings { InteractiveMode = true, NoProgress = true },
+                CancellationToken.None,
+                request =>
+                {
+                    pickerCalls++;
+                    Assert.AreEqual(InteractiveAlbumPromptPurpose.NewAlbumPrompt, request.Purpose);
+                    return Task.FromResult(new InteractiveModeManager.RunResult(
+                        InteractiveModeManager.RunAction.SkipRemainingNewPrompts,
+                        -1,
+                        null,
+                        RetrieveCurrentFolder: false,
+                        request.FilterStr));
+                },
+                pollInterval: TimeSpan.FromMilliseconds(10));
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var workflowId = Guid.NewGuid();
+            var submission = await coordinator.StartAsync(
+                new SubmitExtractJobRequestDto(listPath, InputType.List.ToString(), Options: new SubmissionOptionsDto(workflowId)),
+                cts.Token);
+            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
+                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
+            await app.RunAsync(cts.Token);
+
+            Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
+            Assert.AreEqual(1, pickerCalls, "Shift+S should suppress later new album prompts in the same interactive workflow.");
+            Assert.AreEqual(0, Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories)
+                .Count(path => string.Equals(Path.GetExtension(path), ".mp3", StringComparison.OrdinalIgnoreCase)));
+            var albumJobs = app.Queue.AllJobs().OfType<AlbumJob>().ToList();
+            Assert.AreEqual(2, albumJobs.Count);
+            Assert.IsTrue(albumJobs.All(job => job.TerminalOutcome == JobTerminalOutcome.Skipped));
+            Assert.IsTrue(albumJobs.All(job => job.SkipReason == JobSkipReason.Manual));
+        }
+        finally
+        {
+            if (File.Exists(listPath)) File.Delete(listPath);
+            if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task InteractiveAlbumSelection_ShiftSStillAllowsRetryPromptForAcceptedAlbum()
+    {
+        var outputDir = Path.Combine(Path.GetTempPath(), "slsk-mock-out-interactive-skip-retry-" + Guid.NewGuid());
+        var listPath = Path.Combine(Path.GetTempPath(), "slsk-list-skip-retry-" + Guid.NewGuid() + ".txt");
+        Directory.CreateDirectory(outputDir);
+        File.WriteAllText(listPath,
+            "a:\"Shared Album\"" + "\n" +
+            "a:\"Artist Two - Album Two\"");
+
+        try
+        {
+            var secondNewPromptSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var client = new MockSoulseekClient(
+            [
+                SearchResponse("failuser", @"Source One\Shared Album\01. Artist - Track.mp3"),
+                SearchResponse("retryuser", @"Source Two\Shared Album\01. Artist - Track.mp3"),
+                SearchResponse("skipuser", @"Artist Two\Album Two\01. Artist Two - Track Two.mp3"),
+            ])
+            {
+                BeforeDownloadCompletesAsync = async (username, _, ct) =>
+                {
+                    if (!string.Equals(username, "failuser", StringComparison.OrdinalIgnoreCase))
+                        return;
+
+                    await secondNewPromptSeen.Task.WaitAsync(ct);
+                    throw new Soulseek.SoulseekClientException("Simulated delayed failure after later prompt.");
+                },
+            };
+            var (app, rootSettings) = CreateInteractiveListEngine(client, listPath, outputDir);
+            var backend = new LocalCliBackend(app, rootSettings);
+            var pickerPurposes = new List<InteractiveAlbumPromptPurpose>();
+            var coordinator = new InteractiveCliCoordinator(
+                backend,
+                new CliSettings { InteractiveMode = true, NoProgress = true },
+                CancellationToken.None,
+                request =>
+                {
+                    pickerPurposes.Add(request.Purpose);
+
+                    if (pickerPurposes.Count == 1)
+                    {
+                        Assert.AreEqual(InteractiveAlbumPromptPurpose.NewAlbumPrompt, request.Purpose);
+                        var doomed = request.Folders.Single(folder => folder.Username == "failuser");
+                        return Task.FromResult(new InteractiveModeManager.RunResult(
+                            InteractiveModeManager.RunAction.Accept,
+                            request.Folders.IndexOf(doomed),
+                            doomed,
+                            RetrieveCurrentFolder: true,
+                            request.FilterStr));
+                    }
+
+                    if (pickerPurposes.Count == 2)
+                    {
+                        Assert.AreEqual(InteractiveAlbumPromptPurpose.NewAlbumPrompt, request.Purpose);
+                        secondNewPromptSeen.TrySetResult();
+                        return Task.FromResult(new InteractiveModeManager.RunResult(
+                            InteractiveModeManager.RunAction.SkipRemainingNewPrompts,
+                            -1,
+                            null,
+                            RetrieveCurrentFolder: false,
+                            request.FilterStr));
+                    }
+
+                    Assert.AreEqual(InteractiveAlbumPromptPurpose.RetryAcceptedAlbumPrompt, request.Purpose);
+                    var retry = request.Folders.Single(folder => folder.Username == "retryuser");
+                    return Task.FromResult(new InteractiveModeManager.RunResult(
+                        InteractiveModeManager.RunAction.Accept,
+                        request.Folders.IndexOf(retry),
+                        retry,
+                        RetrieveCurrentFolder: true,
+                        request.FilterStr));
+                },
+                pollInterval: TimeSpan.FromMilliseconds(10));
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            var workflowId = Guid.NewGuid();
+            var submission = await coordinator.StartAsync(
+                new SubmitExtractJobRequestDto(listPath, InputType.List.ToString(), Options: new SubmissionOptionsDto(workflowId)),
+                cts.Token);
+            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
+                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
+            await app.RunAsync(cts.Token);
+
+            Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    InteractiveAlbumPromptPurpose.NewAlbumPrompt,
+                    InteractiveAlbumPromptPurpose.NewAlbumPrompt,
+                    InteractiveAlbumPromptPurpose.RetryAcceptedAlbumPrompt,
+                },
+                pickerPurposes,
+                "Shift+S should skip future new prompts, but not the retry prompt for an already accepted album.");
+
+            var downloaded = Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories)
+                .Select(GetSoulseekFileName)
+                .ToArray();
+            CollectionAssert.Contains(downloaded, "01. Artist - Track.mp3");
+            Assert.IsFalse(downloaded.Contains("01. Artist Two - Track Two.mp3"), "The album skipped by Shift+S should not download.");
+        }
+        finally
+        {
+            if (File.Exists(listPath)) File.Delete(listPath);
             if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
         }
     }
@@ -214,14 +388,14 @@ public class CliEndToEndTests
                 {
                     var folder = request.Folders.First();
                     var selected = folder.Files
-                        .Where(song => song.ResolvedTarget?.Filename.EndsWith("Track Two.mp3", StringComparison.OrdinalIgnoreCase) == true)
+                        .Where(song => song.Filename.EndsWith("Track Two.mp3", StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
                     return Task.FromResult(new InteractiveModeManager.RunResult(
+                        InteractiveModeManager.RunAction.Accept,
                         0,
                         new AlbumFolder(folder.Username, folder.FolderPath, selected),
                         RetrieveCurrentFolder: false,
-                        ExitInteractiveMode: false,
                         request.FilterStr));
                 });
 
@@ -315,10 +489,10 @@ public class CliEndToEndTests
                     var first = request.Folders.First();
                     cancelledFolderKey = first.Username + "\\" + first.FolderPath;
                     return Task.FromResult(new InteractiveModeManager.RunResult(
+                        InteractiveModeManager.RunAction.Accept,
                         0,
                         first,
                         RetrieveCurrentFolder: true,
-                        ExitInteractiveMode: false,
                         request.FilterStr));
                 });
 
@@ -378,8 +552,18 @@ public class CliEndToEndTests
             var cliSettings = new CliSettings { InteractiveMode = true, NoProgress = true };
             var clientManager = new SoulseekClientManager(engineSettings);
             var app = new DownloadEngine(engineSettings, clientManager);
-
             var pickerCalls = 0;
+            var parentAlbumFailedBeforeRetry = false;
+            app.Events.JobStateChanged += job =>
+            {
+                if (job is AlbumJob
+                    && job.TerminalOutcome == JobTerminalOutcome.Failed
+                    && pickerCalls < 2)
+                {
+                    parentAlbumFailedBeforeRetry = true;
+                }
+            };
+
             var backend = new LocalCliBackend(app, rootSettings);
             var coordinator = new InteractiveCliCoordinator(
                 backend,
@@ -399,10 +583,10 @@ public class CliEndToEndTests
                     }
 
                     return Task.FromResult(new InteractiveModeManager.RunResult(
+                        InteractiveModeManager.RunAction.Accept,
                         0,
                         folder,
                         RetrieveCurrentFolder: true,
-                        ExitInteractiveMode: false,
                         request.FilterStr));
                 });
 
@@ -415,6 +599,7 @@ public class CliEndToEndTests
             await app.RunAsync(CancellationToken.None);
 
             Assert.AreEqual(2, pickerCalls, "A failed chosen album should reopen the picker with remaining candidates.");
+            Assert.IsFalse(parentAlbumFailedBeforeRetry, "A failed manual candidate should return the parent album to selection, not publish a terminal failed AlbumJob state.");
 
             var albumJobs = app.Queue.AllJobs().OfType<AlbumJob>().ToList();
             Assert.AreEqual(1, albumJobs.Count, "Interactive retry should reuse the extracted AlbumJob instead of creating a follow-up root job.");
@@ -488,10 +673,12 @@ public class CliEndToEndTests
                     pickerCalls++;
                     var folder = request.Folders.FirstOrDefault();
                     return Task.FromResult(new InteractiveModeManager.RunResult(
+                        folder == null
+                            ? InteractiveModeManager.RunAction.SkipCurrent
+                            : InteractiveModeManager.RunAction.Accept,
                         folder == null ? -1 : 0,
                         folder,
                         RetrieveCurrentFolder: true,
-                        ExitInteractiveMode: false,
                         request.FilterStr));
                 });
 
@@ -527,7 +714,7 @@ public class CliEndToEndTests
                 string.Join("\n", indexLines));
             Assert.IsTrue(indexLines.Any(line => line.Contains("Mitski,Be the Cowboy,,-1,1,1,0")),
                 string.Join("\n", indexLines));
-            Assert.IsTrue(indexLines.Any(line => line == ",Talking Heads,Remain in Light,,-1,1,2,3"),
+            Assert.IsTrue(indexLines.Any(line => line == $",Talking Heads,Remain in Light,,-1,1,2,{(int)JobFailureReason.NoSearchResults}"),
                 string.Join("\n", indexLines));
         }
         finally
@@ -537,5 +724,47 @@ public class CliEndToEndTests
             if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
         }
     }
+
+    private static (DownloadEngine App, DownloadSettings RootSettings) CreateInteractiveListEngine(
+        MockSoulseekClient client,
+        string listPath,
+        string outputDir)
+    {
+        var engineSettings = new EngineSettings
+        {
+            Username = "test_user",
+            Password = "test_pass",
+        };
+        var rootSettings = new DownloadSettings();
+        rootSettings.Extraction.Input = listPath;
+        rootSettings.Extraction.InputType = InputType.List;
+        rootSettings.Search.NoBrowseFolder = true;
+        rootSettings.Output.ParentDir = outputDir;
+        rootSettings.Output.NameFormat = "{foldername}/{filename}";
+        rootSettings.Transfer.MaxDownloadRetries = 0;
+
+        var clientManager = new SoulseekClientManager(engineSettings, client);
+        return (new DownloadEngine(engineSettings, clientManager), rootSettings);
+    }
+
+    private static Soulseek.SearchResponse SearchResponse(string username, string filename)
+        => new(
+            username,
+            token: 1,
+            hasFreeUploadSlot: true,
+            uploadSpeed: 100,
+            queueLength: 0,
+            fileList:
+            [
+                new Soulseek.File(
+                    1,
+                    filename,
+                    100,
+                    Path.GetExtension(filename),
+                    attributeList:
+                    [
+                        new Soulseek.FileAttribute(Soulseek.FileAttributeType.Length, 60),
+                    ]),
+            ]);
 
 }

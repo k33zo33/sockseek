@@ -213,10 +213,8 @@ public static class SettingsNormalizer
         if (dl.Skip.SkipMusicDir != null)
             dl.Skip.SkipMusicDir = Utils.GetFullPath(Utils.ExpandVariables(dl.Skip.SkipMusicDir, pathContext));
 
-        if (dl.Output.FailedAlbumPath == null)
-            dl.Output.FailedAlbumPath = Path.Join(dl.Output.ParentDir, "failed");
-        else if (dl.Output.FailedAlbumPath is not ("disable" or "delete"))
-            dl.Output.FailedAlbumPath = Utils.GetFullPath(Utils.ExpandVariables(dl.Output.FailedAlbumPath, pathContext));
+        if (dl.Output.IncompleteAlbumAction.Path != null)
+            dl.Output.IncompleteAlbumAction.Path = Utils.GetFullPath(Utils.ExpandVariables(dl.Output.IncompleteAlbumAction.Path, pathContext));
     }
 
     public static void NormalizeEnginePaths(EngineSettings engine)
@@ -310,8 +308,10 @@ public static partial class ProfileConditionEvaluator
             AggregateJob => "aggregate",
             SongJob => "song",
             _ when job != null => ToKebab(job.GetType().Name.Replace("Job", "")),
-            _ when settings.Extraction.IsAlbum && settings.Search.IsAggregate => "album-aggregate",
-            _ when settings.Extraction.IsAlbum => "album",
+            _ when SettingsMode(settings) == "album" && settings.Search.IsAggregate => "album-aggregate",
+            _ when SettingsMode(settings) == "song" && settings.Search.IsAggregate => "aggregate",
+            _ when SettingsMode(settings) == "album" => "album",
+            _ when SettingsMode(settings) == "song" => "song",
             _ when settings.Search.IsAggregate => "aggregate",
             _ => "normal",
         };
@@ -320,12 +320,21 @@ public static partial class ProfileConditionEvaluator
         {
             "input-type" => settings.Extraction.InputType.ToString().ToLower(),
             "download-mode" => mode,
-            "album" => settings.Extraction.IsAlbum || mode is "album" or "album-aggregate",
+            "album" => mode is "album" or "album-aggregate",
             "aggregate" => settings.Search.IsAggregate || mode is "aggregate" or "album-aggregate",
             _ when context?.Values.TryGetValue(var, out var value) == true => value,
             _ => throw new Exception($"Input error: Unrecognized profile condition variable '{var}'"),
         };
     }
+
+    private static string SettingsMode(DownloadSettings settings)
+        => settings.Extraction.RequestedMode switch
+        {
+            ExtractionMode.Album => "album",
+            ExtractionMode.Song => "song",
+            _ when settings.Extraction.InputType is InputType.String or InputType.List or InputType.None => "album",
+            _ => "normal",
+        };
 
     [GeneratedRegex(@"(\s+|\(|\)|&&|\|\||==|!=|!|\"".*?\"")")]
     private static partial Regex CondTokenRegex();
@@ -340,6 +349,7 @@ public static class SettingsCloner
         UseRandomLogin = source.UseRandomLogin,
         ListenPort = source.ListenPort,
         ConnectTimeout = source.ConnectTimeout,
+        AutoReconnectAfterKickedFromServer = source.AutoReconnectAfterKickedFromServer,
         SharedFiles = source.SharedFiles,
         SharedFolders = source.SharedFolders,
         UserDescription = source.UserDescription,
@@ -386,7 +396,11 @@ public static class SettingsCloner
         HasConfiguredIndex = source.HasConfiguredIndex,
         M3uFilePath = source.M3uFilePath,
         IndexFilePath = source.IndexFilePath,
-        FailedAlbumPath = source.FailedAlbumPath,
+        IncompleteAlbumAction = new IncompleteAlbumActionSettings
+        {
+            Kind = source.IncompleteAlbumAction.Kind,
+            Path = source.IncompleteAlbumAction.Path,
+        },
         OnComplete = source.OnComplete?.ToList(),
         AlbumArtOnly = source.AlbumArtOnly,
         AlbumArtOption = source.AlbumArtOption,
@@ -398,6 +412,7 @@ public static class SettingsCloner
         PreferredCond = new FileConditions(source.PreferredCond),
         NecessaryFolderCond = new FolderConditions(source.NecessaryFolderCond),
         PreferredFolderCond = new FolderConditions(source.PreferredFolderCond),
+        StrictAlbumQuality = source.StrictAlbumQuality,
         SearchTimeout = source.SearchTimeout,
         MaxStaleTime = source.MaxStaleTime,
         DownrankOn = source.DownrankOn,
@@ -451,7 +466,8 @@ public static class SettingsCloner
         Offset = source.Offset,
         Reverse = source.Reverse,
         RemoveTracksFromSource = source.RemoveTracksFromSource,
-        IsAlbum = source.IsAlbum,
+        RequestedMode = source.RequestedMode,
+        UpgradeToAlbum = source.UpgradeToAlbum,
         SetAlbumMinTrackCount = source.SetAlbumMinTrackCount,
         SetAlbumMaxTrackCount = source.SetAlbumMaxTrackCount,
     };

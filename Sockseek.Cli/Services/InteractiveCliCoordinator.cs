@@ -9,6 +9,9 @@ using Soulseek;
 
 namespace Sockseek.Cli;
 
+// TODO [LIFETIME]: Make the interactive coordinator disposable as part of CLI run-scope ownership.
+// It owns a promptSemaphore today, while callers also start background RunUntilCompleteAsync work.
+// Dispose should be coordinated with that background task and the tests that construct coordinators directly.
 internal sealed class InteractiveCliCoordinator
 {
     private readonly ICliBackend backend;
@@ -22,6 +25,7 @@ internal sealed class InteractiveCliCoordinator
     private readonly Dictionary<Guid, InteractiveAlbumSession> interactiveAlbumSessions = [];
     private SubmissionOptionsDto? rootOptions;
     private bool interactiveEnabled;
+    private bool skipRemainingNewAlbumPrompts;
 
     public InteractiveCliCoordinator(
         ICliBackend backend,
@@ -57,11 +61,15 @@ internal sealed class InteractiveCliCoordinator
             bool startedFollowUp = await ProcessWorkflowAsync(workflowId, ct);
 
             var workflow = await backend.GetWorkflowAsync(workflowId, ct);
-            if (!startedFollowUp && (workflow?.Summary.State is ServerWorkflowState.Completed or ServerWorkflowState.Failed))
+            if (!startedFollowUp
+                && interactiveAlbumSessions.Count == 0
+                && (workflow?.Summary.State is ServerWorkflowState.Completed or ServerWorkflowState.Failed))
             {
                 startedFollowUp = await ProcessWorkflowAsync(workflowId, ct);
                 workflow = await backend.GetWorkflowAsync(workflowId, ct);
-                if (!startedFollowUp && (workflow?.Summary.State is ServerWorkflowState.Completed or ServerWorkflowState.Failed))
+                if (!startedFollowUp
+                    && interactiveAlbumSessions.Count == 0
+                    && (workflow?.Summary.State is ServerWorkflowState.Completed or ServerWorkflowState.Failed))
                     return;
             }
 
@@ -134,7 +142,7 @@ internal sealed class InteractiveCliCoordinator
         if (folders.Count == 0)
         {
             if (ConsoleInputManager.Reporter != null)
-                ConsoleInputManager.Reporter.ReportSyntheticJobFailure(detail.Summary.DisplayId, "AlbumJob", search.QueryText, "No suitable file found");
+                ConsoleInputManager.Reporter.ReportSyntheticJobFailure(detail.Summary.DisplayId, "AlbumJob", search.QueryText, "No matching results");
             return;
         }
 
@@ -146,11 +154,11 @@ internal sealed class InteractiveCliCoordinator
             folders,
             OptionsForWorkflow(detail.Summary.WorkflowId),
             InteractiveAlbumResultKind.Folder);
-        var selected = await PromptForAlbumSelectionAsync(session);
-        if (selected == null)
+        var outcome = await PromptForAlbumSelectionAsync(session, InteractiveAlbumPromptPurpose.NewAlbumPrompt);
+        if (outcome.Selection == null)
             return;
 
-        await EnqueueInteractiveAlbumJobAsync(session, selected, ct);
+        await EnqueueInteractiveAlbumJobAsync(session, outcome.Selection, ct);
     }
 
     private async Task HandleManualAlbumJobAsync(Guid albumJobId, CancellationToken ct)
@@ -164,30 +172,49 @@ internal sealed class InteractiveCliCoordinator
         if (folders.Count == 0)
         {
             if (ConsoleInputManager.Reporter != null)
-                ConsoleInputManager.Reporter.ReportSyntheticJobFailure(detail.Summary.DisplayId, "AlbumJob", detail.Summary.QueryText ?? "", "No suitable file found");
+                ConsoleInputManager.Reporter.ReportSyntheticJobFailure(detail.Summary.DisplayId, "AlbumJob", detail.Summary.QueryText ?? "", "No matching results");
             await backend.CompleteManualSelectionAsync(albumJobId, ct);
             return;
         }
 
-        var session = new InteractiveAlbumSession(
-            albumJobId,
-            new AlbumJob(ToAlbumQuery(album.Query)) { ItemName = detail.Summary.ItemName, Results = folders },
-            album.Query,
-            folders,
-            OptionsForWorkflow(detail.Summary.WorkflowId),
-            InteractiveAlbumResultKind.Folder);
+        var purpose = interactiveAlbumSessions.TryGetValue(albumJobId, out var session)
+            ? InteractiveAlbumPromptPurpose.RetryAcceptedAlbumPrompt
+            : InteractiveAlbumPromptPurpose.NewAlbumPrompt;
 
-        var selected = interactiveEnabled
-            ? await PromptForAlbumSelectionAsync(session)
-            : new InteractiveAlbumSelection(folders[0], RetrieveCurrentFolder: true, SkipTrackCountVerification: false);
-
-        if (selected == null)
+        if (session == null)
         {
-            await backend.CompleteManualSelectionAsync(albumJobId, ct);
+            session = new InteractiveAlbumSession(
+                albumJobId,
+                new AlbumJob(ToAlbumQuery(album.Query)) { ItemName = detail.Summary.ItemName, Results = folders },
+                album.Query,
+                folders,
+                OptionsForWorkflow(detail.Summary.WorkflowId),
+                InteractiveAlbumResultKind.Folder);
+        }
+        else
+        {
+            session.Folders.Clear();
+            session.Folders.AddRange(folders);
+            if (session.PromptJob is AlbumJob promptAlbum)
+                promptAlbum.Results = folders;
+        }
+
+        var outcome = interactiveEnabled
+            ? await PromptForAlbumSelectionAsync(session, purpose)
+            : new InteractiveAlbumPromptOutcome(
+                new InteractiveAlbumSelection(folders[0], RetrieveCurrentFolder: true, SkipTrackCountVerification: false),
+                WasExplicitSkip: false);
+
+        if (outcome.Selection == null)
+        {
+            if (outcome.WasExplicitSkip)
+                await backend.SkipManualSelectionAsync(albumJobId, ct);
+            else
+                await backend.CompleteManualSelectionAsync(albumJobId, ct);
             return;
         }
 
-        await EnqueueInteractiveAlbumJobAsync(session, selected, ct);
+        await EnqueueInteractiveAlbumJobAsync(session, outcome.Selection, ct);
     }
 
     private async Task HandleManualAlbumAggregateJobAsync(Guid albumAggregateJobId, CancellationToken ct)
@@ -208,10 +235,13 @@ internal sealed class InteractiveCliCoordinator
         if (buckets.Count == 0)
         {
             if (ConsoleInputManager.Reporter != null)
-                ConsoleInputManager.Reporter.ReportSyntheticJobFailure(detail.Summary.DisplayId, "AlbumAggregateJob", detail.Summary.QueryText ?? "", "No suitable file found");
+                ConsoleInputManager.Reporter.ReportSyntheticJobFailure(detail.Summary.DisplayId, "AlbumAggregateJob", detail.Summary.QueryText ?? "", "No matching results");
             await backend.CompleteManualSelectionAsync(albumAggregateJobId, ct);
             return;
         }
+
+        var selectedAnyBucket = false;
+        var skippedAnyBucket = false;
 
         foreach (var bucket in buckets)
         {
@@ -224,17 +254,27 @@ internal sealed class InteractiveCliCoordinator
                 OptionsForWorkflow(detail.Summary.WorkflowId),
                 InteractiveAlbumResultKind.AggregateAlbum);
 
-            var selected = interactiveEnabled
-                ? await PromptForAlbumSelectionAsync(session)
-                : new InteractiveAlbumSelection(folders[0], RetrieveCurrentFolder: true, SkipTrackCountVerification: false);
+            var outcome = interactiveEnabled
+                ? await PromptForAlbumSelectionAsync(session, InteractiveAlbumPromptPurpose.NewAlbumPrompt)
+                : new InteractiveAlbumPromptOutcome(
+                    new InteractiveAlbumSelection(folders[0], RetrieveCurrentFolder: true, SkipTrackCountVerification: false),
+                    WasExplicitSkip: false);
 
-            if (selected == null)
+            if (outcome.Selection == null)
+            {
+                if (outcome.WasExplicitSkip)
+                    skippedAnyBucket = true;
                 continue;
+            }
 
-            await EnqueueInteractiveAlbumJobAsync(session, selected, ct);
+            selectedAnyBucket = true;
+            await EnqueueInteractiveAlbumJobAsync(session, outcome.Selection, ct);
         }
 
-        await backend.CompleteManualSelectionAsync(albumAggregateJobId, ct);
+        if (!selectedAnyBucket && skippedAnyBucket)
+            await backend.SkipManualSelectionAsync(albumAggregateJobId, ct);
+        else
+            await backend.CompleteManualSelectionAsync(albumAggregateJobId, ct);
     }
 
     private async Task HandleCompletedInteractiveAlbumAsync(
@@ -259,11 +299,11 @@ internal sealed class InteractiveCliCoordinator
             session.ExcludedFolderKeys.Add(album.ResolvedFolderUsername + "\\" + album.ResolvedFolderPath);
         }
 
-        var selected = await PromptForAlbumSelectionAsync(session);
-        if (selected == null)
+        var outcome = await PromptForAlbumSelectionAsync(session, InteractiveAlbumPromptPurpose.RetryAcceptedAlbumPrompt);
+        if (outcome.Selection == null)
             return;
 
-        await EnqueueInteractiveAlbumJobAsync(session, selected, ct);
+        await EnqueueInteractiveAlbumJobAsync(session, outcome.Selection, ct);
     }
 
     private async Task EnqueueInteractiveAlbumJobAsync(
@@ -276,9 +316,7 @@ internal sealed class InteractiveCliCoordinator
         var selectedFiles = !exactFiles
             ? null
             : selectedFolder.Files
-                .Select(song => song.ResolvedTarget)
-                .OfType<FileCandidate>()
-                .Select(candidate => new FileCandidateRefDto(candidate.Username, candidate.Filename))
+                .Select(file => new FileCandidateRefDto(file.Candidate.Username, file.Candidate.Filename))
                 .ToList();
         var selection = selected.SkipTrackCountVerification || exactFiles
             ? new AlbumFolderDownloadSelectionDto(
@@ -293,7 +331,8 @@ internal sealed class InteractiveCliCoordinator
                 new AlbumFolderRefDto(selectedFolder.Username, selectedFolder.FolderPath),
                 Options: session.Options,
                 AlbumQuery: session.Query,
-                Selection: selection),
+                Selection: selection,
+                SelectedFolder: selectedFolder.IsFullyRetrieved ? ToAlbumFolderDto(selectedFolder) : null),
             ct);
 
         if (summary == null)
@@ -303,20 +342,26 @@ internal sealed class InteractiveCliCoordinator
         interactiveAlbumSessions[summary.JobId] = session;
     }
 
-    private async Task<int> RunPromptRetrieveFolderAsync(InteractiveAlbumSession session, AlbumFolder folder, CancellationToken ct)
+    private async Task<InteractiveModeManager.RetrievedFolder> RunPromptRetrieveFolderAsync(InteractiveAlbumSession session, AlbumFolder folder, CancellationToken ct)
     {
         Printing.WriteLine($"RetrieveFolderJob: retrieving folder: {folder.FolderPath}", ConsoleColor.Gray, force: true);
 
-        int newFiles = await backend.RetrieveFolderAndWaitAsync(
+        var payload = await backend.RetrieveFolderAndWaitAsync(
             session.SourceSearchJobId,
             new RetrieveFolderRequestDto(
                 new AlbumFolderRefDto(folder.Username, folder.FolderPath),
                 session.Query),
             ct);
 
-        await RefreshRetrievedFolderAsync(session, folder, ct);
-        folder.IsFullyRetrieved = true;
-        return newFiles;
+        var retrievedFolder = payload?.Folder != null
+            ? ToAlbumFolder(payload.Folder)
+            : folder;
+
+        await RefreshRetrievedFolderAsync(session, retrievedFolder, ct);
+        retrievedFolder.IsFullyRetrieved = true;
+        return new InteractiveModeManager.RetrievedFolder(
+            retrievedFolder,
+            payload?.NewFilesFoundCount ?? 0);
     }
 
     private async Task RefreshRetrievedFolderAsync(InteractiveAlbumSession session, AlbumFolder folder, CancellationToken ct)
@@ -367,14 +412,19 @@ internal sealed class InteractiveCliCoordinator
         target.IsFullyRetrieved = refreshed.IsFullyRetrieved;
     }
 
-    private async Task<InteractiveAlbumSelection?> PromptForAlbumSelectionAsync(InteractiveAlbumSession session)
+    private async Task<InteractiveAlbumPromptOutcome> PromptForAlbumSelectionAsync(
+        InteractiveAlbumSession session,
+        InteractiveAlbumPromptPurpose purpose)
     {
+        if (skipRemainingNewAlbumPrompts && purpose == InteractiveAlbumPromptPurpose.NewAlbumPrompt)
+            return new InteractiveAlbumPromptOutcome(null, WasExplicitSkip: true);
+
         var availableFolders = session.Folders
             .Where(folder => !session.ExcludedFolderKeys.Contains(FolderKey(folder)))
             .ToList();
 
         if (availableFolders.Count == 0)
-            return null;
+            return new InteractiveAlbumPromptOutcome(null, WasExplicitSkip: false);
 
         await promptSemaphore.WaitAsync(appToken);
         try
@@ -386,7 +436,8 @@ internal sealed class InteractiveCliCoordinator
                     session.PromptJob,
                     availableFolders,
                     session.RetrievedFolders,
-                    session.FilterStr));
+                    session.FilterStr,
+                    purpose));
             }
             else
             {
@@ -405,16 +456,27 @@ internal sealed class InteractiveCliCoordinator
             }
 
             session.FilterStr = result.FilterStr;
-            if (result.ExitInteractiveMode)
+            if (result.Action == InteractiveModeManager.RunAction.ExitInteractiveMode)
             {
                 interactiveEnabled = false;
                 cliSettings.InteractiveMode = false;
             }
 
-            if (result.Index < 0 || result.Folder == null)
-                return null;
+            if (result.Action == InteractiveModeManager.RunAction.SkipRemainingNewPrompts)
+                skipRemainingNewAlbumPrompts = true;
 
-            return new InteractiveAlbumSelection(result.Folder, result.RetrieveCurrentFolder, SkipTrackCountVerification: true);
+            if (result.Action != InteractiveModeManager.RunAction.Accept
+                && result.Action != InteractiveModeManager.RunAction.ExitInteractiveMode)
+                return new InteractiveAlbumPromptOutcome(
+                    null,
+                    WasExplicitSkip: result.Action is InteractiveModeManager.RunAction.SkipCurrent or InteractiveModeManager.RunAction.SkipRemainingNewPrompts);
+
+            if (result.Folder == null)
+                return new InteractiveAlbumPromptOutcome(null, WasExplicitSkip: false);
+
+            return new InteractiveAlbumPromptOutcome(
+                new InteractiveAlbumSelection(result.Folder, result.RetrieveCurrentFolder, SkipTrackCountVerification: true),
+                WasExplicitSkip: false);
         }
         finally
         {
@@ -462,20 +524,50 @@ internal sealed class InteractiveCliCoordinator
         => new AlbumFolder(
             folder.Username,
             folder.FolderPath,
-            () => folder.Files?.Select(ToSongJob).ToList() ?? [])
+            () => folder.Files?.Select(ToAlbumFile).ToList() ?? [])
         {
             IsFullyRetrieved = folder.IsFullyRetrieved,
         };
 
-    private static SongJob ToSongJob(FileCandidateDto file)
+    private static AlbumFolderDto ToAlbumFolderDto(AlbumFolder folder)
+        => new(
+            new AlbumFolderRefDto(folder.Username, folder.FolderPath),
+            folder.Username,
+            folder.FolderPath,
+            new PeerInfoDto(
+                folder.Username,
+                folder.Files.FirstOrDefault()?.Candidate.Response.HasFreeUploadSlot,
+                folder.Files.FirstOrDefault()?.Candidate.Response.UploadSpeed),
+            folder.SearchFileCount,
+            folder.SearchAudioFileCount,
+            folder.Files
+                .Select(file => ToFileCandidateDto(file.Candidate))
+                .ToList(),
+            folder.IsFullyRetrieved);
+
+    private static AlbumFile ToAlbumFile(FileCandidateDto file)
     {
         var candidate = new FileCandidate(
             new SearchResponse(file.Username, -1, file.Peer.HasFreeUploadSlot ?? false, file.Peer.UploadSpeed ?? -1, -1, null),
             new Soulseek.File(0, file.Filename, file.Size, file.Extension ?? Path.GetExtension(file.Filename),
                 file.Attributes?.Select(x => new Soulseek.FileAttribute(Enum.Parse<Soulseek.FileAttributeType>(x.Type), x.Value))));
-        var query = Searcher.InferSongQuery(candidate.Filename, new SongQuery());
-        return new SongJob(query) { ResolvedTarget = candidate };
+        return AlbumFile.WithLazyQuery(
+            () => Searcher.InferSongQuery(candidate.Filename, new SongQuery()),
+            candidate);
     }
+
+    private static FileCandidateDto ToFileCandidateDto(FileCandidate candidate)
+        => new(
+            new FileCandidateRefDto(candidate.Username, candidate.Filename),
+            candidate.Username,
+            candidate.Filename,
+            new PeerInfoDto(candidate.Username, candidate.Response.HasFreeUploadSlot, candidate.Response.UploadSpeed),
+            candidate.File.Size,
+            candidate.File.BitRate,
+            candidate.File.SampleRate,
+            candidate.File.Length,
+            candidate.File.Extension,
+            candidate.File.Attributes?.Select(x => new FileAttributeDto(x.Type.ToString(), x.Value)).ToList());
 
     private static DownloadBehaviorPolicyDto InteractiveDownloadBehavior(DownloadBehaviorPolicyDto? existing)
         => existing == null
@@ -532,9 +624,20 @@ internal sealed record InteractiveAlbumPromptRequest(
     Job PromptJob,
     List<AlbumFolder> Folders,
     HashSet<string> RetrievedFolders,
-    string? FilterStr);
+    string? FilterStr,
+    InteractiveAlbumPromptPurpose Purpose);
+
+internal enum InteractiveAlbumPromptPurpose
+{
+    NewAlbumPrompt,
+    RetryAcceptedAlbumPrompt,
+}
 
 internal sealed record InteractiveAlbumSelection(
     AlbumFolder Folder,
     bool RetrieveCurrentFolder,
     bool SkipTrackCountVerification);
+
+internal sealed record InteractiveAlbumPromptOutcome(
+    InteractiveAlbumSelection? Selection,
+    bool WasExplicitSkip);

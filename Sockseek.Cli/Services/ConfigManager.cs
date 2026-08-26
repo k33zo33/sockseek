@@ -1,16 +1,25 @@
 using Sockseek.Core;
 using Sockseek.Core.Models;
 using Sockseek.Core.Jobs;
+using Sockseek.Core.Extractors;
 using Sockseek.Core.Services;
 using Sockseek.Core.Settings;
 using Sockseek.Api;
 using Sockseek.Server;
+using System.Collections.Concurrent;
 
 namespace Sockseek.Cli;
 
 /// Owns config file loading and CLI token binding. Core owns typed profile application.
 public static partial class ConfigManager
 {
+    // TODO [ARCHITECTURE]: Replace this parser soup with a real option-definition model.
+    // CLI aliases, value kind, valueless behavior, help text, config binding, and remote
+    // patch binding should come from one declarative source instead of the current switch
+    // plus probing bridge.
+    
+    private static readonly ConcurrentDictionary<string, bool> BoolOptionCache = new(StringComparer.Ordinal);
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// Discovers and parses the config file.
@@ -240,7 +249,7 @@ public static partial class ConfigManager
 
     /// Maps one token list to a typed profile, then applies that profile.
     private static void ApplyTokens(
-        IList<string> tokens,
+        IList<NormalizedArg> tokens,
         EngineSettings engine,
         DownloadSettings dl,
         CliSettings cli,
@@ -254,6 +263,15 @@ public static partial class ConfigManager
         string name,
         IList<string> tokens,
         DownloadSettingsDeltaBuilder? downloadDeltaBuilder = null)
+        => ParseTokensAsProfile(
+            name,
+            tokens.Select(static value => new NormalizedArg(value, AllowsLeadingHyphen: true)).ToList(),
+            downloadDeltaBuilder);
+
+    private static ProfileEntry ParseTokensAsProfile(
+        string name,
+        IList<NormalizedArg> tokens,
+        DownloadSettingsDeltaBuilder? downloadDeltaBuilder = null)
     {
         var entry = new ProfileEntry(
             new SettingsProfile { Name = name },
@@ -264,7 +282,7 @@ public static partial class ConfigManager
 
         for (int i = 0; i < tokens.Count; i++)
         {
-            string t = tokens[i];
+            string t = tokens[i].Value;
 
             if (!t.StartsWith('-'))
             {
@@ -275,10 +293,10 @@ public static partial class ConfigManager
             switch (t)
             {
                 case "-c": case "--config": case "--profile":
-                    i++;
+                    _ = Next(tokens, ref i, t);
                     break;
                 case "--nc": case "--no-config":
-                    if (i + 1 < tokens.Count && IsBoolLiteral(tokens[i + 1]))
+                    if (i + 1 < tokens.Count && IsBoolLiteral(tokens[i + 1].Value))
                         i++;
                     break;
                 default:
@@ -286,11 +304,11 @@ public static partial class ConfigManager
                     {
                         AddProfileOption(entry, t, "true", downloadDeltaBuilder);
                     }
-                    else if (IsBoolOption(t))
+                    else if (OptionUsesBoolValue(t))
                     {
                         string value = "true";
-                        if (i + 1 < tokens.Count && IsBoolLiteral(tokens[i + 1]))
-                            value = tokens[++i];
+                        if (i + 1 < tokens.Count && IsBoolLiteral(tokens[i + 1].Value))
+                            value = tokens[++i].Value;
                         AddProfileOption(entry, t, value, downloadDeltaBuilder);
                     }
                     else
@@ -315,7 +333,17 @@ public static partial class ConfigManager
 
     private static void PostProcessDownload(DownloadSettings dl, PathVariableContext pathContext)
     {
+        OnCompleteExecutor.ValidateCommands(dl.Output.OnComplete);
         SettingsNormalizer.NormalizeDownloadPaths(dl, pathContext);
+    }
+
+    private static (bool Append, string Command) ParseOnCompleteConfigValue(string value)
+    {
+        var trimmed = value.TrimStart();
+        var append = trimmed.StartsWith("+ ", StringComparison.Ordinal);
+        var command = append ? trimmed[2..] : value.Trim();
+        OnCompleteExecutor.ValidateCommand(command);
+        return (append, command);
     }
 
     // ── Config file parsing ───────────────────────────────────────────────────
@@ -379,23 +407,79 @@ public static partial class ConfigManager
         ProfileEntry entry,
         string flag,
         string value,
-        DownloadSettingsDeltaBuilder? downloadDeltaBuilder = null)
+        DownloadSettingsDeltaBuilder? downloadDeltaBuilder = null,
+        OptionProbe? probe = null)
     {
         var tr = StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries;
 
-        void Engine(Action<EngineSettings> action) => entry.Profile.Engine.Add(action);
+        void Engine(Action<EngineSettings> action)
+        {
+            if (probe != null)
+                action(new EngineSettings());
+            else
+                entry.Profile.Engine.Add(action);
+        }
         void Download(Action<DownloadSettings> action)
         {
-            entry.Profile.Download.Add(action);
-            downloadDeltaBuilder?.Record(flag, value, action);
+            if (probe != null)
+            {
+                action(new DownloadSettings());
+            }
+            else
+            {
+                entry.Profile.Download.Add(action);
+                downloadDeltaBuilder?.Record(flag, value, action);
+            }
         }
-        void Cli(Action<CliSettings> action) => entry.Cli.Add(action);
-        void Daemon(Action<DaemonSettings> action) => entry.Daemon.Add(action);
-        void Remote(Action<RemoteSettings> action) => entry.Remote.Add(action);
+        void Cli(Action<CliSettings> action)
+        {
+            if (probe != null)
+                action(new CliSettings());
+            else
+                entry.Cli.Add(action);
+        }
+        void Daemon(Action<DaemonSettings> action)
+        {
+            if (probe != null)
+                action(new DaemonSettings());
+            else
+                entry.Daemon.Add(action);
+        }
+        void Remote(Action<RemoteSettings> action)
+        {
+            if (probe != null)
+                action(new RemoteSettings());
+            else
+                entry.Remote.Add(action);
+        }
 
-        bool Bool() => bool.Parse(value);
-        int Int() => ParseInt(value, flag);
-        double Double() => ParseDouble(value, flag);
+        bool Bool()
+        {
+            if (probe != null)
+            {
+                probe.UsesBoolValue = true;
+                return true;
+            }
+            return ParseBool(value, flag);
+        }
+        int Int()
+        {
+            if (probe != null)
+                return 1;
+            return ParseInt(value, flag);
+        }
+        int Port()
+        {
+            if (probe != null)
+                return 5030;
+            return ParsePort(value, flag);
+        }
+        double Double()
+        {
+            if (probe != null)
+                return 1.0;
+            return ParseDouble(value, flag);
+        }
 
         switch (flag)
         {
@@ -418,17 +502,17 @@ public static partial class ConfigManager
                     e.Password = parts.Length > 1 ? parts[1] : "";
                 });
                 break;
-            case "--rl": case "--random-login":
+            case "--rl": case "--random-login": // For testing only
                 Engine(e => e.UseRandomLogin = Bool()); break;
             case "--lp": case "--port": case "--listen-port":
                 Engine(e => e.ListenPort = Int()); break;
             case "--no-listen":
                 Engine(e => e.ListenPort = null); break;
-            case "--concurrent-jobs":
+            case "--cj": case "--concurrent-jobs":
                 Engine(e => e.ConcurrentJobs = Int()); break;
-            case "--cp": case "--concurrent-searches":
+            case "--cs": case "--concurrent-searches":
                 Engine(e => e.ConcurrentSearches = Int()); break;
-            case "--concurrent-extractors":
+            case "--ce": case "--concurrent-extractors":
                 Engine(e => e.ConcurrentExtractors = Int()); break;
             case "--spt": case "--searches-per-time":
                 Engine(e => e.SearchesPerTime = Int()); break;
@@ -471,12 +555,15 @@ public static partial class ConfigManager
             case "--server-ip": case "--daemon-ip": case "--api-ip":
                 Daemon(d => d.ListenIp = value); break;
             case "--server-port": case "--daemon-port": case "--api-port":
-                Daemon(d => d.ListenPort = Int()); break;
+                Daemon(d => d.ListenPort = Port()); break;
             case "--remote": case "--server-url":
                 Remote(r => r.ServerUrl = value); break;
 
             // ── OutputSettings ───────────────────────────────────────────────
-            case "-p": case "--path": case "--parent":
+            case "-o":
+                ThrowIfLikelyLegacyOffsetValue(value, flag);
+                Download(d => d.Output.ParentDir = value); break;
+            case "--output-dir": case "-p": case "--path": case "--parent":
                 Download(d => d.Output.ParentDir = value); break;
             case "--nf": case "--name-format":
                 Download(d => d.Output.NameFormat = value); break;
@@ -494,28 +581,39 @@ public static partial class ConfigManager
                 Download(d => { d.Output.WriteIndex = false; d.Output.HasConfiguredIndex = true; }); break;
             case "--ip": case "--index-path":
                 Download(d => { d.Output.IndexFilePath = value; d.Output.HasConfiguredIndex = true; }); break;
-            case "--failed-album-path":
-                Download(d => d.Output.FailedAlbumPath = value); break;
-            case "--oc": case "--on-complete":
+            case "--iaa": case "--incomplete-album-action":
+                var incompleteAlbumAction = ParseIncompleteAlbumAction(value, flag);
                 Download(d =>
                 {
-                    if (value.TrimStart().StartsWith("+ "))
+                    d.Output.IncompleteAlbumAction.Kind = incompleteAlbumAction.Kind;
+                    d.Output.IncompleteAlbumAction.Path = incompleteAlbumAction.Path;
+                });
+                break;
+            case "--oc": case "--on-complete":
+                var onComplete = ParseOnCompleteConfigValue(value);
+                Download(d =>
+                {
+                    if (onComplete.Append)
                     {
                         d.Output.OnComplete ??= [];
-                        d.Output.OnComplete.Add(value.TrimStart()[2..]);
+                        d.Output.OnComplete.Add(onComplete.Command);
                     }
                     else
                     {
-                        d.Output.OnComplete = [value];
+                        d.Output.OnComplete = [onComplete.Command];
                     }
                 });
                 break;
             case "--print":
                 Download(d => d.PrintOption = ParsePrintOption(value, flag)); break;
+            case "--print-jobs":
+                Download(d => d.PrintOption = PrintOption.Jobs); break;
+            case "--print-jobs-full":
+                Download(d => d.PrintOption = PrintOption.Jobs | PrintOption.Full); break;
             case "--pt": case "--print-tracks":
-                Download(d => d.PrintOption = PrintOption.Tracks); break;
+                Download(d => d.PrintOption = PrintOption.Jobs); break;
             case "--ptf": case "--print-tracks-full":
-                Download(d => d.PrintOption = PrintOption.Tracks | PrintOption.Full); break;
+                Download(d => d.PrintOption = PrintOption.Jobs | PrintOption.Full); break;
             case "--pr": case "--print-results":
                 Download(d => d.PrintOption = PrintOption.Results); break;
             case "--prf": case "--print-results-full":
@@ -545,9 +643,9 @@ public static partial class ConfigManager
                 });
                 break;
             case "-n": case "--number":
-                Download(d => d.Extraction.MaxTracks = Int()); break;
-            case "-o": case "--offset":
-                Download(d => d.Extraction.Offset = Int()); break;
+                Download(d => d.Extraction.MaxTracks = ParseIntAtLeast(value, flag, 1)); break;
+            case "--offset":
+                Download(d => d.Extraction.Offset = ParseIntAtLeast(value, flag, 0)); break;
             case "-r": case "--reverse":
                 Download(d => d.Extraction.Reverse = Bool()); break;
             case "--gd": case "--get-deleted":
@@ -561,7 +659,11 @@ public static partial class ConfigManager
             case "--alt": case "--aggregate-length-tol":
                 Download(d => d.Search.AggregateLengthTol = Int()); break;
             case "-a": case "--album":
-                Download(d => d.Extraction.IsAlbum = Bool()); break;
+                Download(d => d.Extraction.RequestedMode = Bool() ? ExtractionMode.Album : ExtractionMode.Song); break;
+            case "-s": case "--song":
+                Download(d => d.Extraction.RequestedMode = Bool() ? ExtractionMode.Song : ExtractionMode.Album); break;
+            case "--uta": case "--upgrade-to-album":
+                Download(d => d.Extraction.UpgradeToAlbum = Bool()); break;
             case "-g": case "--aggregate":
                 Download(d => d.Search.IsAggregate = Bool()); break;
             case "--aa": case "--album-art":
@@ -651,6 +753,8 @@ public static partial class ConfigManager
                 Download(d => d.Transfer.NoIncompleteExt = Bool()); break;
             case "--rf": case "--relax": case "--relax-filtering":
                 Download(d => d.Search.Relax = Bool()); break;
+            case "--saq": case "--strict-album-quality":
+                Download(d => d.Search.StrictAlbumQuality = Bool()); break;
             case "--ftd": case "--fails-to-downrank":
                 Download(d => d.Search.DownrankOn = -Int()); break;
             case "--fti": case "--fails-to-ignore":
@@ -788,12 +892,19 @@ public static partial class ConfigManager
             case "--lc": case "--length-col":
                 Download(d => d.Csv.LengthCol = value); break;
             case "--tf": case "--time-format":
-                Download(d => d.Csv.TimeUnit = value); break;
+                Download(d =>
+                {
+                    CsvExtractor.ValidateTimeFormat(value);
+                    d.Csv.TimeUnit = value;
+                });
+                break;
             case "--from-html":
                 Download(d => d.Bandcamp.HtmlFromFile = value); break;
 
             default:
-                throw new Exception($"Input error: Unknown argument: {flag}");
+                if (probe != null)
+                    throw new UnknownArgumentProbeException();
+                throw UnknownArgument(flag);
         }
     }
 
@@ -824,7 +935,7 @@ public static partial class ConfigManager
                 intSeed: -987654320,
                 doubleSeed: -987654320.5,
                 stringSeed: "<<Sockseek-sentinel-b>>",
-                printSeed: PrintOption.Tracks,
+                printSeed: PrintOption.Jobs,
                 inputSeed: InputType.Spotify,
                 skipSeed: SkipMode.Tag,
                 albumArtSeed: AlbumArtOption.Most));
@@ -841,11 +952,12 @@ public static partial class ConfigManager
 
                 case "--oc":
                 case "--on-complete":
-                    if (value.TrimStart().StartsWith("+ "))
+                    var onComplete = ParseOnCompleteConfigValue(value);
+                    if (onComplete.Append)
                     {
                         Add(DownloadSettingsDeltaMapper.Append(
                             "Output.OnComplete",
-                            [value.TrimStart()[2..]]));
+                            [onComplete.Command]));
                         return true;
                     }
                     return false;
@@ -938,8 +1050,10 @@ public static partial class ConfigManager
             && left.BoolValue == right.BoolValue
             && left.PrintOptionValue == right.PrintOptionValue
             && left.InputTypeValue == right.InputTypeValue
+            && left.ExtractionModeValue == right.ExtractionModeValue
             && left.SkipModeValue == right.SkipModeValue
             && left.AlbumArtOptionValue == right.AlbumArtOptionValue
+            && left.IncompleteAlbumActionKindValue == right.IncompleteAlbumActionKindValue
             && ListEqual(left.StringListValue, right.StringListValue)
             && RegexListEqual(left.RegexListValue, right.RegexListValue);
 
@@ -974,7 +1088,8 @@ public static partial class ConfigManager
             settings.Output.HasConfiguredIndex = boolSeed;
             settings.Output.M3uFilePath = stringSeed;
             settings.Output.IndexFilePath = stringSeed;
-            settings.Output.FailedAlbumPath = stringSeed;
+            settings.Output.IncompleteAlbumAction.Kind = null;
+            settings.Output.IncompleteAlbumAction.Path = stringSeed;
             settings.Output.OnComplete = [stringSeed];
             settings.Output.AlbumArtOnly = boolSeed;
             settings.Output.AlbumArtOption = albumArtSeed;
@@ -995,6 +1110,7 @@ public static partial class ConfigManager
             settings.Search.RemoveSingleCharSearchTerms = boolSeed;
             settings.Search.NoBrowseFolder = boolSeed;
             settings.Search.Relax = boolSeed;
+            settings.Search.StrictAlbumQuality = boolSeed;
             settings.Search.ArtistMaybeWrong = boolSeed;
             settings.Search.IsAggregate = boolSeed;
             settings.Search.MinSharesAggregate = intSeed;
@@ -1020,7 +1136,8 @@ public static partial class ConfigManager
             settings.Extraction.Offset = intSeed;
             settings.Extraction.Reverse = boolSeed;
             settings.Extraction.RemoveTracksFromSource = boolSeed;
-            settings.Extraction.IsAlbum = boolSeed;
+            settings.Extraction.RequestedMode = boolSeed ? ExtractionMode.Album : ExtractionMode.Song;
+            settings.Extraction.UpgradeToAlbum = boolSeed;
             settings.Extraction.SetAlbumMinTrackCount = boolSeed;
             settings.Extraction.SetAlbumMaxTrackCount = boolSeed;
 
@@ -1112,10 +1229,13 @@ public static partial class ConfigManager
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private readonly record struct NormalizedArg(string Value, bool AllowsLeadingHyphen = false);
+
     /// Normalize argv: expand --arg=val into --arg val, and -abc into -a -b -c.
-    private static List<string> NormalizeArgs(IReadOnlyList<string> args)
+    /// Attached values retain their origin so they may intentionally begin with '-'.
+    private static List<NormalizedArg> NormalizeArgs(IReadOnlyList<string> args)
     {
-        var result = new List<string>(args.Count);
+        var result = new List<NormalizedArg>(args.Count);
         foreach (var arg in args)
         {
             if (arg.Length > 2 && arg[0] == '-')
@@ -1125,25 +1245,61 @@ public static partial class ConfigManager
                     if (arg.Contains('='))
                     {
                         var eq = arg.IndexOf('=');
-                        result.Add(arg[..eq]);
-                        result.Add(arg[(eq + 1)..]);
+                        result.Add(new(arg[..eq]));
+                        result.Add(new(arg[(eq + 1)..], AllowsLeadingHyphen: true));
                         continue;
                     }
                 }
                 else if (!arg.Contains(' '))
                 {
                     foreach (char c in arg[1..])
-                        result.Add($"-{c}");
+                        result.Add(new($"-{c}"));
                     continue;
                 }
             }
-            result.Add(arg);
+            result.Add(new(arg));
         }
         return result;
     }
 
     private static bool IsBoolLiteral(string value) =>
         value is "true" or "false" or "True" or "False";
+
+    private sealed class OptionProbe
+    {
+        public bool UsesBoolValue { get; set; }
+    }
+
+    private sealed class UnknownArgumentProbeException : Exception { }
+
+    private static Exception UnknownArgument(string flag)
+        => new($"Input error: Unknown argument: {flag}");
+
+    private static bool OptionUsesBoolValue(string flag)
+        => BoolOptionCache.GetOrAdd(flag, static key =>
+        {
+            var entry = new ProfileEntry(
+                new SettingsProfile { Name = "<probe>" },
+                new CliSettingsPatch(),
+                new DaemonSettingsPatch(),
+                new RemoteSettingsPatch(),
+                []);
+            var probe = new OptionProbe();
+            try
+            {
+                AddProfileOption(entry, key, "true", probe: probe);
+            }
+            catch (UnknownArgumentProbeException)
+            {
+                throw UnknownArgument(key);
+            }
+            catch
+            {
+                return false;
+            }
+
+            return probe.UsesBoolValue;
+        });
 
     private static bool IsValuelessOption(string flag) => flag switch
     {
@@ -1154,6 +1310,8 @@ public static partial class ConfigManager
         or "--progress"
         or "--nwp" or "--no-write-playlist"
         or "--nwi" or "--no-write-index"
+        or "--print-jobs"
+        or "--print-jobs-full"
         or "--pt" or "--print-tracks"
         or "--ptf" or "--print-tracks-full"
         or "--pr" or "--print-results"
@@ -1165,51 +1323,6 @@ public static partial class ConfigManager
         or "--nbf" or "--no-browse-folder"
         or "--bf" or "--browse-folder"
         or "--nse" or "--no-skip-existing" => true,
-        _ => false,
-    };
-
-    private static bool IsBoolOption(string flag) => flag switch
-    {
-        "--rl" or "--random-login"
-        or "--nmsc" or "--no-modify-share-count"
-        or "--mock-files-slow"
-        or "-t" or "--interactive"
-        or "--progress-json"
-        or "--wp" or "--write-playlist"
-        or "--wi" or "--write-index"
-        or "-r" or "--reverse"
-        or "--gd" or "--get-deleted"
-        or "--do" or "--deleted-only"
-        or "--rfp" or "--rfs" or "--remove-from-source" or "--remove-from-playlist"
-        or "-a" or "--album"
-        or "-g" or "--aggregate"
-        or "--aao" or "--aa-only" or "--album-art-only"
-        or "--eMtc" or "--extract-max-track-count"
-        or "--emtc" or "--extract-min-track-count"
-        or "--rft" or "--remove-ft"
-        or "--rb" or "--remove-brackets"
-        or "--amw" or "--artist-maybe-wrong"
-        or "--ea" or "--extract-artist"
-        or "--fs" or "--fast-search"
-        or "-d" or "--desperate"
-        or "--nrsc" or "--no-remove-special-chars"
-        or "--nie" or "--no-incomplete-ext"
-        or "--rf" or "--relax" or "--relax-filtering"
-        or "--stt" or "--strict-title"
-        or "--sar" or "--strict-artist"
-        or "--sal" or "--strict-album"
-        or "--anl" or "--accept-no-length"
-        or "--sc" or "--strict" or "--strict-conditions"
-        or "--pst" or "--pstt" or "--pref-strict-title"
-        or "--psar" or "--pref-strict-artist"
-        or "--psal" or "--pref-strict-album"
-        or "--panl" or "--pref-accept-no-length"
-        or "--se" or "--skip-existing"
-        or "--snf" or "--skip-not-found"
-        or "--scc" or "--skip-check-cond"
-        or "--scpc" or "--skip-check-pref-cond"
-        or "--yp" or "--yt-parse"
-        or "--yd" or "--yt-dlp" => true,
         _ => false,
     };
 
@@ -1251,9 +1364,11 @@ public static partial class ConfigManager
     private static PrintOption ParsePrintOption(string s, string flag) => s.ToLower().Trim() switch
     {
         "none"          => PrintOption.None,
-        "tracks"        => PrintOption.Tracks,
+        "jobs"          => PrintOption.Jobs,
+        "tracks"        => PrintOption.Jobs,
         "results"       => PrintOption.Results,
-        "tracks-full"   => PrintOption.Tracks | PrintOption.Full,
+        "jobs-full"     => PrintOption.Jobs | PrintOption.Full,
+        "tracks-full"   => PrintOption.Jobs | PrintOption.Full,
         "results-full"  => PrintOption.Results | PrintOption.Full,
         "link"          => PrintOption.Link,
         "json"          => PrintOption.Json,
@@ -1263,11 +1378,33 @@ public static partial class ConfigManager
         _ => throw new Exception($"Input error: Invalid print option '{s}' for '{flag}'"),
     };
 
-    private static string Next(IList<string> tokens, ref int i, string flag)
+    private static string Next(IList<NormalizedArg> tokens, ref int i, string flag)
     {
-        if (++i >= tokens.Count)
-            throw new Exception($"Input error: Option '{flag}' requires a parameter");
-        return tokens[i];
+        if (i + 1 >= tokens.Count)
+            throw MissingOptionParameter(flag);
+
+        var next = tokens[++i];
+        if (!next.AllowsLeadingHyphen && LooksLikeOption(next.Value))
+            throw MissingOptionParameter(flag, next.Value);
+
+        return next.Value;
+    }
+
+    private static bool LooksLikeOption(string value)
+        => value.Length > 1
+           && value[0] == '-'
+           && !value.Any(char.IsWhiteSpace);
+
+    private static Exception MissingOptionParameter(string flag, string? optionLikeValue = null)
+    {
+        string message = $"Input error: Option '{flag}' requires a parameter";
+        if (optionLikeValue != null && flag.StartsWith("--", StringComparison.Ordinal))
+        {
+            message += $", but '{optionLikeValue}' looks like another option. " +
+                       $"To use it as the value, pass '{flag}={optionLikeValue}'.";
+        }
+
+        return new Exception(message);
     }
 
     private static double ParseDouble(string s, string flag)
@@ -1275,6 +1412,14 @@ public static partial class ConfigManager
         if (!double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double v))
             throw new Exception($"Input error: Option '{flag}' requires a numeric parameter, got '{s}'");
         return v;
+    }
+
+    private static bool ParseBool(string s, string flag)
+    {
+        if (bool.TryParse(s, out var value))
+            return value;
+
+        throw new Exception($"Input error: Option '{flag}' requires a boolean parameter, got '{s}'");
     }
 
     private static SkipMode ParseSkipMode(string s, string flag, bool allowIndex)
@@ -1288,11 +1433,63 @@ public static partial class ConfigManager
         };
     }
 
+    private static IncompleteAlbumActionSettings ParseIncompleteAlbumAction(string s, string flag)
+    {
+        var value = s.Trim();
+        var lower = value.ToLowerInvariant();
+
+        if (lower == "move")
+            return new IncompleteAlbumActionSettings { Kind = IncompleteAlbumActionKind.Move };
+        if (lower.StartsWith("move:", StringComparison.Ordinal))
+        {
+            var path = value["move:".Length..].Trim();
+            if (string.IsNullOrWhiteSpace(path))
+                throw new Exception($"Input error: Option '{flag}' requires a path for move:<path>");
+            return new IncompleteAlbumActionSettings { Kind = IncompleteAlbumActionKind.Move, Path = path };
+        }
+        if (lower == "delete")
+            return new IncompleteAlbumActionSettings { Kind = IncompleteAlbumActionKind.Delete };
+        if (lower == "keep")
+            return new IncompleteAlbumActionSettings { Kind = IncompleteAlbumActionKind.Keep };
+
+        throw new Exception($"Input error: Invalid incomplete album action '{s}' for '{flag}'");
+    }
+
     private static int ParseInt(string s, string flag)
     {
         if (!int.TryParse(s.Replace("_", ""), out int v))
             throw new Exception($"Input error: Option '{flag}' requires an integer parameter, got '{s}'");
         return v;
+    }
+
+    private static void ThrowIfLikelyLegacyOffsetValue(string value, string flag)
+    {
+        if (flag != "-o")
+            return;
+
+        if (!int.TryParse(value.Replace("_", ""), out _))
+            return;
+
+        throw new Exception(
+            $"Input error: '-o {value}' looks like the old short form for '--offset {value}'. " +
+            $"'-o' now means '--output-dir'. Use '--offset {value}' to skip tracks, or " +
+            $"'-o ./{value}' if you really want to download into a '{value}' subdirectory of the current directory.");
+    }
+
+    private static int ParseIntAtLeast(string s, string flag, int min)
+    {
+        var value = ParseInt(s, flag);
+        if (value < min)
+            throw new Exception($"Input error: Option '{flag}' must be at least {min}, got '{s}'");
+        return value;
+    }
+
+    private static int ParsePort(string s, string flag)
+    {
+        var value = ParseInt(s, flag);
+        if (value is < 1 or > 65535)
+            throw new Exception($"Input error: Option '{flag}' must be a TCP port between 1 and 65535, got '{s}'");
+        return value;
     }
 
     private static int FindLastFlag(IReadOnlyList<string> args, params string[] names)

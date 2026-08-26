@@ -63,8 +63,8 @@ namespace Tests.Unit
 
         private Searcher CreateSearcher(ISoulseekClient client, DownloadSettings config)
         {
-            var registry = TestHelpers.CreateSessionRegistry();
-            return new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            return new Searcher(client, registry, new DownloadEvents(), 10, 10);
         }
 
         [TestMethod]
@@ -89,8 +89,8 @@ namespace Tests.Unit
         {
             var client = CreateMockClient(TestHelpers.CreateTestIndex());
             var settings = TestHelpers.CreateDefaultSettings().Download;
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var song = new SongJob(new SongQuery { Artist = "testartist", Title = "testsong" });
             var phases = new List<JobActivityPhase>();
 
@@ -110,6 +110,53 @@ namespace Tests.Unit
             Assert.AreEqual(JobLifecycleState.Running, song.LifecycleState);
             Assert.AreEqual(JobActivityPhase.ProcessingSearchResults, song.ActivityPhase);
             Assert.AreEqual(JobTerminalOutcome.None, song.TerminalOutcome);
+        }
+
+        [TestMethod]
+        public async Task SearchAlbum_RaisesDiscoveryProgressOnVisibleAlbumJob()
+        {
+            var response = new SearchResponse("User", 1, true, 1000, 0,
+            [
+                TestHelpers.CreateSlFile(@"ELO\Time\01. Track.mp3", length: 181),
+                TestHelpers.CreateSlFile(@"ELO\Time\02. Track.mp3", length: 182),
+            ]);
+            var client = CreateMockClient([response]);
+            var settings = TestHelpers.CreateDefaultSettings().Download;
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var events = new DownloadEvents();
+            var searcher = new Searcher(client, registry, events, 10, 10);
+            var album = new AlbumJob(new AlbumQuery { Artist = "ELO", Album = "Time" });
+            var counts = new List<int>();
+
+            events.JobDiscoveryChanged += job =>
+            {
+                if (ReferenceEquals(job, album) && job.Discovery != null)
+                    counts.Add(job.Discovery.RawResultCount);
+            };
+
+            await searcher.SearchAlbum(album, settings.Search, new ResponseData(), CancellationToken.None);
+
+            CollectionAssert.AreEqual(new[] { 1, 2 }, counts);
+            Assert.AreEqual(2, album.Discovery?.RawResultCount);
+            Assert.AreEqual(1, album.Results.Count);
+        }
+
+        [TestMethod]
+        public async Task SearchAlbum_ReturnsMatchingResults()
+        {
+            var index = TestHelpers.CreateTestIndex();
+            var settings = TestHelpers.CreateDefaultSettings().Download;
+            var client = CreateMockClient(index);
+            var searcher = CreateSearcher(client, settings);
+            var album = new AlbumJob(new AlbumQuery { Album = "testalbum", Artist = "testartist" });
+
+            await searcher.SearchAlbum(album, settings.Search, new ResponseData(), CancellationToken.None);
+
+            var testUserFolder = album.Results.First(folder => folder.Username == "testuser");
+            Assert.AreEqual(4, testUserFolder.Files.Count);
+            CollectionAssert.AreEqual(
+                index.First(response => response.Username == "testuser").Files.Select(file => file.Filename).ToList(),
+                testUserFolder.Files.Select(file => file.Candidate.File.Filename).ToList());
         }
 
         [TestMethod]
@@ -161,6 +208,115 @@ namespace Tests.Unit
             Assert.AreEqual(2, folders.Count);
             Assert.AreEqual("SlowAlbumMatch", folders[0].Username);
             Assert.AreEqual(@"Diverse System\AD：PIANO X", folders[0].FolderPath);
+        }
+
+        [TestMethod]
+        public void AlbumFolders_RequiredQualityConditions_RankFoldersByCoverageWithoutPartialFiltering()
+        {
+            static SearchResponse Response(string user, params string[] extensions)
+            {
+                var files = extensions
+                    .Select((extension, index) => TestHelpers.CreateSlFile($@"ELO\Time\{index + 1:D2}. Track {index + 1}.{extension}", length: 180 + index))
+                    .ToArray();
+                return new SearchResponse(user, 1, true, 1000, 0, files);
+            }
+
+            var full = Response("full", "flac", "flac", "flac");
+            var high = Response("high", "flac", "flac", "mp3");
+            var low = Response("low", "flac", "mp3", "mp3");
+            var none = Response("none", "mp3", "mp3", "mp3");
+            var rawResults = new[] { none, low, high, full }
+                .SelectMany(response => response.Files.Select(file => (response, file)))
+                .ToList();
+            var search = TestHelpers.CreateDefaultSettings().Download.Search;
+            search.NecessaryCond.Formats = ["flac"];
+
+            var folders = SearchResultProjector.AlbumFolders(rawResults, new AlbumQuery { Artist = "ELO", Album = "Time" }, search);
+
+            CollectionAssert.AreEqual(new[] { "full", "high", "low" }, folders.Select(f => f.Username).ToList());
+            Assert.AreEqual(3, folders.Single(f => f.Username == "high").Files.Count, "Mixed-quality folders must remain whole; quality conditions rank/reject folders, not individual files.");
+            Assert.AreEqual(2, folders.Single(f => f.Username == "high").SearchAudioQualityCoverage.MatchingFileCount);
+            Assert.AreEqual(3, folders.Single(f => f.Username == "high").SearchAudioQualityCoverage.AudioFileCount);
+            Assert.AreEqual(2, folders.Single(f => f.Username == "high").SearchAudioQualityCoverage.Format.MatchingFileCount);
+        }
+
+        [TestMethod]
+        public void AlbumFolders_StrictAlbumQuality_RequiresEveryAudioFileToMatch()
+        {
+            var full = new SearchResponse("full", 1, true, 1000, 0,
+            [
+                TestHelpers.CreateSlFile(@"ELO\Time\01. Track 1.flac", length: 180),
+                TestHelpers.CreateSlFile(@"ELO\Time\02. Track 2.flac", length: 181),
+            ]);
+            var mixed = new SearchResponse("mixed", 1, true, 1000, 0,
+            [
+                TestHelpers.CreateSlFile(@"ELO\Time\01. Track 1.flac", length: 180),
+                TestHelpers.CreateSlFile(@"ELO\Time\02. Track 2.mp3", length: 181),
+            ]);
+            var rawResults = new[] { mixed, full }
+                .SelectMany(response => response.Files.Select(file => (response, file)))
+                .ToList();
+            var search = TestHelpers.CreateDefaultSettings().Download.Search;
+            search.NecessaryCond.Formats = ["flac"];
+            search.StrictAlbumQuality = true;
+
+            var folders = SearchResultProjector.AlbumFolders(rawResults, new AlbumQuery { Artist = "ELO", Album = "Time" }, search);
+
+            CollectionAssert.AreEqual(new[] { "full" }, folders.Select(f => f.Username).ToList());
+        }
+
+        [TestMethod]
+        public void AlbumFolders_AlbumIdentityBeatsQualityCoverage()
+        {
+            var matchingMixed = new SearchResponse("matching-mixed", 1, true, 500 * 1024, 0,
+            [
+                TestHelpers.CreateSlFile(@"Diverse System\AD：PIANO X\01 - Song.flac", length: 180),
+                TestHelpers.CreateSlFile(@"Diverse System\AD：PIANO X\02 - Song.mp3", length: 181),
+            ]);
+            var unrelatedFull = new SearchResponse("unrelated-full", 1, true, 30_000 * 1024, 0,
+            [
+                TestHelpers.CreateSlFile(@"FLAC\CD1\01 - Song.flac", length: 180),
+                TestHelpers.CreateSlFile(@"FLAC\CD1\02 - Song.flac", length: 181),
+            ]);
+            var rawResults = new[] { unrelatedFull, matchingMixed }
+                .SelectMany(response => response.Files.Select(file => (response, file)))
+                .ToList();
+            var search = TestHelpers.CreateDefaultSettings().Download.Search;
+            search.NecessaryCond.Formats = ["flac"];
+
+            var folders = SearchResultProjector.AlbumFolders(rawResults, new AlbumQuery { Album = "AD:PIANO X" }, search);
+
+            Assert.AreEqual("matching-mixed", folders[0].Username);
+        }
+
+        [TestMethod]
+        public void AlbumFolders_RequiredQualityConditions_RankSeparateCoverageBucketsInSortOrder()
+        {
+            static SearchResponse Response(string user, params Soulseek.File[] files)
+                => new(user, 1, true, 1000, 0, files);
+
+            var perfectFormatWeakBitrate = Response("format-wins",
+                TestHelpers.CreateSlFile(@"ELO\Time\01. Track 1.flac", length: 180, bitrate: 900),
+                TestHelpers.CreateSlFile(@"ELO\Time\02. Track 2.flac", length: 181, bitrate: 128),
+                TestHelpers.CreateSlFile(@"ELO\Time\03. Track 3.flac", length: 182, bitrate: 128));
+            var weakerFormatPerfectBitrate = Response("bitrate-loses",
+                TestHelpers.CreateSlFile(@"ELO\Time\01. Track 1.flac", length: 180, bitrate: 900),
+                TestHelpers.CreateSlFile(@"ELO\Time\02. Track 2.flac", length: 181, bitrate: 900),
+                TestHelpers.CreateSlFile(@"ELO\Time\03. Track 3.mp3", length: 182, bitrate: 900));
+            var rawResults = new[] { weakerFormatPerfectBitrate, perfectFormatWeakBitrate }
+                .SelectMany(response => response.Files.Select(file => (response, file)))
+                .ToList();
+            var search = TestHelpers.CreateDefaultSettings().Download.Search;
+            search.NecessaryCond.Formats = ["flac"];
+            search.NecessaryCond.MinBitrate = 900;
+
+            var folders = SearchResultProjector.AlbumFolders(rawResults, new AlbumQuery { Artist = "ELO", Album = "Time" }, search);
+
+            CollectionAssert.AreEqual(new[] { "format-wins", "bitrate-loses" }, folders.Select(f => f.Username).ToList());
+            Assert.AreEqual(3, folders[0].SearchAudioQualityCoverage.Format.MatchingFileCount);
+            Assert.AreEqual(1, folders[0].SearchAudioQualityCoverage.Bitrate.MatchingFileCount);
+            Assert.AreEqual(2, folders[1].SearchAudioQualityCoverage.Format.MatchingFileCount);
+            Assert.AreEqual(3, folders[1].SearchAudioQualityCoverage.Bitrate.MatchingFileCount);
         }
 
         [TestMethod]
@@ -223,6 +379,53 @@ namespace Tests.Unit
             CollectionAssert.AreEqual(
                 expected.Select(x => x.SearchAudioFileCount).ToList(),
                 actual.Select(x => x.SearchAudioFileCount).ToList());
+        }
+
+        [TestMethod]
+        public void IncrementalAlbumFolders_MatchesFullAlbumFolders_WithProjectionOptions()
+        {
+            static SearchResponse Response(string user, params Soulseek.File[] files)
+                => new(user, 1, true, 1000, 0, files);
+
+            var goodMixed = Response(
+                "good-mixed",
+                TestHelpers.CreateSlFile(@"Diverse System\AD：PIANO X\01 - Song.flac", length: 180),
+                TestHelpers.CreateSlFile(@"Diverse System\AD：PIANO X\02 - Song.mp3", length: 181));
+            var unrelatedFull = Response(
+                "unrelated-full",
+                TestHelpers.CreateSlFile(@"FLAC\CD1\01 - Song.flac", length: 180),
+                TestHelpers.CreateSlFile(@"FLAC\CD1\02 - Song.flac", length: 181));
+            var rawResults = new[] { goodMixed, unrelatedFull }
+                .SelectMany(response => response.Files.Select(file => (response, file)))
+                .ToList();
+            var query = new AlbumQuery { Album = "AD:PIANO X" };
+            var search = TestHelpers.CreateDefaultSettings().Download.Search;
+            search.NecessaryCond.Formats = ["flac"];
+
+            var expected = SearchResultProjector.AlbumFolders(
+                rawResults,
+                query,
+                search,
+                ignoreStringSortConditions: true);
+            var incremental = new IncrementalAlbumFolderProjector(
+                query,
+                search,
+                ignoreStringSortConditions: true);
+
+            foreach (var chunk in rawResults.Chunk(1))
+                incremental.AddRange(chunk);
+
+            var actual = incremental.Snapshot();
+
+            CollectionAssert.AreEqual(
+                expected.Select(FolderKey).ToList(),
+                actual.Select(FolderKey).ToList());
+            CollectionAssert.AreEqual(
+                expected.Select(x => x.SearchAudioQualityCoverage.Format.MatchingFileCount).ToList(),
+                actual.Select(x => x.SearchAudioQualityCoverage.Format.MatchingFileCount).ToList());
+
+            static string FolderKey(AlbumFolder folder)
+                => folder.Username + "\\" + folder.FolderPath;
         }
 
         [TestMethod]
@@ -422,8 +625,8 @@ namespace Tests.Unit
             Assert.AreEqual(@"ELO\Time", forward[0].FolderPath);
             Assert.AreEqual(@"ELO\Time", reversed[0].FolderPath);
             CollectionAssert.AreEqual(
-                forward[0].Files.Select(x => x.ResolvedTarget!.Filename).ToList(),
-                reversed[0].Files.Select(x => x.ResolvedTarget!.Filename).ToList());
+                forward[0].Files.Select(x => x.Filename).ToList(),
+                reversed[0].Files.Select(x => x.Filename).ToList());
         }
 
         [TestMethod]
@@ -489,17 +692,14 @@ namespace Tests.Unit
                 "User1",
                 @"ELO\Time",
                 [
-                    new SongJob(new SongQuery { Artist = "ELO", Album = "Time", Title = "Twilight" })
-                    {
-                        ResolvedTarget = new FileCandidate(response, track1),
-                    },
+                    TestHelpers.CreateAlbumFile(response, track1),
                 ]);
 
             int newFiles = await searcher.CompleteFolder(folder, CancellationToken.None);
 
             Assert.AreEqual(1, newFiles);
             Assert.AreEqual(2, folder.Files.Count);
-            Assert.AreEqual(@"ELO\Time\02. Yours Truly 2095.mp3", folder.Files[1].ResolvedTarget!.Filename);
+            Assert.AreEqual(@"ELO\Time\02. Yours Truly 2095.mp3", folder.Files[1].Filename);
         }
 
         [TestMethod]
@@ -555,7 +755,7 @@ namespace Tests.Unit
             
             Assert.AreEqual(5, job.Results.Count, "Should find folders matching album name search terms.");
             Assert.IsTrue(job.Results.Any(f => f.Username == "User1"), "User1 folder missing.");
-            Assert.IsTrue(job.Results.All(f => !f.Files.Any(fi => fi.ResolvedTarget!.Filename.Contains("Dancing Queen"))), "Noise file not filtered!");
+            Assert.IsTrue(job.Results.All(f => !f.Files.Any(fi => fi.Filename.Contains("Dancing Queen"))), "Noise file not filtered!");
         }
 
         [TestMethod]
@@ -579,7 +779,7 @@ namespace Tests.Unit
 
             Assert.AreEqual(1, job.Results.Count, "Child directories should merge into the parent album folder.");
             Assert.AreEqual(@"ELO\Time", job.Results[0].FolderPath);
-            Assert.IsTrue(job.Results[0].Files.Any(f => f.ResolvedTarget!.Filename.EndsWith(@"Scans\Time booklet.jpg")),
+            Assert.IsTrue(job.Results[0].Files.Any(f => f.Filename.EndsWith(@"Scans\Time booklet.jpg")),
                 "Merged album folder should retain non-audio files from child directories.");
         }
 
@@ -714,8 +914,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 1;
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AlbumAggregateJob(new AlbumQuery { Artist = "ELO" });
             var responseData = new ResponseData();
 
@@ -742,8 +942,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 2; // Only return if shared by 2+ peers
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AlbumAggregateJob(new AlbumQuery { Artist = "ELO" });
             var responseData = new ResponseData();
 
@@ -770,6 +970,7 @@ namespace Tests.Unit
             var fullProjected = SearchResultProjector.AggregateAlbums(folders, query, search);
             Assert.AreEqual(1, fullProjected.Count);
             Assert.AreEqual("Time", fullProjected[0].ItemName, "Full projector should derive the item name from the representative folder path.");
+            Assert.AreEqual("Time", fullProjected[0].Query.Album, "Full projector should use the representative folder name as the executable album query.");
 
             // Check incremental projector
             var incrementalProjector = new IncrementalAlbumAggregateProjector(query, search);
@@ -777,12 +978,13 @@ namespace Tests.Unit
             var incrementalProjected = incrementalProjector.Snapshot();
             Assert.AreEqual(1, incrementalProjected.Count);
             Assert.AreEqual("Time", incrementalProjected[0].ItemName, "Incremental projector should derive the item name from the representative folder path.");
+            Assert.AreEqual("Time", incrementalProjected[0].Query.Album, "Incremental projector should use the same executable album query as the full projector.");
         }
 
         [TestMethod]
         public void AggregateAlbums_UsesSearchMetadataWithoutMaterializingFiles()
         {
-            List<SongJob> ThrowIfMaterialized() => throw new AssertFailedException("AggregateAlbums should not force AlbumFolder.Files when search metadata is available.");
+            List<AlbumFile> ThrowIfMaterialized() => throw new AssertFailedException("AggregateAlbums should not force AlbumFolder.Files when search metadata is available.");
 
             var folders = new List<AlbumFolder>
             {
@@ -846,6 +1048,42 @@ namespace Tests.Unit
         }
 
         [TestMethod]
+        public void IncrementalAggregateTracks_AppliesNecessaryFiltersLikeFullAggregateTracks()
+        {
+            var flac = TestHelpers.CreateSlFile(@"Music\ELO - Blue Sky.flac", length: 180);
+            var mp3 = TestHelpers.CreateSlFile(@"Music\ELO - Blue Sky.mp3", length: 180);
+            var banned = TestHelpers.CreateSlFile(@"Music\ELO - Blue Sky.wav", length: 180);
+            var flacResponse = new SearchResponse("AllowedFlac", 1, true, 1000, 0, [flac]);
+            var mp3Response = new SearchResponse("AllowedMp3", 1, true, 1000, 0, [mp3]);
+            var bannedResponse = new SearchResponse("BannedUser", 1, true, 1000, 0, [banned]);
+            var rawResults = new List<(SearchResponse Response, Soulseek.File File)>
+            {
+                (flacResponse, flac),
+                (mp3Response, mp3),
+                (bannedResponse, banned),
+            };
+
+            var query = new SongQuery { Artist = "ELO", Title = "Blue Sky" };
+            var search = TestHelpers.CreateDefaultSettings().Download.Search;
+            search.MinSharesAggregate = 1;
+            search.NecessaryCond.Formats = ["flac"];
+            search.NecessaryCond.BannedUsers = ["BannedUser"];
+            var counts = new ConcurrentDictionary<string, int>();
+
+            var expected = SearchResultProjector.AggregateTracks(rawResults, query, search, counts);
+            var incremental = new IncrementalAggregateTrackProjector(query, search, counts);
+            incremental.AddRange(rawResults);
+            var actual = incremental.Snapshot();
+
+            CollectionAssert.AreEqual(
+                expected.SelectMany(x => x.Candidates!.Select(c => c.Username + "\\" + c.Filename)).ToList(),
+                actual.SelectMany(x => x.Candidates!.Select(c => c.Username + "\\" + c.Filename)).ToList());
+            CollectionAssert.AreEqual(
+                new[] { @"AllowedFlac\Music\ELO - Blue Sky.flac" },
+                actual.SelectMany(x => x.Candidates!.Select(c => c.Username + "\\" + c.Filename)).ToArray());
+        }
+
+        [TestMethod]
         public void AggregateTracks_DoesNotSortBucketByStrictArtist()
         {
             var artistMatch = TestHelpers.CreateSlFile(@"Music\Right Artist\Track.mp3", length: 200);
@@ -893,6 +1131,9 @@ namespace Tests.Unit
             CollectionAssert.AreEqual(
                 expected.Select(x => x.Results.Count).ToList(),
                 actual.Select(x => x.Results.Count).ToList());
+            CollectionAssert.AreEqual(
+                expected.Select(x => $"{x.ItemName}|{x.Query.Album}").ToList(),
+                actual.Select(x => $"{x.ItemName}|{x.Query.Album}").ToList());
             CollectionAssert.AreEqual(
                 expected.SelectMany(x => x.Results.Select(r => r.Username + "\\" + r.FolderPath)).ToList(),
                 actual.SelectMany(x => x.Results.Select(r => r.Username + "\\" + r.FolderPath)).ToList());
@@ -1111,8 +1352,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 1;
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AggregateJob(new SongQuery { Artist = "ELO", Title = "Blue Sky" });
             var responseData = new ResponseData();
 
@@ -1146,8 +1387,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 1;
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AggregateJob(new SongQuery { Artist = "ELO", Title = "Blue Sky" });
             var responseData = new ResponseData();
 
@@ -1178,8 +1419,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 1;
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AggregateJob(new SongQuery { Artist = "ELO", Title = "Blue Sky" });
             var responseData = new ResponseData();
 
@@ -1212,8 +1453,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 1;
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AlbumAggregateJob(new AlbumQuery { Artist = "ELO" });
             var responseData = new ResponseData();
 
@@ -1244,8 +1485,8 @@ namespace Tests.Unit
             var config = TestHelpers.CreateDefaultSettings().Download;
             config.Search.MinSharesAggregate = 1;
 
-            var registry = TestHelpers.CreateSessionRegistry();
-            var searcher = new Searcher(client, registry, registry, new EngineEvents(), 10, 10);
+            var registry = TestHelpers.CreateUserSuccessTracker();
+            var searcher = new Searcher(client, registry, new DownloadEvents(), 10, 10);
             var job = new AlbumAggregateJob(new AlbumQuery { Artist = "ELO" });
             var responseData = new ResponseData();
 
@@ -1261,17 +1502,18 @@ namespace Tests.Unit
         {
             var client = CreateMockClient([]);
             var settings = TestHelpers.CreateDefaultSettings().Download;
-            var events = new EngineEvents();
-            var registry = TestHelpers.CreateSessionRegistry();
+            var events = new DownloadEvents();
+            var searchEvents = new SearchEvents();
+            var registry = TestHelpers.CreateUserSuccessTracker();
 
             // 1 search per 10 seconds — second search will block immediately
-            var searcher = new Searcher(client, registry, registry, events, searchesPerTime: 1, searchRenewTime: 10);
+            var searcher = new Searcher(client, registry, events, searchesPerTime: 1, searchRenewTime: 10, searchEvents: searchEvents);
 
             var song1 = new SongJob(new SongQuery { Artist = "A", Title = "B" });
             await searcher.SearchSong(song1, settings.Search, new ResponseData(), CancellationToken.None);
 
             bool fired = false;
-            events.SearchRateLimited += _ => fired = true;
+            searchEvents.SearchRateLimited += _ => fired = true;
 
             var song2 = new SongJob(new SongQuery { Artist = "C", Title = "D" });
             using var cts = new CancellationTokenSource();

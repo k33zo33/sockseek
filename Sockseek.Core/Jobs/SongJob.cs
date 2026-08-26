@@ -4,7 +4,6 @@ using Sockseek.Core.Models;
 namespace Sockseek.Core.Jobs;
     // Unified song job. Used for both search+download and pre-resolved downloads.
     // If ResolvedTarget is non-null the engine skips the search phase.
-    // Also used as the per-file unit inside AlbumFolder.Files.
     public class SongJob : Job, IUpgradeable
     {
         public SongQuery Query { get; set; }
@@ -47,6 +46,13 @@ namespace Sockseek.Core.Jobs;
             set { if (_downloadPath != value) { _downloadPath = value; OnPropertyChanged(); } }
         }
 
+        private SongDownloadSource _downloadSource = SongDownloadSource.None;
+        public SongDownloadSource DownloadSource
+        {
+            get => _downloadSource;
+            set { if (_downloadSource != value) { _downloadSource = value; OnPropertyChanged(); } }
+        }
+
         private long _bytesTransferred;
         public long BytesTransferred
         {
@@ -56,7 +62,6 @@ namespace Sockseek.Core.Jobs;
                 if (_bytesTransferred != value)
                 {
                     _bytesTransferred = value;
-                    LastActivityTime  = DateTime.Now;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Progress));
                 }
@@ -72,9 +77,6 @@ namespace Sockseek.Core.Jobs;
 
         public double Progress => FileSize > 0 ? (double)BytesTransferred / FileSize : 0;
 
-        // Updated whenever bytes change; used for stale-detection.
-        public DateTime? LastActivityTime { get; set; }
-
         public SongJob(SongQuery query)
         {
             Query = query;
@@ -83,12 +85,19 @@ namespace Sockseek.Core.Jobs;
         public override void SetDone()
             => SetDone(downloadPath: null);
 
-        public void SetDone(string? downloadPath, FileCandidate? candidate = null)
+        public void SetDone(
+            string? downloadPath,
+            FileCandidate? candidate = null,
+            SongDownloadSource downloadSource = SongDownloadSource.None)
         {
             if (candidate != null)
                 ChosenCandidate = candidate;
             if (downloadPath != null)
                 DownloadPath = downloadPath;
+            if (downloadSource != SongDownloadSource.None)
+                DownloadSource = downloadSource;
+            else if (candidate != null)
+                DownloadSource = SongDownloadSource.Soulseek;
             base.SetDone();
         }
 

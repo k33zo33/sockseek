@@ -16,7 +16,7 @@ namespace Sockseek.Core.Extractors;
         {
             var uri = HttpUtility.UrlDecode(input);
 
-            if (input.EndsWith('/') || extraction.IsAlbum)
+            if (input.EndsWith('/') || extraction.RequestedMode == ExtractionMode.Album)
             {
                 var (username, path) = ParseSoulseekUri(uri);
                 var directory = path.TrimEnd('\\');
@@ -54,6 +54,12 @@ namespace Sockseek.Core.Extractors;
             var parts = uri["slsk://".Length..].Split('/', 2);
             var username = parts[0];
             var path = parts.Length > 1 ? parts[1].TrimEnd('/').Replace('/', '\\') : "";
+
+            if (string.IsNullOrWhiteSpace(username))
+                throw new ArgumentException("Invalid Soulseek URI: missing username.");
+            if (string.IsNullOrWhiteSpace(path) || path.Trim('\\').Length == 0)
+                throw new ArgumentException("Invalid Soulseek URI: missing path.");
+
             return (username, path);
         }
     }

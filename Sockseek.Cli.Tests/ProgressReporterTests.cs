@@ -16,12 +16,21 @@ namespace Tests.ProgressReporterTests;
 public class CliProgressReporterTests
 {
     private static string JobLog(string message) => $"[jobs] {message}";
+    private static string DebugJobLog(string message) => $"[debug] [jobs] {message}";
+    private static string WarnJobLog(string message) => $"[warn] [jobs] {message}";
     private static string ErrorJobLog(string message) => $"[error] [jobs] {message}";
 
     [TestCleanup]
     public void Cleanup()
     {
         SockseekLog.RemoveNonFileOutputs();
+    }
+
+    private static TerminalLogLine JobLogLine(SockseekLog.StructuredLogEntry entry)
+    {
+        var jobLog = entry.Context as CliOutputEvent.JobLog;
+        Assert.IsNotNull(jobLog);
+        return jobLog.Line;
     }
 
     [TestMethod]
@@ -40,8 +49,7 @@ public class CliProgressReporterTests
             new[]
             {
                 "download.started",
-                "on-complete.started",
-                "on-complete.ended",
+                "job.activity-changed",
                 "extraction.started",
                 "extraction.failed",
             },
@@ -61,22 +69,21 @@ public class CliProgressReporterTests
         var songId = Guid.NewGuid();
         var query = new SongQueryDto("Artist", "Song", null, null, null, false);
         var candidate = CreateFileCandidate("user", @"Music\Artist\Song.flac");
+        var songSummary = WithState(CreateSongSummary(songId, workflowId, null) with { DisplayId = 9 }, ExpectedJobStatus.RunningOnComplete);
         var extractSummary = CreateExtractSummary(Guid.NewGuid(), workflowId, ExpectedJobStatus.Extracting, null);
 
         InvokePrivate(eventLogger, "HandleEvent", Envelope("download.started", new DownloadStartedEventDto(songId, 9, workflowId, query, candidate)));
-        InvokePrivate(eventLogger, "HandleEvent", Envelope("on-complete.started", new OnCompleteStartedEventDto(songId, 9, workflowId, query)));
-        InvokePrivate(eventLogger, "HandleEvent", Envelope("on-complete.ended", new OnCompleteEndedEventDto(songId, 9, workflowId, query)));
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("job.activity-changed", new JobActivityChangedEventDto(songSummary)));
         InvokePrivate(eventLogger, "HandleEvent", Envelope("extraction.started", new ExtractionStartedEventDto(extractSummary, "input.txt", "List")));
         InvokePrivate(eventLogger, "HandleEvent", Envelope("extraction.failed", new ExtractionFailedEventDto(
             WithState(extractSummary, ExpectedJobStatus.Failed),
             "Could not parse input")));
 
-        Assert.AreEqual(5, messages.Count);
+        Assert.AreEqual(4, messages.Count);
         StringAssert.StartsWith(messages[0], JobLog(@"[9] SongJob: downloading: Artist - Song: user\Music\Artist\Song.flac"));
-        Assert.AreEqual(JobLog("OnComplete start: [9] Artist - Song"), messages[1]);
-        Assert.AreEqual(JobLog("OnComplete end: [9] Artist - Song"), messages[2]);
-        Assert.AreEqual(JobLog("[11] ExtractJob: List: Input: input.txt"), messages[3]);
-        Assert.AreEqual(ErrorJobLog("[11] ExtractJob: Failed: input.txt\n  Reason:    Could not parse input"), messages[4]);
+        Assert.AreEqual(JobLog("[9] SongJob: on-complete: Artist - Track"), messages[1]);
+        Assert.AreEqual(JobLog("[11] ExtractJob: List: Input: input.txt"), messages[2]);
+        Assert.AreEqual(ErrorJobLog("[11] ExtractJob: Failed: input.txt\n  Reason:    Could not parse input"), messages[3]);
     }
 
     [TestMethod]
@@ -103,6 +110,26 @@ public class CliProgressReporterTests
 
         Assert.AreEqual(1, messages.Count);
         Assert.AreEqual(JobLog("[11] ExtractJob: Spotify: Loading playlist"), messages[0]);
+    }
+
+    [TestMethod]
+    public void EventLogger_WorkflowMessage_PrintsGenericJobsLog()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var messages = new List<string>();
+        SockseekLog.AddConsole(writer: (message, _) => messages.Add(message));
+
+        var eventLogger = new EventLogger(null!);
+        var workflowId = Guid.NewGuid();
+
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("workflow.message", new WorkflowMessageEventDto(
+            workflowId,
+            LogLevel.Information.ToString(),
+            null,
+            "Auto profiles active: interactive")));
+
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual(JobLog("Auto profiles active: interactive"), messages[0]);
     }
 
     [TestMethod]
@@ -286,6 +313,33 @@ public class CliProgressReporterTests
     }
 
     [TestMethod]
+    public void EventLogger_PartialSuccess_UsesPartialLogKind()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        SockseekLog.RemoveFileOutputs();
+
+        var entries = new List<SockseekLog.StructuredLogEntry>();
+        SockseekLog.AddStructuredSink((entry, _) => entries.Add(entry), LogLevel.Information);
+
+        var eventLogger = new EventLogger(null!);
+        var summary = CreateAlbumSummary(Guid.NewGuid(), ExpectedJobStatus.Failed, null) with
+        {
+            LifecycleState = ServerJobLifecycleState.Terminal,
+            ActivityPhase = ServerJobActivityPhase.None,
+            TerminalOutcome = ServerJobTerminalOutcome.PartialSuccess,
+            FailureReason = ServerProtocol.FailureReasons.Other,
+        };
+
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("job.upserted", summary));
+
+        var line = JobLogLine(entries.Single());
+        Assert.AreEqual("partial: Artist Album", line.Message);
+        Assert.AreEqual("partial", line.Highlight);
+        Assert.AreEqual(TerminalLogKind.JobPartial, line.Kind);
+        Assert.AreEqual("yellow", CliLogStyle.TerminalLogKindColor(line.Kind));
+    }
+
+    [TestMethod]
     public void EventLogger_DiagnosticError_CanBeSuppressedForRemoteClients()
     {
         SockseekLog.RemoveNonFileOutputs();
@@ -328,7 +382,7 @@ public class CliProgressReporterTests
                 CreateFileCandidate("user", @"Music\Artist\Song.flac"))));
 
         Assert.AreEqual(1, entries.Count);
-        var line = (TerminalLogLine)entries[0].Context!;
+        var line = JobLogLine(entries[0]);
         Assert.IsFalse(line.ShowInLive);
         Assert.AreEqual("downloading: Artist - Song: user\\Music\\Artist\\Song.flac", line.Message);
     }
@@ -354,7 +408,7 @@ public class CliProgressReporterTests
             "List")));
 
         Assert.AreEqual(1, entries.Count);
-        var line = (TerminalLogLine)entries[0].Context!;
+        var line = JobLogLine(entries[0]);
         Assert.IsTrue(line.ShowInLive);
         Assert.AreEqual("List", line.Source);
         Assert.AreEqual("Failed", line.Highlight);
@@ -387,7 +441,7 @@ public class CliProgressReporterTests
             ChosenCandidate: candidate)));
 
         Assert.AreEqual(1, entries.Count);
-        var line = (TerminalLogLine)entries[0].Context!;
+        var line = JobLogLine(entries[0]);
         Assert.IsTrue(line.ShowInLive);
         Assert.AreEqual("succeeded", line.Highlight);
         Assert.AreEqual("succeeded: Artist - Song: user\\Music\\Artist\\Song.flac", line.Message);
@@ -420,7 +474,7 @@ public class CliProgressReporterTests
             ParentJobId: null,
             ResultJobId: null,
             SourceJobId: null,
-            DiscoveryResultCount: null,
+            DiscoveryRawResultCount: null,
             DiscoveryLockedFileCount: null,
             AppliedAutoProfiles: [],
             AvailableActions: []);
@@ -447,13 +501,13 @@ public class CliProgressReporterTests
             ChosenCandidate: candidate)));
 
         Assert.AreEqual(1, entries.Count);
-        var line = (TerminalLogLine)entries[0].Context!;
+        var line = JobLogLine(entries[0]);
         Assert.IsFalse(line.ShowInLive);
         Assert.AreEqual("already exists", line.Highlight);
     }
 
     [TestMethod]
-    public void EventLogger_AlbumTrackTerminalLogs_UseAlbumTrackDisplay()
+    public void EventLogger_AlbumFileTerminalLogs_UseAlbumFileDisplay()
     {
         SockseekLog.RemoveNonFileOutputs();
         var entries = new List<SockseekLog.StructuredLogEntry>();
@@ -493,17 +547,66 @@ public class CliProgressReporterTests
             ChosenCandidate: candidate)));
 
         Assert.AreEqual(1, entries.Count);
-        var line = (TerminalLogLine)entries[0].Context!;
-        Assert.AreEqual("Album Track", line.JobType);
+        var line = JobLogLine(entries[0]);
+        Assert.AreEqual("Album File", line.JobType);
         Assert.AreEqual(TerminalLogKind.AlbumTrackDownloaded, line.Kind);
         Assert.AreEqual("succeeded: Artist Album: 01. Artist - Track.flac", line.Message);
         Assert.IsTrue(line.ShowInLive);
     }
 
     [TestMethod]
+    public void EventLogger_AlbumFileAllDownloadsFailed_IsDebugOnly()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var entries = new List<SockseekLog.StructuredLogEntry>();
+        SockseekLog.AddStructuredSink((entry, _) => entries.Add(entry), LogLevel.Debug);
+
+        var eventLogger = new EventLogger(null!);
+        var workflowId = Guid.NewGuid();
+        var albumJobId = Guid.NewGuid();
+        var fileJobId = Guid.NewGuid();
+        var albumSummary = CreateAlbumSummary(albumJobId, ExpectedJobStatus.Downloading, null) with
+        {
+            WorkflowId = workflowId,
+        };
+        var childSummary = CreateSongSummary(fileJobId, workflowId, albumJobId);
+        var query = new SongQueryDto("Artist", "Track", null, null, null, false);
+        var candidate = CreateFileCandidate("local", @"Artist\Album\01. Artist - Track.flac");
+
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("job.upserted", albumSummary));
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("job.upserted", childSummary));
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("album.track-download-started", new AlbumTrackDownloadStartedEventDto(
+            albumSummary,
+            CreateSingleFileAlbumFolder(fileJobId, ExpectedJobStatus.Pending, null),
+            [CreateSongPayload(fileJobId, ExpectedJobStatus.Pending, null)])));
+        entries.Clear();
+
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("song.state-changed", new SongStateChangedEventDto(
+            fileJobId,
+            7,
+            workflowId,
+            query,
+            ServerJobLifecycleState.Terminal,
+            ServerJobActivityPhase.None,
+            ActivityUntilUtc: null,
+            ServerJobTerminalOutcome.Failed,
+            ServerProtocol.FailureReasons.AllDownloadsFailed,
+            DownloadPath: null,
+            ChosenCandidate: candidate,
+            FailureMessage: "Transfer rejected: Too many megabytes")));
+
+        Assert.AreEqual(1, entries.Count);
+        Assert.AreEqual(LogLevel.Debug, entries[0].Level);
+        var line = JobLogLine(entries[0]);
+        Assert.AreEqual("Album File", line.JobType);
+        Assert.AreEqual("failed [All downloads failed]: Artist Album: 01. Artist - Track.flac", line.Message);
+        Assert.IsFalse(line.ShowInLive);
+    }
+
+    [TestMethod]
     public void TerminalLiveRenderer_WrapsWideUnicodeByCellWidth()
     {
-        var text = "failed [No suitable file found]: サン";
+        var text = "failed [No matching results]: サン";
 
         Assert.IsTrue(TerminalLiveRenderer.CellCount(text) > text.Length,
             "Japanese kana should count wider than one terminal cell per UTF-16 char.");
@@ -515,11 +618,26 @@ public class CliProgressReporterTests
     }
 
     [TestMethod]
-    public void TerminalLiveRenderer_DimsStructuredProcessLogPrefixes()
+    public void TerminalLiveRenderer_SanitizeLiveText_RemovesBidiControlCharacters()
+    {
+        var folder = "2002 - Cowboy Bebop - CD-BOX Original Soundtrack\u200e [FLAC]";
+
+        Assert.AreEqual(
+            "2002 - Cowboy Bebop - CD-BOX Original Soundtrack [FLAC]",
+            TerminalLiveRenderer.SanitizeLiveText(folder));
+
+        Assert.AreEqual(
+            "ab\u200dcd",
+            TerminalLiveRenderer.SanitizeLiveText("a\u061Cb\u200d\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069cd"),
+            "Only bidi controls should be stripped; other format characters such as ZWJ are not the live repaint bug.");
+    }
+
+    [TestMethod]
+    public void CliLogStyle_DimsStructuredProcessLogPrefixes()
     {
         Assert.AreEqual(
             "[grey][[debug]] [[soulseek]] [/]" + "Logging in",
-            TerminalLiveRenderer.FormatProcessLogMarkup(new TerminalProcessLogLine(
+            CliLogStyle.FormatProcessLogMarkup(new TerminalProcessLogLine(
                 LogLevel.Debug,
                 SockseekLog.Categories.Soulseek,
                 "Logging in",
@@ -527,11 +645,11 @@ public class CliProgressReporterTests
     }
 
     [TestMethod]
-    public void TerminalLiveRenderer_ColorsStatusAfterStructuredSourcePrefix()
+    public void CliLogStyle_ColorsStatusAfterStructuredSourcePrefix()
     {
         Assert.AreEqual(
             "[grey][[002]] [/]" + "ExtractJob: Spotify: [red]Failed[/]: https://open.spotify.com/playlist/123",
-            TerminalLiveRenderer.FormatLogMarkup(new TerminalLogLine(
+            CliLogStyle.FormatTerminalLogMarkup(new TerminalLogLine(
                 TerminalLogKind.JobFailed,
                 "",
                 2,
@@ -542,10 +660,163 @@ public class CliProgressReporterTests
     }
 
     [TestMethod]
-    public void TerminalLiveRenderer_SourcePrefixText_IsMeasuredSeparately()
+    public void CliLogStyle_UsesSeverityColorForLevelLabelOnly()
     {
-        Assert.AreEqual("Spotify: ", TerminalLiveRenderer.SourcePrefixText("Spotify"));
-        Assert.AreEqual("", TerminalLiveRenderer.SourcePrefixText(null));
+        Assert.AreEqual(ConsoleColor.Red, CliLogStyle.LevelColor(LogLevel.Error));
+        Assert.AreEqual(ConsoleColor.Gray, CliLogStyle.MessageColor(LogLevel.Error));
+        Assert.AreEqual(ConsoleColor.DarkGray, CliLogStyle.TerminalIdColor);
+    }
+
+    [TestMethod]
+    public void CliLogStyle_FormatsTerminalLogContextLikeLiveRenderer()
+    {
+        var originalOut = Console.Out;
+        using var output = new StringWriter();
+        var line = new TerminalLogLine(
+            TerminalLogKind.Status,
+            "",
+            4,
+            "ExtractJob",
+            "String: Input: Artist 2 - Album 2");
+
+        try
+        {
+            Console.SetOut(output);
+
+            CliLogStyle.WriteConsoleLog(new SockseekLog.StructuredLogEntry(
+                LogLevel.Information,
+                SockseekLog.Categories.Jobs,
+                "[4] ExtractJob: String: Input: Artist 2 - Album 2",
+                Context: new CliOutputEvent.JobLog(line)));
+
+            Assert.AreEqual(
+                "[004] ExtractJob: String: Input: Artist 2 - Album 2" + Environment.NewLine,
+                output.ToString());
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [TestMethod]
+    public void CliOutputEvent_FromLogEntry_PreservesExplicitJobLogSeverity()
+    {
+        var line = new TerminalLogLine(
+            TerminalLogKind.JobFailed,
+            "",
+            21,
+            "AlbumJob",
+            "failed [No matching results]: Album 9",
+            Highlight: "failed");
+
+        var outputEvent = CliOutputEvent.FromLogEntry(new SockseekLog.StructuredLogEntry(
+            LogLevel.Error,
+            SockseekLog.Categories.Jobs,
+            "[21] AlbumJob: failed [No matching results]: Album 9",
+            Context: new CliOutputEvent.JobLog(line)));
+
+        var jobLog = outputEvent as CliOutputEvent.JobLog;
+        Assert.IsNotNull(jobLog);
+        Assert.AreEqual(LogLevel.Error, jobLog.Level);
+        Assert.AreSame(line, jobLog.Line);
+    }
+
+    [TestMethod]
+    public void CliOutputEvent_FromLogEntry_MapsCoreJobLogContext()
+    {
+        var outputEvent = CliOutputEvent.FromLogEntry(new SockseekLog.StructuredLogEntry(
+            LogLevel.Information,
+            SockseekLog.Categories.Jobs,
+            "[3] SongJob: cancelling stale download",
+            Context: new SockseekLog.JobLogContext(3, "SongJob", "cancelling stale download")));
+
+        var jobLog = outputEvent as CliOutputEvent.JobLog;
+        Assert.IsNotNull(jobLog);
+        Assert.AreEqual(LogLevel.Information, jobLog.Level);
+        Assert.AreEqual(TerminalLogKind.Status, jobLog.Line.Kind);
+        Assert.AreEqual(3, jobLog.Line.DisplayId);
+        Assert.AreEqual("SongJob", jobLog.Line.JobType);
+        Assert.AreEqual("cancelling stale download", jobLog.Line.Message);
+        Assert.AreEqual("[003] SongJob: cancelling stale download", CliLogStyle.FormatOutputEventText(outputEvent));
+    }
+
+    [TestMethod]
+    public void CliLogStyle_FormatsMixedOutputEventsInGivenOrder()
+    {
+        var firstFailure = new CliOutputEvent.JobLog(new TerminalLogLine(
+            TerminalLogKind.JobFailed,
+            "",
+            21,
+            "AlbumJob",
+            "failed [No matching results]: Album 9"));
+        var completed = new CliOutputEvent.ProcessLog(new TerminalProcessLogLine(
+            LogLevel.Information,
+            SockseekLog.Categories.Cli,
+            "Completed: 0 succeeded, 10 failed.",
+            SockseekLog.LogRouting.All));
+        var secondFailure = new CliOutputEvent.JobLog(new TerminalLogLine(
+            TerminalLogKind.JobFailed,
+            "",
+            22,
+            "AlbumJob",
+            "failed [No matching results]: Album 10"));
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "[021] AlbumJob: failed [No matching results]: Album 9",
+                "[cli] Completed: 0 succeeded, 10 failed.",
+                "[022] AlbumJob: failed [No matching results]: Album 10",
+            },
+            new CliOutputEvent[] { firstFailure, completed, secondFailure }
+                .Select(CliLogStyle.FormatOutputEventText)
+                .ToArray());
+    }
+
+    [TestMethod]
+    public void CliLogStyle_SourcePrefixText_IsMeasuredSeparately()
+    {
+        Assert.AreEqual("Spotify: ", CliLogStyle.SourcePrefixText("Spotify"));
+        Assert.AreEqual("", CliLogStyle.SourcePrefixText(null));
+    }
+
+    [TestMethod]
+    public void TerminalLiveRenderer_SearchingResultAnnotation_OnlyAppliesWhileSearching()
+    {
+        Assert.AreEqual(" (123)", TerminalLiveRenderer.SearchingResultAnnotation("searching", 123));
+        Assert.AreEqual(" (0)", TerminalLiveRenderer.SearchingResultAnnotation("searching", 0));
+        Assert.AreEqual("", TerminalLiveRenderer.SearchingResultAnnotation("processing results", 123));
+        Assert.AreEqual("", TerminalLiveRenderer.SearchingResultAnnotation("searching", null));
+    }
+
+    [TestMethod]
+    public void CliProgressReporter_NonTerminalActivity_IsSupersededByKnownTerminalState()
+    {
+        var workflowId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var terminalJobs = new Dictionary<Guid, byte> { [jobId] = 0 };
+        var summary = CreateExtractSummary(jobId, workflowId, ExpectedJobStatus.Extracting, null);
+
+        var envelope = Envelope("extraction.started", new ExtractionStartedEventDto(summary, "input.txt", "List"));
+
+        Assert.IsTrue(CliProgressReporter.IsSupersededByTerminalState(envelope, terminalJobs));
+    }
+
+    [TestMethod]
+    public void CliProgressReporter_TerminalActivity_IsNotSupersededByKnownTerminalState()
+    {
+        var workflowId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var terminalJobs = new Dictionary<Guid, byte> { [jobId] = 0 };
+        var summary = CreateExtractSummary(jobId, workflowId, ExpectedJobStatus.Failed, ServerProtocol.FailureReasons.Other);
+
+        var envelope = Envelope("extraction.failed", new ExtractionFailedEventDto(
+            summary,
+            "failed",
+            "List"));
+
+        Assert.IsFalse(CliProgressReporter.IsSupersededByTerminalState(envelope, terminalJobs));
     }
 
     [TestMethod]
@@ -579,6 +850,95 @@ public class CliProgressReporterTests
         Assert.IsTrue(CliProgressReporter.ShouldShowStandaloneSummaryInLiveTable(
             rateLimited,
             CliJobStatusPresenter.ForSummary(rateLimited)));
+    }
+
+    [TestMethod]
+    public void LiveSummaryVisibility_AggregateContainersCanStartLiveRendering()
+    {
+        var aggregate = CreateContainerSummary(ServerJobKind.Aggregate, ExpectedJobStatus.Searching);
+        var albumAggregate = CreateContainerSummary(ServerJobKind.AlbumAggregate, ExpectedJobStatus.Searching);
+        var jobList = CreateContainerSummary(ServerJobKind.JobList, ExpectedJobStatus.Searching);
+        var pendingAggregate = CreateContainerSummary(ServerJobKind.Aggregate, ExpectedJobStatus.Pending);
+
+        Assert.IsFalse(CliProgressReporter.ShouldShowStandaloneSummaryInLiveTable(
+            aggregate,
+            CliJobStatusPresenter.ForSummary(aggregate)));
+        Assert.IsTrue(CliProgressReporter.ShouldShowContainerSummaryInLiveTable(
+            aggregate,
+            CliJobStatusPresenter.ForSummary(aggregate)));
+        Assert.IsTrue(CliProgressReporter.ShouldStartLiveRenderingForSummary(
+            aggregate,
+            CliJobStatusPresenter.ForSummary(aggregate)));
+        Assert.IsTrue(CliProgressReporter.ShouldStartLiveRenderingForSummary(
+            albumAggregate,
+            CliJobStatusPresenter.ForSummary(albumAggregate)));
+        Assert.IsTrue(CliProgressReporter.ShouldStartLiveRenderingForSummary(
+            jobList,
+            CliJobStatusPresenter.ForSummary(jobList)));
+        Assert.IsFalse(CliProgressReporter.ShouldShowContainerSummaryInLiveTable(
+            pendingAggregate,
+            CliJobStatusPresenter.ForSummary(pendingAggregate)));
+    }
+
+    [TestMethod]
+    public void TrackBatchResolved_NoProgress_DoesNotEmitProgressReporterPreview()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var messages = new List<string>();
+        SockseekLog.AddConsole(writer: (message, _) => messages.Add(message));
+
+        var reporter = new CliProgressReporter(new CliSettings { NoProgress = true });
+        try
+        {
+            var batch = CreateTrackBatchResolved(
+                CreateContainerSummary(ServerJobKind.Aggregate, ExpectedJobStatus.RunningChildren),
+                existing: [CreateSongPayload(Guid.NewGuid(), ExpectedJobStatus.AlreadyExists, null)]);
+
+            InvokePrivate(reporter, "ReportTrackBatchResolved", batch);
+
+            Assert.AreEqual(0, messages.Count);
+        }
+        finally
+        {
+            reporter.Stop();
+        }
+    }
+
+    [TestMethod]
+    public void TrackBatchResolved_DetailedAggregatePreview_UsesJobLogFormatting()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var messages = new List<string>();
+        SockseekLog.AddConsole(writer: (message, _) => messages.Add(message));
+
+        using var output = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(output);
+        try
+        {
+            var summary = CreateContainerSummary(ServerJobKind.Aggregate, ExpectedJobStatus.RunningChildren) with
+            {
+                DisplayId = 2,
+                ItemName = "Radiohead",
+                QueryText = "Radiohead",
+            };
+            var batch = CreateTrackBatchResolved(
+                summary,
+                existing: [CreateSongPayload(Guid.NewGuid(), ExpectedJobStatus.AlreadyExists, null)]);
+
+            typeof(Sockseek.Cli.Program)
+                .GetMethod("PrintTrackBatchResolved", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, [batch]);
+
+            CollectionAssert.AreEqual(new[]
+            {
+                JobLog("[002] Aggregate: 1 tracks already exist:"),
+            }, messages);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
     }
 
     [TestMethod]
@@ -678,6 +1038,26 @@ public class CliProgressReporterTests
         var eventLogger = new EventLogger(null!);
 
         InvokePrivate(eventLogger, "HandleEvent", Envelope("album.state-changed", new AlbumStateChangedEventDto(summary)));
+        InvokePrivate(eventLogger, "HandleEvent", Envelope("job.upserted", summary));
+
+        Assert.AreEqual(1, messages.Count);
+        Assert.AreEqual(JobLog("[6] AlbumJob: cancelled: Artist Album"), messages[0]);
+    }
+
+    [TestMethod]
+    public void EventLogger_InternalEngineCancelledAlbum_PrintsCancelledLine()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var messages = new List<string>();
+        SockseekLog.AddConsole(writer: (message, _) => messages.Add(message));
+
+        var albumId = Guid.NewGuid();
+        var summary = CreateAlbumSummary(albumId, ExpectedJobStatus.Failed, ServerProtocol.FailureReasons.Cancelled) with
+        {
+            CancellationSource = ServerJobCancellationSource.InternalEngine,
+        };
+        var eventLogger = new EventLogger(null!);
+
         InvokePrivate(eventLogger, "HandleEvent", Envelope("job.upserted", summary));
 
         Assert.AreEqual(1, messages.Count);
@@ -850,7 +1230,7 @@ public class CliProgressReporterTests
     }
 
     [TestMethod]
-    public void DownloadAttemptFailed_NoProgress_PrintsDiagnosticImmediately()
+    public void DownloadAttemptFailed_NoProgress_PrintsWarningImmediately()
     {
         SockseekLog.RemoveNonFileOutputs();
         var messages = new List<string>();
@@ -879,13 +1259,36 @@ public class CliProgressReporterTests
 
             CollectionAssert.AreEqual(new[]
             {
-                ErrorJobLog("[12] SongJob: download error: Artist - Song: user\\Music\\Artist\\Song.flac\n    Output: out\\Song.flac.incomplete\n    Attempt: 1/3\n    SoulseekClientException: Connection reset by peer\n    Soulseek.SoulseekClientException: Connection reset by peer"),
+                WarnJobLog("[12] SongJob: download attempt failed: Artist - Song: user\\Music\\Artist\\Song.flac\n    Output: out\\Song.flac.incomplete\n    Attempt: 1/3\n    SoulseekClientException: Connection reset by peer"),
             }, messages);
         }
         finally
         {
             reporter.Stop();
         }
+    }
+
+    [TestMethod]
+    public void DownloadAttemptFailed_AlbumChild_PrintsOnlyFirstFailureAtInfo()
+    {
+        var messages = RecordAlbumChildDownloadAttemptFailures(LogLevel.Information);
+
+        CollectionAssert.AreEqual(new[]
+        {
+            WarnJobLog("[6] Album File: download attempt failed: Artist Album: user\\Artist\\Album\\01. Artist - Track.flac\n    Output: out\\01. Artist - Track.flac.incomplete\n    Attempt: 1/3\n    SoulseekClientException: Connection reset by peer"),
+        }, messages);
+    }
+
+    [TestMethod]
+    public void DownloadAttemptFailed_AlbumChild_PrintsRepeatedFailuresAtDebug()
+    {
+        var messages = RecordAlbumChildDownloadAttemptFailures(LogLevel.Debug);
+
+        CollectionAssert.AreEqual(new[]
+        {
+            WarnJobLog("[6] Album File: download attempt failed: Artist Album: user\\Artist\\Album\\01. Artist - Track.flac\n    Output: out\\01. Artist - Track.flac.incomplete\n    Attempt: 1/3\n    SoulseekClientException: Connection reset by peer"),
+            DebugJobLog("[6] Album File: download attempt failed: Artist Album: user\\Artist\\Album\\02. Artist - Track.flac\n    Output: out\\02. Artist - Track.flac.incomplete\n    Attempt: 1/3\n    TransferRejectedException: Transfer rejected: Too many megabytes"),
+        }, messages);
     }
 
     [TestMethod]
@@ -956,7 +1359,7 @@ public class CliProgressReporterTests
             var converted = (AlbumFolder)InvokePrivate(reporter, "ToAlbumFolder", folder)!;
 
             Assert.AreEqual(1, converted.Files.Count);
-            Assert.AreEqual(@"Artist\Album\01. Artist - Track.flac", converted.Files[0].ResolvedTarget?.Filename);
+            Assert.AreEqual(@"Artist\Album\01. Artist - Track.flac", converted.Files[0].Filename);
         }
         finally
         {
@@ -989,7 +1392,7 @@ public class CliProgressReporterTests
                 ParentJobId: null,
                 ResultJobId: null,
                 SourceJobId: null,
-                DiscoveryResultCount: null,
+                DiscoveryRawResultCount: null,
                 DiscoveryLockedFileCount: null,
                 AppliedAutoProfiles: [],
                 AvailableActions: []);
@@ -1176,8 +1579,8 @@ public class CliProgressReporterTests
 
             Assert.AreEqual(3, messages.Count);
             Assert.AreEqual(JobLog(@"[6] AlbumJob: downloading tracks: Artist Album - Artist\Album"), messages[0]);
-            Assert.AreEqual(JobLog(@"[7] SongJob: downloading: Artist - Track: local\Artist\Album\01. Artist - Track.flac"), messages[1]);
-            Assert.AreEqual(JobLog(@"[6] Album Track: succeeded: Artist Album: 01. Artist - Track.flac"), messages[2]);
+            Assert.AreEqual(JobLog(@"[6] Album File: downloading: Artist Album: local\Artist\Album\01. Artist - Track.flac"), messages[1]);
+            Assert.AreEqual(JobLog(@"[6] Album File: succeeded: Artist Album: 01. Artist - Track.flac"), messages[2]);
         }
         finally
         {
@@ -1360,7 +1763,7 @@ public class CliProgressReporterTests
                 ParentJobId: null,
                 ResultJobId: null,
                 SourceJobId: null,
-                DiscoveryResultCount: null,
+                DiscoveryRawResultCount: null,
                 DiscoveryLockedFileCount: null,
                 AppliedAutoProfiles: [],
                 AvailableActions: []));
@@ -1380,7 +1783,7 @@ public class CliProgressReporterTests
                 ParentJobId: aggregateId,
                 ResultJobId: null,
                 SourceJobId: null,
-                DiscoveryResultCount: null,
+                DiscoveryRawResultCount: null,
                 DiscoveryLockedFileCount: null,
                 AppliedAutoProfiles: [],
                 AvailableActions: []));
@@ -1406,6 +1809,67 @@ public class CliProgressReporterTests
         return target.GetType()
             .GetMethod(name, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic, binder: null, types: argTypes, modifiers: null)!
             .Invoke(target, args);
+    }
+
+    private static List<string> RecordAlbumChildDownloadAttemptFailures(LogLevel minimumLevel)
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var messages = new List<string>();
+        SockseekLog.AddConsole(minimumLevel, writer: (message, _) => messages.Add(message));
+
+        var reporter = new CliProgressReporter(new CliSettings { NoProgress = true });
+        try
+        {
+            var workflowId = Guid.NewGuid();
+            var albumJobId = Guid.NewGuid();
+            var firstSongId = Guid.NewGuid();
+            var secondSongId = Guid.NewGuid();
+            var albumSummary = CreateAlbumSummary(albumJobId, ExpectedJobStatus.Downloading, null) with
+            {
+                WorkflowId = workflowId,
+            };
+            var query = new SongQueryDto("Artist", "Track", null, null, null, false);
+            var firstCandidate = CreateFileCandidate("user", @"Artist\Album\01. Artist - Track.flac");
+            var secondCandidate = CreateFileCandidate("user", @"Artist\Album\02. Artist - Track.flac");
+
+            InvokePrivate(reporter, "ReportAlbumTrackDownloadStarted", new AlbumTrackDownloadStartedEventDto(
+                albumSummary,
+                CreateSingleFileAlbumFolder(firstSongId, ExpectedJobStatus.Pending, null),
+                [
+                    CreateSongPayload(firstSongId, ExpectedJobStatus.Pending, null),
+                    CreateSongPayload(secondSongId, ExpectedJobStatus.Pending, null),
+                ]));
+            InvokePrivate(reporter, "ReportDownloadAttemptFailed", new DownloadAttemptFailedEventDto(
+                firstSongId,
+                DisplayId: 7,
+                workflowId,
+                query,
+                firstCandidate,
+                OutputPath: @"out\01. Artist - Track.flac.incomplete",
+                Attempt: 1,
+                MaxAttempts: 3,
+                ExceptionType: "SoulseekClientException",
+                ExceptionMessage: "Connection reset by peer",
+                Exception: "Soulseek.SoulseekClientException: Connection reset by peer"));
+            InvokePrivate(reporter, "ReportDownloadAttemptFailed", new DownloadAttemptFailedEventDto(
+                secondSongId,
+                DisplayId: 8,
+                workflowId,
+                query,
+                secondCandidate,
+                OutputPath: @"out\02. Artist - Track.flac.incomplete",
+                Attempt: 1,
+                MaxAttempts: 3,
+                ExceptionType: "TransferRejectedException",
+                ExceptionMessage: "Transfer rejected: Too many megabytes",
+                Exception: "Soulseek.TransferRejectedException: Transfer rejected: Too many megabytes"));
+        }
+        finally
+        {
+            reporter.Stop();
+        }
+
+        return messages;
     }
 
     private static ServerEventEnvelopeDto Envelope(string type, object payload)
@@ -1509,7 +1973,7 @@ public class CliProgressReporterTests
             ParentJobId: null,
             ResultJobId: null,
             SourceJobId: null,
-            DiscoveryResultCount: null,
+            DiscoveryRawResultCount: null,
             DiscoveryLockedFileCount: null,
             AppliedAutoProfiles: [],
             AvailableActions: []);
@@ -1532,7 +1996,7 @@ public class CliProgressReporterTests
             ParentJobId: parentJobId,
             ResultJobId: null,
             SourceJobId: null,
-            DiscoveryResultCount: null,
+            DiscoveryRawResultCount: null,
             DiscoveryLockedFileCount: null,
             AppliedAutoProfiles: [],
             AvailableActions: []);
@@ -1556,10 +2020,56 @@ public class CliProgressReporterTests
             ParentJobId: null,
             ResultJobId: null,
             SourceJobId: null,
-            DiscoveryResultCount: null,
+            DiscoveryRawResultCount: null,
             DiscoveryLockedFileCount: null,
             AppliedAutoProfiles: [],
             AvailableActions: []);
+    }
+
+    private static JobSummaryDto CreateContainerSummary(ServerJobKind kind, ExpectedJobStatus state)
+    {
+        var split = Split(state);
+        return new(
+            Guid.NewGuid(),
+            DisplayId: 5,
+            WorkflowId: Guid.NewGuid(),
+            Kind: kind,
+            LifecycleState: split.LifecycleState,
+            ActivityPhase: split.ActivityPhase,
+            ActivityUntilUtc: null,
+            TerminalOutcome: split.TerminalOutcome,
+            ItemName: "cowboy bebop",
+            QueryText: "cowboy bebop",
+            FailureReason: null,
+            FailureMessage: null,
+            ParentJobId: null,
+            ResultJobId: null,
+            SourceJobId: null,
+            DiscoveryRawResultCount: null,
+            DiscoveryLockedFileCount: null,
+            AppliedAutoProfiles: [],
+            AvailableActions: []);
+    }
+
+    private static TrackBatchResolvedEventDto CreateTrackBatchResolved(
+        JobSummaryDto summary,
+        IReadOnlyList<SongJobPayloadDto>? pending = null,
+        IReadOnlyList<SongJobPayloadDto>? existing = null,
+        IReadOnlyList<SongJobPayloadDto>? notFound = null)
+    {
+        pending ??= [];
+        existing ??= [];
+        notFound ??= [];
+        return new TrackBatchResolvedEventDto(
+            summary,
+            IsNormal: false,
+            PrintOption: PrintOption.None,
+            PendingCount: pending.Count,
+            ExistingCount: existing.Count,
+            NotFoundCount: notFound.Count,
+            Pending: pending,
+            Existing: existing,
+            NotFound: notFound);
     }
 
     private static AlbumFolderDto CreateSingleFileAlbumFolder(Guid fileJobId, ExpectedJobStatus state, ServerJobFailureReason? failureReason)
@@ -1626,6 +2136,7 @@ public class CliProgressReporterTests
             ExpectedJobStatus.Pending => (ServerJobLifecycleState.Pending, ServerJobActivityPhase.None, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
             ExpectedJobStatus.Searching => (ServerJobLifecycleState.Running, ServerJobActivityPhase.Searching, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
             ExpectedJobStatus.Downloading => (ServerJobLifecycleState.Running, ServerJobActivityPhase.Downloading, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
+            ExpectedJobStatus.RunningOnComplete => (ServerJobLifecycleState.Running, ServerJobActivityPhase.RunningOnComplete, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
             ExpectedJobStatus.Extracting => (ServerJobLifecycleState.Running, ServerJobActivityPhase.Extracting, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
             ExpectedJobStatus.RunningChildren => (ServerJobLifecycleState.Running, ServerJobActivityPhase.RunningChildren, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
             ExpectedJobStatus.AwaitingSelection => (ServerJobLifecycleState.AwaitingSelection, ServerJobActivityPhase.None, ServerJobTerminalOutcome.None, ServerJobSkipReason.None),
@@ -1660,7 +2171,7 @@ public class CliProgressReporterTests
         var first = CompletedAlbum("Artist One", "Album One", 8);
         var second = CompletedAlbum("Artist Two", "Album Two", 12);
         var failed = new AlbumJob(new AlbumQuery { Artist = "Artist Three", Album = "Album Three" });
-        failed.Fail(JobFailureReason.NoSuitableFileFound);
+        failed.Fail(JobFailureReason.NoMatchingResults);
 
         var queue = new JobList("root", [first, second, failed]);
 
@@ -1672,18 +2183,39 @@ public class CliProgressReporterTests
     }
 
     [TestMethod]
-    public void Printing_PrintPlannedOutput_DoesNotPrintFailedExtractAsDownload()
+    public void Printing_PrintComplete_CountsManualSkipsSeparately()
+    {
+        SockseekLog.RemoveNonFileOutputs();
+        var messages = new List<string>();
+        SockseekLog.AddConsole(writer: (message, _) => messages.Add(message));
+
+        var skipped = new AlbumJob(new AlbumQuery { Artist = "Artist One", Album = "Album One" });
+        skipped.SetSkipped(JobSkipReason.Manual);
+        var failed = new AlbumJob(new AlbumQuery { Artist = "Artist Two", Album = "Album Two" });
+        failed.Fail(JobFailureReason.NoMatchingResults);
+
+        var queue = new JobList("root", [skipped, failed]);
+
+        Printing.PrintComplete(queue);
+
+        Assert.IsTrue(
+            messages.Any(message => message.Contains("Completed: 0 succeeded, 1 skipped, 1 failed.", StringComparison.Ordinal)),
+            string.Join(Environment.NewLine, messages));
+    }
+
+    [TestMethod]
+    public void Printing_PrintRequestedOutput_DoesNotPrintFailedExtractAsJob()
     {
         SockseekLog.RemoveNonFileOutputs();
         var messages = new List<string>();
         SockseekLog.AddConsole(writer: (message, _) => messages.Add(message));
 
         var extract = new ExtractJob("input.txt", InputType.List);
-        extract.Config = new DownloadSettings { PrintOption = PrintOption.Tracks };
+        extract.Config = new DownloadSettings { PrintOption = PrintOption.Jobs };
         extract.Fail(JobFailureReason.ExtractionFailed, "Could not parse input");
         var queue = new JobList("root", [extract]);
 
-        Printing.PrintPlannedOutput(queue);
+        PrintOutputRenderer.PrintRequestedOutput(queue);
 
         Assert.IsFalse(
             messages.Any(message => message.Contains("Downloading", StringComparison.Ordinal)),
@@ -1691,21 +2223,54 @@ public class CliProgressReporterTests
         Assert.AreEqual(0, messages.Count, string.Join(Environment.NewLine, messages));
     }
 
+    [TestMethod]
+    public void Printing_PrintRequestedOutput_PrintsSearchJobResults()
+    {
+        var search = new SearchJob(new SongQuery { Artist = "Artist", Title = "Track One" })
+        {
+            Config = new DownloadSettings { PrintOption = PrintOption.Results },
+        };
+        search.Session.AddResponse(new Soulseek.SearchResponse("user", 1, true, 100, 0,
+        [
+            new Soulseek.File(1, @"Music\Artist - Track One.mp3", 1024, ".mp3"),
+        ]));
+        search.Session.Complete();
+
+        var queue = new JobList("root", [search]);
+        TextWriter originalOut = Console.Out;
+        try
+        {
+            using var output = new StringWriter();
+            Console.SetOut(output);
+
+            PrintOutputRenderer.PrintRequestedOutput(queue);
+
+            string rendered = output.ToString();
+            StringAssert.Contains(rendered, "Results for Artist - Track One");
+            StringAssert.Contains(rendered, "Artist - Track One.mp3");
+            Assert.IsFalse(rendered.Contains("No results", StringComparison.OrdinalIgnoreCase), rendered);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
     private static AlbumJob CompletedAlbum(string artist, string album, int trackCount)
     {
+        var response = new Soulseek.SearchResponse("local", 1, true, 100, 0, []);
         var files = Enumerable.Range(1, trackCount)
-            .Select(i =>
-            {
-                var song = new SongJob(new SongQuery { Artist = artist, Title = $"Track {i}" });
-                song.SetDone();
-                return song;
-            })
+            .Select(i => new AlbumFile(
+                new SongQuery { Artist = artist, Title = $"Track {i}" },
+                new FileCandidate(response, new Soulseek.File(i, $@"{artist}\{album}\Track {i}.flac", 100, ".flac"))))
             .ToList();
 
         var job = new AlbumJob(new AlbumQuery { Artist = artist, Album = album })
         {
             ResolvedTarget = new AlbumFolder("local", $@"{artist}\{album}", files),
         };
+        foreach (var track in job.EnsureTrackJobs(job.ResolvedTarget))
+            track.SetDone();
         job.SetDone(Path.Combine("output", album));
         return job;
     }

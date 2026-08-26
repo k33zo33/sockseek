@@ -64,14 +64,23 @@ public class OpenApiContractTests
             StringAssert.Contains(json, nameof(FileCandidateDto));
             StringAssert.Contains(json, nameof(WorkflowTreeDto));
             StringAssert.Contains(json, nameof(ApiErrorDto));
+            StringAssert.Contains(json, nameof(SystemInfoDto));
+            StringAssert.Contains(json, nameof(SystemHealthDto));
+            StringAssert.Contains(json, nameof(SystemCapabilitiesDto));
+            StringAssert.Contains(json, nameof(AppErrorDto));
             StringAssert.Contains(json, "lifecycleState");
             StringAssert.Contains(json, "activityPhase");
             StringAssert.Contains(json, "terminalOutcome");
             StringAssert.Contains(json, "discriminator");
             StringAssert.Contains(json, "kind");
 
-            var jobListParameterNames = document.RootElement
-                .GetProperty("paths")
+            var paths = document.RootElement.GetProperty("paths");
+            Assert.IsTrue(paths.TryGetProperty("/health", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/system/info", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/system/health", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/system/capabilities", out _));
+
+            var jobListParameterNames = paths
                 .GetProperty("/api/jobs")
                 .GetProperty("get")
                 .GetProperty("parameters")

@@ -43,6 +43,41 @@ namespace Tests.ExtractorTests2
         }
 
         [TestMethod]
+        public async Task GetTracks_ModePrefixes_SetExplicitRequestedModeOverrides()
+        {
+            File.WriteAllText(_tempList,
+                "s:\"Artist - Song\"\n" +
+                "a:\"Artist - Album\"\n" +
+                "\"Artist - Default\"");
+
+            var extractor = new ListExtractor();
+            var config = TestHelpers.CreateDefaultSettings().Download;
+
+            var result = await extractor.GetTracks(_tempList, config.Extraction);
+            var jobList = (JobList)result;
+
+            Assert.AreEqual(3, jobList.Jobs.Count);
+            Assert.AreEqual(ExtractionMode.Song, ((ExtractJob)jobList.Jobs[0]).RequestedModeOverride);
+            Assert.AreEqual(ExtractionMode.Album, ((ExtractJob)jobList.Jobs[1]).RequestedModeOverride);
+            Assert.IsNull(((ExtractJob)jobList.Jobs[2]).RequestedModeOverride);
+        }
+
+        [TestMethod]
+        public async Task GetTracks_AlbumPrefix_DoesNotRewriteInputWithHiddenProtocol()
+        {
+            File.WriteAllText(_tempList, "a:\"Artist - Album\"");
+
+            var extractor = new ListExtractor();
+            var config = TestHelpers.CreateDefaultSettings().Download;
+
+            var result = await extractor.GetTracks(_tempList, config.Extraction);
+            var jobList = (JobList)result;
+            var ej = (ExtractJob)jobList.Jobs[0];
+
+            Assert.AreEqual("Artist - Album", ej.Input);
+        }
+
+        [TestMethod]
         public async Task GetTracks_AlbumLineWithAlbumTrackCountGe_SetsMinOnly()
         {
             File.WriteAllText(_tempList, "a:\"some album\"    album-track-count>=8");
@@ -171,6 +206,18 @@ namespace Tests.ExtractorTests2
             Assert.IsTrue(song.Candidates.Count > 0);
             Assert.AreEqual("myuser", song.Candidates[0].Response.Username);
         }
+
+        [DataTestMethod]
+        [DataRow("slsk:///bad")]
+        [DataRow("slsk://local/")]
+        [DataRow("slsk://local")]
+        public async Task GetTracks_MalformedUri_ThrowsInputError(string uri)
+        {
+            var extractor = new SoulseekExtractor();
+            var config = TestHelpers.CreateDefaultSettings().Download;
+
+            await Assert.ThrowsExceptionAsync<ArgumentException>(() => extractor.GetTracks(uri, config.Extraction));
+        }
     }
 
     [TestClass]
@@ -212,6 +259,22 @@ namespace Tests.ExtractorTests2
         public void InputMatches_HttpCsvUrl_ReturnsFalse()
         {
             Assert.IsFalse(CsvExtractor.InputMatches("https://example.com/list.csv"));
+        }
+
+        [TestMethod]
+        public async Task GetTracks_EmptyCsv_ReturnsEmptyJobList()
+        {
+            File.WriteAllText(_tempCsv, "");
+            var config = TestHelpers.CreateDefaultSettings().Download;
+            var extractor = new CsvExtractor(config.Csv);
+
+            var extractTask = Task.Run(() => extractor.GetTracks(_tempCsv, config.Extraction));
+            var completedTask = await Task.WhenAny(extractTask, Task.Delay(TimeSpan.FromSeconds(1)));
+
+            Assert.AreSame(extractTask, completedTask, "Empty CSV extraction should complete instead of waiting forever.");
+            var list = (JobList)await extractTask;
+
+            Assert.AreEqual(0, list.Jobs.Count);
         }
 
         [TestMethod]
@@ -330,6 +393,17 @@ namespace Tests.ExtractorTests2
             var songs = ((JobList)result).AllSongs().ToList();
 
             Assert.AreEqual(200, songs[0].Query.Length);
+        }
+
+        [TestMethod]
+        public async Task GetTracks_InvalidTimeFormat_ThrowsInputError()
+        {
+            File.WriteAllText(_tempCsv, "artist,title,length\nArtist,Track,200\n");
+            var config = TestHelpers.CreateDefaultSettings().Download;
+            config.Csv.TimeUnit = "bogus";
+            var extractor = new CsvExtractor(config.Csv);
+
+            await Assert.ThrowsExceptionAsync<ArgumentException>(() => extractor.GetTracks(_tempCsv, config.Extraction));
         }
 
         [TestMethod]

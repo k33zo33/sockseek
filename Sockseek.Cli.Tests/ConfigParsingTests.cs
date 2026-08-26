@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sockseek.Api;
 using Sockseek.Core.Models;
 using Sockseek.Core.Jobs;
 using Sockseek.Core;
@@ -54,10 +55,10 @@ namespace Tests.ConfigParsingTests
         }
 
         [TestMethod]
-        public void Defaults_AlbumFalse_AggregateFalse()
+        public void Defaults_NoRequestedMode_AggregateFalse()
         {
             var config = Cfg();
-            Assert.IsFalse(config.Extraction.IsAlbum);
+            Assert.IsNull(config.Extraction.RequestedMode);
             Assert.IsFalse(config.Search.IsAggregate);
         }
 
@@ -89,7 +90,176 @@ namespace Tests.ConfigParsingTests
         public void Album_Flag_SetsAlbumTrue()
         {
             var config = Cfg("--album", "some input");
-            Assert.IsTrue(config.Extraction.IsAlbum);
+            Assert.AreEqual(ExtractionMode.Album, config.Extraction.RequestedMode);
+            Assert.IsFalse(config.Extraction.UpgradeToAlbum);
+        }
+
+        [TestMethod]
+        public void Song_Flag_SetsRequestedModeSong()
+        {
+            var config = Cfg("--song", "some input");
+            Assert.AreEqual(ExtractionMode.Song, config.Extraction.RequestedMode);
+        }
+
+        [TestMethod]
+        public void Song_ConfigKey_SetsRequestedModeSong()
+        {
+            var path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "song = true\n");
+                var file = ConfigManager.Load(path);
+                var (_, config, _) = ConfigManager.Bind(file, ["some input"]);
+
+                Assert.AreEqual(ExtractionMode.Song, config.Extraction.RequestedMode);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void UpgradeToAlbum_Flag_SetsUpgradeToAlbumTrue()
+        {
+            var config = Cfg("--upgrade-to-album", "some input");
+            Assert.IsTrue(config.Extraction.UpgradeToAlbum);
+            Assert.IsNull(config.Extraction.RequestedMode);
+        }
+
+        [TestMethod]
+        public void UpgradeToAlbum_ConfigKey_SetsUpgradeToAlbumTrue()
+        {
+            var path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "upgrade-to-album = true\n");
+                var file = ConfigManager.Load(path);
+                var (_, config, _) = ConfigManager.Bind(file, ["some input"]);
+
+                Assert.IsTrue(config.Extraction.UpgradeToAlbum);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void Number_RejectsNegativeValue()
+        {
+            Assert.ThrowsException<Exception>(() => Cfg("--number", "-1", "some input"));
+        }
+
+        [TestMethod]
+        public void Offset_RejectsNegativeValue()
+        {
+            Assert.ThrowsException<Exception>(() => Cfg("--offset", "-1", "some input"));
+        }
+
+        [TestMethod]
+        public void TimeFormat_RejectsUnsupportedUnits()
+        {
+            Assert.ThrowsException<ArgumentException>(() => Cfg("--time-format", "bogus", "some input"));
+        }
+
+        [TestMethod]
+        public void BooleanOption_RejectsInvalidValueAsInputError()
+        {
+            var path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "progress = maybe\n");
+                var file = ConfigManager.Load(path);
+
+                var ex = Assert.ThrowsException<Exception>(() => ConfigManager.Bind(file, ["some input"]));
+
+                StringAssert.Contains(ex.Message, "Input error:");
+                StringAssert.Contains(ex.Message, "--progress");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void Song_Flag_IsIncludedInRemoteDownloadSettingsPatch()
+        {
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["--song"]);
+            var config = new DownloadSettings();
+
+            DownloadSettingsPatchDtoMapper.ApplyTo(config, patch);
+
+            Assert.AreEqual(ExtractionMode.Song, config.Extraction.RequestedMode);
+        }
+
+        [TestMethod]
+        public void Album_Flag_IsIncludedInRemoteDownloadSettingsPatch()
+        {
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["--album"]);
+            var config = new DownloadSettings();
+
+            DownloadSettingsPatchDtoMapper.ApplyTo(config, patch);
+
+            Assert.AreEqual(ExtractionMode.Album, config.Extraction.RequestedMode);
+            Assert.IsFalse(config.Extraction.UpgradeToAlbum);
+        }
+
+        [TestMethod]
+        public void UpgradeToAlbum_Flag_IsIncludedInRemoteDownloadSettingsPatch()
+        {
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["--upgrade-to-album"]);
+            var config = new DownloadSettings();
+
+            DownloadSettingsPatchDtoMapper.ApplyTo(config, patch);
+
+            Assert.IsTrue(config.Extraction.UpgradeToAlbum);
+        }
+
+        [TestMethod]
+        public void StrictAlbumQuality_Flag_IsIncludedInRemoteDownloadSettingsPatch()
+        {
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["--strict-album-quality"]);
+            var config = new DownloadSettings();
+
+            DownloadSettingsPatchDtoMapper.ApplyTo(config, patch);
+
+            Assert.IsTrue(config.Search.StrictAlbumQuality);
+        }
+
+        [TestMethod]
+        public void IncompleteAlbumAction_Flag_IsIncludedInRemoteDownloadSettingsPatch()
+        {
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["--incomplete-album-action", "move:failed-target"]);
+            var config = new DownloadSettings();
+
+            DownloadSettingsPatchDtoMapper.ApplyTo(config, patch);
+
+            Assert.AreEqual(IncompleteAlbumActionKind.Move, config.Output.IncompleteAlbumAction.Kind);
+            Assert.AreEqual("failed-target", config.Output.IncompleteAlbumAction.Path);
+        }
+
+        [TestMethod]
+        public void IncompleteAlbumAction_MoveWithoutPath_RemotePatchClearsPreviousCustomPath()
+        {
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["--incomplete-album-action", "move"]);
+            var config = new DownloadSettings
+            {
+                Output =
+                {
+                    IncompleteAlbumAction =
+                    {
+                        Kind = IncompleteAlbumActionKind.Move,
+                        Path = "custom-failed",
+                    },
+                },
+            };
+
+            DownloadSettingsPatchDtoMapper.ApplyTo(config, patch);
+
+            Assert.AreEqual(IncompleteAlbumActionKind.Move, config.Output.IncompleteAlbumAction.Kind);
+            Assert.IsNull(config.Output.IncompleteAlbumAction.Path);
         }
 
         [TestMethod]
@@ -157,10 +327,87 @@ namespace Tests.ConfigParsingTests
         }
 
         [TestMethod]
-        public void Path_SetsParentDir()
+        public void OutputDir_SetsParentDir()
+        {
+            var config = Cfg("--output-dir", "/tmp/music", "some input");
+            Assert.AreEqual(Path.GetFullPath("/tmp/music"), config.Output.ParentDir);
+        }
+
+        [TestMethod]
+        public void OutputDir_ShortAlias_SetsParentDir()
+        {
+            var config = Cfg("-o", "/tmp/music", "some input");
+            Assert.AreEqual(Path.GetFullPath("/tmp/music"), config.Output.ParentDir);
+        }
+
+        [TestMethod]
+        public void OutputDir_ShortAliasWithBareInteger_ReportsLikelyLegacyOffset()
+        {
+            var ex = Assert.ThrowsException<Exception>(() => Cfg("-o", "10", "some input"));
+
+            StringAssert.Contains(ex.Message, "'-o 10' looks like the old short form for '--offset 10'");
+            StringAssert.Contains(ex.Message, "Use '--offset 10' to skip tracks");
+            StringAssert.Contains(ex.Message, "'-o ./10'");
+        }
+
+        [TestMethod]
+        public void OutputDir_ShortAliasWithExplicitRelativeIntegerPath_SetsParentDir()
+        {
+            var config = Cfg("-o", "./10", "some input");
+            Assert.AreEqual(Path.GetFullPath("./10"), config.Output.ParentDir);
+        }
+
+        [TestMethod]
+        public void OutputDir_LongAliasWithBareInteger_SetsParentDir()
+        {
+            var config = Cfg("--output-dir", "10", "some input");
+            Assert.AreEqual(Path.GetFullPath("10"), config.Output.ParentDir);
+        }
+
+        [TestMethod]
+        public void Path_BackcompatAlias_SetsParentDir()
         {
             var config = Cfg("--path", "/tmp/music", "some input");
             Assert.AreEqual(Path.GetFullPath("/tmp/music"), config.Output.ParentDir);
+        }
+
+        [TestMethod]
+        public void IncompleteAlbumAction_MovePath_SetsStructuredAction()
+        {
+            var config = Cfg("--incomplete-album-action", "move:failed", "some input");
+
+            Assert.AreEqual(IncompleteAlbumActionKind.Move, config.Output.IncompleteAlbumAction.Kind);
+            Assert.AreEqual(Path.GetFullPath("failed"), config.Output.IncompleteAlbumAction.Path);
+        }
+
+        [TestMethod]
+        public void IncompleteAlbumAction_Delete_SetsStructuredAction()
+        {
+            var config = Cfg("--incomplete-album-action", "delete", "some input");
+
+            Assert.AreEqual(IncompleteAlbumActionKind.Delete, config.Output.IncompleteAlbumAction.Kind);
+            Assert.IsNull(config.Output.IncompleteAlbumAction.Path);
+        }
+
+        [TestMethod]
+        public void IncompleteAlbumAction_Keep_SetsStructuredAction()
+        {
+            var config = Cfg("--incomplete-album-action", "keep", "some input");
+
+            Assert.AreEqual(IncompleteAlbumActionKind.Keep, config.Output.IncompleteAlbumAction.Kind);
+            Assert.IsNull(config.Output.IncompleteAlbumAction.Path);
+        }
+
+        [TestMethod]
+        public void FailedAlbumPath_Flag_IsRemoved()
+        {
+            Assert.ThrowsException<Exception>(() => Cfg("--failed-album-path", "failed", "some input"));
+        }
+
+        [TestMethod]
+        public void AlbumFailAction_Flag_IsRemoved()
+        {
+            Assert.ThrowsException<Exception>(() => Cfg("--album-fail-action", "move", "some input"));
         }
     }
 
@@ -174,11 +421,18 @@ namespace Tests.ConfigParsingTests
         }
 
         [TestMethod]
-        public void DoNotDownload_TrueWhenPrintTracks()
+        public void DoNotDownload_TrueWhenPrintJobs()
+        {
+            var config = Cfg("--print", "jobs", "some input");
+            Assert.IsTrue(config.DoNotDownload);
+            Assert.IsTrue(config.PrintJobs);
+        }
+
+        [TestMethod]
+        public void PrintTracks_AliasSetsPrintJobs()
         {
             var config = Cfg("--print-tracks", "some input");
-            Assert.IsTrue(config.DoNotDownload);
-            Assert.IsTrue(config.PrintTracks);
+            Assert.IsTrue(config.PrintJobs);
         }
 
         [TestMethod]
@@ -355,11 +609,11 @@ namespace Tests.ConfigParsingTests
             try
             {
                 File.WriteAllText(configPath, string.Join(Environment.NewLine,
-                    "path = {configdir}/downloads",
+                    "output-dir = {configdir}/downloads",
                     "playlist-path = {configdir}/playlists/out.m3u",
                     "index-path = {configdir}/indexes/index.json",
                     "skip-music-dir = {configdir}/skip",
-                    "failed-album-path = {configdir}/failed",
+                    "incomplete-album-action = move:{configdir}/failed",
                     "log-file = {configdir}/logs/sockseek.log",
                     "mock-files-dir = {configdir}/mock"));
 
@@ -371,7 +625,8 @@ namespace Tests.ConfigParsingTests
                 Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "playlists", "out.m3u")), download.Output.M3uFilePath);
                 Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "indexes", "index.json")), download.Output.IndexFilePath);
                 Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "skip")), download.Skip.SkipMusicDir);
-                Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "failed")), download.Output.FailedAlbumPath);
+                Assert.AreEqual(IncompleteAlbumActionKind.Move, download.Output.IncompleteAlbumAction.Kind);
+                Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "failed")), download.Output.IncompleteAlbumAction.Path);
                 Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "logs", "sockseek.log")), engine.LogFilePath);
                 Assert.AreEqual(Path.GetFullPath(Path.Join(tempDir, "mock")), engine.MockFilesDir);
             }
@@ -393,9 +648,9 @@ namespace Tests.ConfigParsingTests
         [TestMethod]
         public void RemotePatch_OnCompleteAppend_IsRepresentedAsAppend()
         {
-            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["x", "--on-complete", "+ second"]);
+            var patch = ConfigManager.CreateCliDownloadSettingsPatch(["x", "--on-complete", "+ -- second"]);
             Assert.IsNotNull(patch);
-            CollectionAssert.AreEqual(new[] { "second" }, patch.Output?.OnComplete?.Append?.ToArray());
+            CollectionAssert.AreEqual(new[] { "-- second" }, patch.Output?.OnComplete?.Append?.ToArray());
             Assert.IsNull(patch.Output?.OnComplete?.Replace);
         }
 
@@ -464,15 +719,21 @@ namespace Tests.ConfigParsingTests
         [TestMethod]
         public void OnComplete_AppendMode()
         {
-            var (_, dl, _) = Bind("x", "--on-complete", "cmd1", "--on-complete", "+ cmd2");
-            CollectionAssert.AreEqual(new[] { "cmd1", "cmd2" }, dl.Output.OnComplete);
+            var (_, dl, _) = Bind("x", "--on-complete", "-- cmd1", "--on-complete", "+ -- cmd2");
+            CollectionAssert.AreEqual(new[] { "-- cmd1", "-- cmd2" }, dl.Output.OnComplete);
         }
 
         [TestMethod]
         public void OnComplete_OverwriteMode()
         {
-            var (_, dl, _) = Bind("x", "--on-complete", "cmd1", "--on-complete", "cmd2");
-            CollectionAssert.AreEqual(new[] { "cmd2" }, dl.Output.OnComplete);
+            var (_, dl, _) = Bind("x", "--on-complete", "-- cmd1", "--on-complete", "-- cmd2");
+            CollectionAssert.AreEqual(new[] { "-- cmd2" }, dl.Output.OnComplete);
+        }
+
+        [TestMethod]
+        public void OnComplete_MissingDelimiter_Throws()
+        {
+            Assert.ThrowsException<ArgumentException>(() => Bind("x", "--on-complete", "cmd1"));
         }
 
         [TestMethod]
@@ -529,10 +790,44 @@ namespace Tests.ConfigParsingTests
         }
 
         [TestMethod]
+        public void DaemonListenUrl_RejectsInvalidServerIp()
+        {
+            var ex = Assert.ThrowsException<ArgumentException>(() =>
+                Sockseek.Cli.Program.BuildDaemonListenUrl(new DaemonSettings { ListenIp = "999.1.1.1", ListenPort = 15082 }));
+
+            StringAssert.Contains(ex.Message, "Invalid daemon listen IP");
+        }
+
+        [TestMethod]
+        public void DaemonListenUrl_FormatsIpv6Address()
+        {
+            var url = Sockseek.Cli.Program.BuildDaemonListenUrl(new DaemonSettings { ListenIp = "::1", ListenPort = 15082 });
+
+            Assert.AreEqual("http://[::1]:15082", url);
+        }
+
+        [TestMethod]
+        public void DaemonListenAddressNetworkExposed_DetectsAnyAddress()
+        {
+            Assert.IsTrue(Sockseek.Cli.Program.IsDaemonListenAddressNetworkExposed(new DaemonSettings { ListenIp = "0.0.0.0" }));
+            Assert.IsTrue(Sockseek.Cli.Program.IsDaemonListenAddressNetworkExposed(new DaemonSettings { ListenIp = "::" }));
+            Assert.IsFalse(Sockseek.Cli.Program.IsDaemonListenAddressNetworkExposed(new DaemonSettings { ListenIp = "127.0.0.1" }));
+            Assert.IsFalse(Sockseek.Cli.Program.IsDaemonListenAddressNetworkExposed(new DaemonSettings { ListenIp = "::1" }));
+        }
+
+        [TestMethod]
         public void ServerPort_SetsCli()
         {
             var (_, _, _, daemon, _) = BindAll("--server-port", "5055");
             Assert.AreEqual(5055, daemon.ListenPort);
+        }
+
+        [TestMethod]
+        public void ServerPort_RejectsOutOfRangeValue()
+        {
+            var ex = Assert.ThrowsException<Exception>(() => BindAll("--server-port", "70000"));
+
+            StringAssert.Contains(ex.Message, "must be a TCP port between 1 and 65535");
         }
 
         [TestMethod]
@@ -554,7 +849,18 @@ namespace Tests.ConfigParsingTests
         }
 
         [TestMethod]
-        public void RemoteSubmissionOptions_SendExplicitPathAsDownloadPatch()
+        public void RemoteSubmissionOptions_SendExplicitOutputDirAsDownloadPatch()
+        {
+            var options = Sockseek.Cli.Program.BuildRemoteSubmissionOptions(
+                ["some input", "--remote", "127.0.0.1", "-o", "C:\\Downloads"],
+                new CliSettings());
+
+            Assert.IsNull(options.OutputParentDir);
+            Assert.AreEqual("C:\\Downloads", options.DownloadSettings?.Output?.ParentDir);
+        }
+
+        [TestMethod]
+        public void RemoteSubmissionOptions_SendBackcompatPathAsDownloadPatch()
         {
             var options = Sockseek.Cli.Program.BuildRemoteSubmissionOptions(
                 ["some input", "--remote", "127.0.0.1", "-p", "C:\\Downloads"],
@@ -623,9 +929,53 @@ namespace Tests.ConfigParsingTests
         }
 
         [TestMethod]
-        public void UnknownFlag_Throws()
+        public void UnknownFlagWithoutParameter_IsReportedAsUnknown()
         {
-            Assert.ThrowsException<Exception>(() => Bind("--not-a-real-flag"));
+            var ex = Assert.ThrowsException<Exception>(() =>
+                Bind("some input", "--this-flag-does-not-exist"));
+
+            Assert.AreEqual(
+                "Input error: Unknown argument: --this-flag-does-not-exist",
+                ex.Message);
+        }
+
+        [TestMethod]
+        public void ValueOption_DoesNotConsumeHyphenPrefixedToken()
+        {
+            var ex = Assert.ThrowsException<Exception>(() =>
+                Bind("--name-format", "--test", "some input"));
+
+            Assert.AreEqual(
+                "Input error: Option '--name-format' requires a parameter, but " +
+                "'--test' looks like another option. To use it as the value, " +
+                "pass '--name-format=--test'.",
+                ex.Message);
+        }
+
+        [TestMethod]
+        public void ValueOption_AllowsHyphenPrefixedValueContainingWhitespace()
+        {
+            var (_, download, _) = Bind("--on-complete", "-- cmd1", "some input");
+
+            CollectionAssert.AreEqual(new[] { "-- cmd1" }, download.Output.OnComplete);
+        }
+
+        [TestMethod]
+        public void ValueOption_WithoutFollowingToken_ReportsMissingParameter()
+        {
+            var ex = Assert.ThrowsException<Exception>(() => Bind("--name-format"));
+
+            Assert.AreEqual(
+                "Input error: Option '--name-format' requires a parameter",
+                ex.Message);
+        }
+
+        [TestMethod]
+        public void ValueOption_AllowsAttachedHyphenPrefixedValue()
+        {
+            var (_, download, _) = Bind("--name-format=--test", "some input");
+
+            Assert.AreEqual("--test", download.Output.NameFormat);
         }
     }
 }

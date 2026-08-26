@@ -17,10 +17,11 @@ public sealed class EngineEventDtoAdapter
         this.publish = publish;
     }
 
-    public void Attach(EngineEvents events)
+    public void Attach(DownloadEvents events, SearchEvents searchEvents)
     {
         events.JobStatus += (job, status) => publish("job.status", new JobStatusEventDto(getSummary(job), status));
         events.JobMessage += (job, level, source, message) => publish("job.message", new JobMessageEventDto(getSummary(job), level.ToString(), source, message));
+        events.WorkflowMessage += (workflowId, level, source, message) => publish("workflow.message", new WorkflowMessageEventDto(workflowId, level.ToString(), source, message));
         events.JobActivityChanged += (job, _, _) => publish("job.activity-changed", new JobActivityChangedEventDto(getSummary(job)));
         events.JobStateChanged += job =>
         {
@@ -42,10 +43,11 @@ public sealed class EngineEventDtoAdapter
                         EngineStateStore.ToServerFailureReason(song.FailureReason),
                         song.DownloadPath,
                         song.ChosenCandidate != null ? ToFileCandidateDto(song.ChosenCandidate) : null,
-                        song.Discovery?.ResultCount,
+                        song.Discovery?.RawResultCount,
                         song.Discovery?.LockedFileCount,
                         song.FailureMessage,
-                        EngineStateStore.ToServerJobCancellationSource(song.CancellationSource)));
+                        EngineStateStore.ToServerJobCancellationSource(song.CancellationSource),
+                        EngineStateStore.ToServerSongDownloadSource(song.DownloadSource)));
             }
             else if (job is AlbumJob albumJob)
             {
@@ -57,11 +59,11 @@ public sealed class EngineEventDtoAdapter
                     publish("album.download-started", new AlbumDownloadStartedEventDto(
                         getSummary(job),
                         ToAlbumFolderDto(folder, includeFiles: false),
-                        folder.Files.Select(ToSongJobPayloadDto).ToList()));
+                        albumJob.TrackJobs.Select(ToSongJobPayloadDto).ToList()));
                     publish("album.track-download-started", new AlbumTrackDownloadStartedEventDto(
                         getSummary(job),
                         ToAlbumFolderDto(folder, includeFiles: false),
-                        folder.Files.Select(ToSongJobPayloadDto).ToList()));
+                        albumJob.TrackJobs.Select(ToSongJobPayloadDto).ToList()));
                 }
                 else if (albumJob.IsTerminal)
                     publish("album.state-changed", new AlbumStateChangedEventDto(getSummary(job), albumJob.DownloadPath));
@@ -80,22 +82,9 @@ public sealed class EngineEventDtoAdapter
                         extractJob.FailureMessage ?? "Extraction failed",
                         ExtractionSource(extractJob)));
             }
-            else if (job is AggregateJob ag && ag.ActivityPhase == JobActivityPhase.RunningChildren)
+            else if (job is AggregateJob && job.ActivityPhase == JobActivityPhase.RunningChildren)
             {
                 publish("job.status", new JobStatusEventDto(getSummary(job), "running"));
-                var pending   = ag.Songs.Where(s => s.IsPending).ToList();
-                var existing  = ag.Songs.Where(s => s.TerminalOutcome == JobTerminalOutcome.Skipped && s.SkipReason == JobSkipReason.AlreadyExists).ToList();
-                var notFound  = ag.Songs.Where(s => s.FailureReason == JobFailureReason.NoSuitableFileFound).ToList();
-                publish("track-batch.resolved", new TrackBatchResolvedEventDto(
-                    getSummary(job),
-                    false,
-                    job.Config.PrintOption,
-                    pending.Count,
-                    existing.Count,
-                    notFound.Count,
-                    [.. SelectTrackBatchRows(pending,  job.Config.PrintOption, limit: 20)],
-                    [.. SelectTrackBatchRows(existing, job.Config.PrintOption, limit: 20)],
-                    [.. SelectTrackBatchRows(notFound, job.Config.PrintOption, limit: 20)]));
             }
             else if (job is AggregateJob && job.TerminalOutcome == JobTerminalOutcome.Succeeded)
             {
@@ -124,10 +113,8 @@ public sealed class EngineEventDtoAdapter
             ex.GetType().Name,
             SockseekLog.ExceptionSummary(ex),
             SockseekLog.ExceptionDetail(ex)));
-        events.OnCompleteStart += song => publish("on-complete.started", new OnCompleteStartedEventDto(song.Id, song.DisplayId, song.WorkflowId, ToSongQueryDto(song.Query)));
-        events.OnCompleteEnd += song => publish("on-complete.ended", new OnCompleteEndedEventDto(song.Id, song.DisplayId, song.WorkflowId, ToSongQueryDto(song.Query)));
-        events.SearchRateLimited += resetsAt => publish("search.rate-limited", new SearchRateLimitedEventDto(resetsAt));
-        events.SearchResumed += () => publish("search.resumed", new SearchResumedEventDto());
+        searchEvents.SearchRateLimited += resetsAt => publish("search.rate-limited", new SearchRateLimitedEventDto(resetsAt));
+        searchEvents.SearchResumed += () => publish("search.resumed", new SearchResumedEventDto());
         events.TrackBatchResolved += (job, pending, existing, notFound) => publish("track-batch.resolved", new TrackBatchResolvedEventDto(
             getSummary(job),
             job is JobList,
@@ -178,11 +165,14 @@ public sealed class EngineEventDtoAdapter
     private static IEnumerable<SongJobPayloadDto> SelectTrackBatchRows(
         IReadOnlyList<SongJob> songs, PrintOption printOption, int limit = int.MaxValue)
     {
-        bool needsFullRows = printOption.HasFlag(PrintOption.Tracks)
+        bool needsFullRows = printOption.HasFlag(PrintOption.Jobs)
             || (printOption & (PrintOption.Results | PrintOption.Json | PrintOption.Link)) != 0;
         int effectiveLimit = needsFullRows ? int.MaxValue : limit;
         return songs.Take(effectiveLimit).Select(ToSongJobPayloadDto);
     }
+
+    private static bool IsNotFoundFailure(JobFailureReason reason)
+        => reason is JobFailureReason.NoSearchResults or JobFailureReason.NoMatchingResults;
 
     public static SongQueryDto ToSongQueryDto(SongQuery query)
         => new(Optional(query.Artist), Optional(query.Title), Optional(query.Album), Optional(query.URI), Optional(query.Length), query.ArtistMaybeWrong);
@@ -229,7 +219,8 @@ public sealed class EngineEventDtoAdapter
             EngineStateStore.ToServerJobSkipReason(song.SkipReason),
             EngineStateStore.ToServerFailureReason(song.FailureReason),
             song.FailureMessage,
-            CancellationSource: EngineStateStore.ToServerJobCancellationSource(song.CancellationSource));
+            CancellationSource: EngineStateStore.ToServerJobCancellationSource(song.CancellationSource),
+            DownloadSource: EngineStateStore.ToServerSongDownloadSource(song.DownloadSource));
 
     public static AlbumFolderDto ToAlbumFolderDto(AlbumFolder folder, bool includeFiles)
         => new(
@@ -238,14 +229,13 @@ public sealed class EngineEventDtoAdapter
             folder.FolderPath,
             new PeerInfoDto(
                 folder.Username,
-                folder.Files.FirstOrDefault()?.ResolvedTarget?.Response.HasFreeUploadSlot,
-                folder.Files.FirstOrDefault()?.ResolvedTarget?.Response.UploadSpeed),
+                folder.Files.FirstOrDefault()?.Candidate.Response.HasFreeUploadSlot,
+                folder.Files.FirstOrDefault()?.Candidate.Response.UploadSpeed),
             folder.SearchFileCount,
             folder.SearchAudioFileCount,
             includeFiles
                 ? folder.Files
-                    .Where(song => song.ResolvedTarget != null)
-                    .Select(song => ToFileCandidateDto(song.ResolvedTarget!))
+                    .Select(file => ToFileCandidateDto(file.Candidate))
                     .ToList()
                 : null,
             folder.IsFullyRetrieved);

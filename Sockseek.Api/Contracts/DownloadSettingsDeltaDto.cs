@@ -1,5 +1,6 @@
 using Sockseek.Core;
 using Sockseek.Core.Models;
+using Sockseek.Core.Services;
 using Sockseek.Core.Settings;
 
 namespace Sockseek.Api;
@@ -16,8 +17,11 @@ public sealed record DownloadSettingOperationDto(
     bool? BoolValue = null,
     PrintOption? PrintOptionValue = null,
     InputType? InputTypeValue = null,
+    // Used with Path = "Extraction.RequestedMode". Null means unset/source-decided mode.
+    ExtractionMode? ExtractionModeValue = null,
     SkipMode? SkipModeValue = null,
     AlbumArtOption? AlbumArtOptionValue = null,
+    IncompleteAlbumActionKind? IncompleteAlbumActionKindValue = null,
     IReadOnlyList<string>? StringListValue = null,
     IReadOnlyList<RegexRuleDto>? RegexListValue = null);
 
@@ -90,8 +94,10 @@ public static class DownloadSettingsDeltaMapper
             case "Output.HasConfiguredIndex": settings.Output.HasConfiguredIndex = Bool(op); break;
             case "Output.M3uFilePath": settings.Output.M3uFilePath = op.StringValue; break;
             case "Output.IndexFilePath": settings.Output.IndexFilePath = op.StringValue; break;
-            case "Output.FailedAlbumPath": settings.Output.FailedAlbumPath = op.StringValue; break;
+            case "Output.IncompleteAlbumAction.Kind": settings.Output.IncompleteAlbumAction.Kind = op.IncompleteAlbumActionKindValue; break;
+            case "Output.IncompleteAlbumAction.Path": settings.Output.IncompleteAlbumAction.Path = op.StringValue; break;
             case "Output.OnComplete":
+                ValidateOnCompleteOperation(op);
                 var onComplete = settings.Output.OnComplete;
                 ApplyStringList(ref onComplete, op);
                 settings.Output.OnComplete = onComplete;
@@ -111,6 +117,7 @@ public static class DownloadSettingsDeltaMapper
             case "Search.RemoveSingleCharSearchTerms": settings.Search.RemoveSingleCharSearchTerms = Bool(op); break;
             case "Search.NoBrowseFolder": settings.Search.NoBrowseFolder = Bool(op); break;
             case "Search.Relax": settings.Search.Relax = Bool(op); break;
+            case "Search.StrictAlbumQuality": settings.Search.StrictAlbumQuality = Bool(op); break;
             case "Search.ArtistMaybeWrong": settings.Search.ArtistMaybeWrong = Bool(op); break;
             case "Search.IsAggregate": settings.Search.IsAggregate = Bool(op); break;
             case "Search.MinSharesAggregate": settings.Search.MinSharesAggregate = Int(op); break;
@@ -175,7 +182,8 @@ public static class DownloadSettingsDeltaMapper
             case "Extraction.Offset": settings.Extraction.Offset = Int(op); break;
             case "Extraction.Reverse": settings.Extraction.Reverse = Bool(op); break;
             case "Extraction.RemoveTracksFromSource": settings.Extraction.RemoveTracksFromSource = Bool(op); break;
-            case "Extraction.IsAlbum": settings.Extraction.IsAlbum = Bool(op); break;
+            case "Extraction.RequestedMode": settings.Extraction.RequestedMode = op.ExtractionModeValue; break;
+            case "Extraction.UpgradeToAlbum": settings.Extraction.UpgradeToAlbum = Bool(op); break;
             case "Extraction.SetAlbumMinTrackCount": settings.Extraction.SetAlbumMinTrackCount = Bool(op); break;
             case "Extraction.SetAlbumMaxTrackCount": settings.Extraction.SetAlbumMaxTrackCount = Bool(op); break;
 
@@ -219,7 +227,9 @@ public static class DownloadSettingsDeltaMapper
         AddBoolDiff(operations, "Output.HasConfiguredIndex", before.HasConfiguredIndex, after.HasConfiguredIndex);
         AddStringDiff(operations, "Output.M3uFilePath", before.M3uFilePath, after.M3uFilePath);
         AddStringDiff(operations, "Output.IndexFilePath", before.IndexFilePath, after.IndexFilePath);
-        AddStringDiff(operations, "Output.FailedAlbumPath", before.FailedAlbumPath, after.FailedAlbumPath);
+        if (before.IncompleteAlbumAction.Kind != after.IncompleteAlbumAction.Kind)
+            operations.Add(Set("Output.IncompleteAlbumAction.Kind", after.IncompleteAlbumAction.Kind));
+        AddStringDiff(operations, "Output.IncompleteAlbumAction.Path", before.IncompleteAlbumAction.Path, after.IncompleteAlbumAction.Path);
         AddStringListDiff(operations, "Output.OnComplete", before.OnComplete, after.OnComplete);
         AddBoolDiff(operations, "Output.AlbumArtOnly", before.AlbumArtOnly, after.AlbumArtOnly);
         if (before.AlbumArtOption != after.AlbumArtOption) operations.Add(Set("Output.AlbumArtOption", after.AlbumArtOption));
@@ -243,6 +253,7 @@ public static class DownloadSettingsDeltaMapper
         AddBoolDiff(operations, "Search.RemoveSingleCharSearchTerms", before.RemoveSingleCharSearchTerms, after.RemoveSingleCharSearchTerms);
         AddBoolDiff(operations, "Search.NoBrowseFolder", before.NoBrowseFolder, after.NoBrowseFolder);
         AddBoolDiff(operations, "Search.Relax", before.Relax, after.Relax);
+        AddBoolDiff(operations, "Search.StrictAlbumQuality", before.StrictAlbumQuality, after.StrictAlbumQuality);
         AddBoolDiff(operations, "Search.ArtistMaybeWrong", before.ArtistMaybeWrong, after.ArtistMaybeWrong);
         AddBoolDiff(operations, "Search.IsAggregate", before.IsAggregate, after.IsAggregate);
         AddIntDiff(operations, "Search.MinSharesAggregate", before.MinSharesAggregate, after.MinSharesAggregate);
@@ -304,7 +315,8 @@ public static class DownloadSettingsDeltaMapper
         AddIntDiff(operations, "Extraction.Offset", before.Offset, after.Offset);
         AddBoolDiff(operations, "Extraction.Reverse", before.Reverse, after.Reverse);
         AddBoolDiff(operations, "Extraction.RemoveTracksFromSource", before.RemoveTracksFromSource, after.RemoveTracksFromSource);
-        AddBoolDiff(operations, "Extraction.IsAlbum", before.IsAlbum, after.IsAlbum);
+        if (before.RequestedMode != after.RequestedMode) operations.Add(Set("Extraction.RequestedMode", after.RequestedMode));
+        AddBoolDiff(operations, "Extraction.UpgradeToAlbum", before.UpgradeToAlbum, after.UpgradeToAlbum);
         AddBoolDiff(operations, "Extraction.SetAlbumMinTrackCount", before.SetAlbumMinTrackCount, after.SetAlbumMinTrackCount);
         AddBoolDiff(operations, "Extraction.SetAlbumMaxTrackCount", before.SetAlbumMaxTrackCount, after.SetAlbumMaxTrackCount);
     }
@@ -399,6 +411,9 @@ public static class DownloadSettingsDeltaMapper
         }
     }
 
+    private static void ValidateOnCompleteOperation(DownloadSettingOperationDto op)
+        => OnCompleteExecutor.ValidateCommands(op.StringListValue);
+
     private static void ApplyStringList(List<string> target, DownloadSettingOperationDto op)
     {
         if (op.Operation == SettingOperationKind.Append)
@@ -472,11 +487,17 @@ public static class DownloadSettingsDeltaMapper
     public static DownloadSettingOperationDto Set(string path, InputType value)
         => new(path, SettingOperationKind.Set, InputTypeValue: value);
 
+    public static DownloadSettingOperationDto Set(string path, ExtractionMode? value)
+        => new(path, SettingOperationKind.Set, ExtractionModeValue: value);
+
     public static DownloadSettingOperationDto Set(string path, SkipMode value)
         => new(path, SettingOperationKind.Set, SkipModeValue: value);
 
     public static DownloadSettingOperationDto Set(string path, AlbumArtOption value)
         => new(path, SettingOperationKind.Set, AlbumArtOptionValue: value);
+
+    public static DownloadSettingOperationDto Set(string path, IncompleteAlbumActionKind? value)
+        => new(path, SettingOperationKind.Set, IncompleteAlbumActionKindValue: value);
 
     public static DownloadSettingOperationDto Replace(string path, IReadOnlyList<string> values)
         => new(path, SettingOperationKind.Replace, StringListValue: values);

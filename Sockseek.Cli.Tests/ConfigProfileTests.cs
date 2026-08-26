@@ -187,6 +187,24 @@ namespace Tests.ConfigTests
         }
 
         [TestMethod]
+        public void JobPreparer_WithResolver_AppliesAutoProfileFormatInRuntimePath()
+        {
+            string content =
+                "[album-auto]\n" +
+                "profile-cond = download-mode == \"album\"\n" +
+                "format = ogg";
+
+            var (file, root, cli, args) = Bind(content);
+            var resolver = ConfigManager.CreateJobSettingsResolver(file, args, cli);
+            var job = new AlbumJob(new AlbumQuery());
+
+            JobPreparer.PrepareSubtree(job, root, resolver);
+
+            CollectionAssert.AreEqual(new[] { "ogg" }, job.Config.Search.NecessaryCond.Formats);
+            CollectionAssert.Contains(job.Config.AppliedAutoProfiles.ToList(), "album-auto");
+        }
+
+        [TestMethod]
         public void AutoProfile_WithEngineSetting_Throws()
         {
             string content =
@@ -203,19 +221,19 @@ namespace Tests.ConfigTests
         public void Resolver_DoesNotDuplicateAppendableArgs()
         {
             string content =
-                "on-complete = + action_default\n" +
+                "on-complete = + -- action_default\n" +
                 "[auto-profile]\n" +
                 "profile-cond = interactive\n" +
                 "fast-search = true";
 
-            var (file, root, _, args) = Bind(content, "--interactive", "--on-complete", "+ action_cli");
+            var (file, root, _, args) = Bind(content, "--interactive", "--on-complete", "+ -- action_cli");
             var cli = new CliSettings { InteractiveMode = true };
             var result = Resolve(file, root, cli, args, new SongJob(new SongQuery { Title = "test" }));
 
             Assert.IsTrue(result.Search.FastSearch);
             Assert.AreEqual(2, result.Output.OnComplete!.Count);
-            Assert.AreEqual("action_default", result.Output.OnComplete[0]);
-            Assert.AreEqual("action_cli", result.Output.OnComplete[1]);
+            Assert.AreEqual("-- action_default", result.Output.OnComplete[0]);
+            Assert.AreEqual("-- action_cli", result.Output.OnComplete[1]);
         }
     }
 
@@ -243,6 +261,9 @@ namespace Tests.ConfigTests
 
         private static DownloadSettings Resolve(ConfigFile file, DownloadSettings root, CliSettings cli, string[] args)
             => ProfileTestHelpers.Resolve(file, root, cli, args, new SongJob(new SongQuery { Title = "test" }));
+
+        private static DownloadSettings Resolve(ConfigFile file, DownloadSettings root, CliSettings cli, string[] args, Job job)
+            => ProfileTestHelpers.Resolve(file, root, cli, args, job);
 
         [TestMethod]
         public void Priority_DefaultAppliesWhenNoAutoProfileMatches()
@@ -318,7 +339,7 @@ namespace Tests.ConfigTests
                 "[second]\nprofile-cond = album\nmax-stale-time = 20",
                 "--interactive", "--album");
 
-            var result = Resolve(file, root, new CliSettings { InteractiveMode = true }, args);
+            var result = Resolve(file, root, new CliSettings { InteractiveMode = true }, args, new AlbumJob(new AlbumQuery()));
 
             Assert.AreEqual(20, result.Search.MaxStaleTime);
             CollectionAssert.AreEqual(new[] { "first", "second" }, result.AppliedAutoProfiles.ToList());
@@ -332,7 +353,7 @@ namespace Tests.ConfigTests
                 "[second]\nprofile-cond = album\nfast-search = true",
                 "--interactive", "--album");
 
-            var result = Resolve(file, root, new CliSettings { InteractiveMode = true }, args);
+            var result = Resolve(file, root, new CliSettings { InteractiveMode = true }, args, new AlbumJob(new AlbumQuery()));
 
             Assert.AreEqual(10, result.Search.MaxStaleTime);
             Assert.IsTrue(result.Search.FastSearch);
@@ -395,18 +416,18 @@ namespace Tests.ConfigTests
         {
             var (file, root, _, args) = ProfileTestHelpers.Bind(
                 testConfigPath,
-                "on-complete = + action_default\n" +
-                "[auto]\nprofile-cond = interactive\non-complete = + action_profile",
+                "on-complete = + -- action_default\n" +
+                "[auto]\nprofile-cond = interactive\non-complete = + -- action_profile",
                 "--interactive");
             var resolver = ConfigManager.CreateJobSettingsResolver(file, args, new CliSettings { InteractiveMode = true });
 
             var first = resolver.Resolve(root, new SongJob(new SongQuery { Title = "a" }));
-            first.Output.OnComplete!.Add("mutated");
+            first.Output.OnComplete!.Add("-- mutated");
             var second = resolver.Resolve(root, new SongJob(new SongQuery { Title = "b" }));
 
-            CollectionAssert.Contains(second.Output.OnComplete, "action_default");
-            CollectionAssert.Contains(second.Output.OnComplete, "action_profile");
-            CollectionAssert.DoesNotContain(second.Output.OnComplete, "mutated");
+            CollectionAssert.Contains(second.Output.OnComplete, "-- action_default");
+            CollectionAssert.Contains(second.Output.OnComplete, "-- action_profile");
+            CollectionAssert.DoesNotContain(second.Output.OnComplete, "-- mutated");
             Assert.AreEqual(2, second.Output.OnComplete!.Count);
         }
 
@@ -564,6 +585,16 @@ namespace Tests.ConfigTests
         {
             Assert.IsTrue(Satisfied("download-mode == \"song\"", new SongJob(new SongQuery { Title = "test" })));
             Assert.IsFalse(Satisfied("download-mode == \"album\"", new SongJob(new SongQuery { Title = "test" })));
+        }
+
+        [TestMethod]
+        public void ProfileConditionEvaluator_AlbumConditionUsesJobShapeWhenJobIsAvailable()
+        {
+            dl.Extraction.RequestedMode = ExtractionMode.Album;
+
+            Assert.IsFalse(Satisfied("album", new SongJob(new SongQuery { Title = "test" })),
+                "An explicit album request must not make a concrete SongJob match album auto-profiles.");
+            Assert.IsTrue(Satisfied("album", new AlbumJob(new AlbumQuery())));
         }
     }
 }

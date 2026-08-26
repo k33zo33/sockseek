@@ -30,7 +30,7 @@ public sealed class ServerEventBroadcaster : IDisposable
 
     private void AttachEngine(DownloadEngine engine)
     {
-        new EngineEventDtoAdapter(GetSummary, coalescer.Publish).Attach(engine.Events);
+        new EngineEventDtoAdapter(GetSummary, coalescer.Publish).Attach(engine.Events, engine.SearchEvents);
     }
 
     private void PublishItems(IReadOnlyList<ServerEventItem> items)
@@ -150,12 +150,13 @@ public sealed class ServerEventBroadcaster : IDisposable
             null,
             null,
             null,
-            job.Discovery?.ResultCount,
+            job.Discovery?.RawResultCount,
             job.Discovery?.LockedFileCount,
             job.Config?.AppliedAutoProfiles?.ToList() ?? [],
             [],
             job.FailureDetail,
-            EngineStateStore.ToServerJobCancellationSource(job.CancellationSource));
+            EngineStateStore.ToServerJobCancellationSource(job.CancellationSource),
+            job.Config?.PrintOption ?? PrintOption.None);
 
     private static Guid? GetWorkflowId(object payload)
         => payload switch
@@ -171,6 +172,7 @@ public sealed class ServerEventBroadcaster : IDisposable
             JobStartedEventDto e => e.Summary.WorkflowId,
             JobStatusEventDto e => e.Summary.WorkflowId,
             JobMessageEventDto e => e.Summary.WorkflowId,
+            WorkflowMessageEventDto e => e.WorkflowId,
             JobActivityChangedEventDto e => e.Summary.WorkflowId,
             SongSearchingEventDto e => e.WorkflowId,
             DownloadStartedEventDto e => e.WorkflowId,
@@ -182,8 +184,6 @@ public sealed class ServerEventBroadcaster : IDisposable
             AlbumTrackDownloadStartedEventDto e => e.Summary.WorkflowId,
             AlbumStateChangedEventDto e => e.Summary.WorkflowId,
             JobFolderRetrievingEventDto e => e.Summary.WorkflowId,
-            OnCompleteStartedEventDto e => e.WorkflowId,
-            OnCompleteEndedEventDto e => e.WorkflowId,
             TrackBatchResolvedEventDto e => e.Summary.WorkflowId,
             _ => null,
         };

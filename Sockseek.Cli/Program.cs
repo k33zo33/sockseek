@@ -11,27 +11,42 @@ namespace Sockseek.Cli;
 
 internal static partial class Program
 {
-    public static async Task Main(string[] args)
+    internal enum CliExitCode
+    {
+        Success = 0,
+        WorkFailed = 1,
+        UsageError = 2,
+        Cancelled = 130,
+    }
+
+    public static async Task<int> Main(string[] args)
     {
         Console.ResetColor();
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         if (Help.PrintAndExitIfNeeded(args))
-            return;
+            return (int)CliExitCode.Success;
 
         SockseekLog.SetupExceptionHandling();
-        SockseekLog.AddConsole(writer: (msg, color) => Printing.WriteLine(msg, color));
+        using var output = CliOutputController.Install(args);
 
         try
         {
-            await MainCore(args);
+            return (int)await MainCore(args, output);
         }
         catch (Exception ex)
         {
-            SockseekLog.Fatal(ex, "Unhandled CLI startup error");
+            SockseekLog.Fatal($"Unhandled CLI startup error: {SockseekLog.ExceptionSummary(ex)}");
+            return (int)CliExitCode.WorkFailed;
         }
     }
 
-    private static async Task MainCore(string[] args)
+    internal static async Task<CliExitCode> MainCore(string[] args)
+    {
+        using var output = CliOutputController.CreateDetached();
+        return await MainCore(args, output);
+    }
+
+    internal static async Task<CliExitCode> MainCore(string[] args, CliOutputController output)
     {
         bool daemonMode = args.Length > 0 && string.Equals(args[0], "daemon", StringComparison.OrdinalIgnoreCase);
         var bindArgs = daemonMode ? args.Skip(1).ToArray() : args;
@@ -44,6 +59,10 @@ internal static partial class Program
         DaemonSettings daemonSettings;
         RemoteSettings remoteSettings;
 
+        // TODO [ARCHITECTURE]: Replace scattered CLI/server validation exception handling
+        // with typed diagnostics carrying severity, exit-code class, output stream, and
+        // optional debug detail. Parser, daemon startup, remote startup, and extractor
+        // validation currently encode that policy in several catch/log branches.
         try
         {
             configPath = ConfigManager.ExtractConfigPath(bindArgs);
@@ -55,7 +74,7 @@ internal static partial class Program
         catch (Exception ex) when (ex is ArgumentException || ex.Message.StartsWith("Input error:"))
         {
             SockseekLog.Error(ex.Message);
-            return;
+            return CliExitCode.UsageError;
         }
 
         string? profileArg = ConfigManager.ExtractProfileName(bindArgs);
@@ -80,11 +99,12 @@ internal static partial class Program
                             foreach (var p in profiles)
                                 Console.WriteLine($"  {p.Name}{(p.IsAutoProfile ? " (auto)" : "")}");
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        SockseekLog.Error(ex, "Failed to retrieve profiles from remote daemon");
-                    }
+            }
+            catch (Exception ex)
+            {
+                SockseekLog.Error($"Failed to retrieve profiles from remote daemon: {SockseekLog.ExceptionSummary(ex)}");
+                return CliExitCode.WorkFailed;
+            }
                 }
                 else
                 {
@@ -98,7 +118,7 @@ internal static partial class Program
                             Console.WriteLine($"  {p}");
                     }
                 }
-                return;
+                return CliExitCode.Success;
             }
         }
 
@@ -106,7 +126,7 @@ internal static partial class Program
             SockseekLog.AddOrReplaceFile(engineSettings.LogFilePath, engineSettings.LogLevel < LogLevel.Debug ? engineSettings.LogLevel : LogLevel.Debug);
 
         SockseekLog.SetConsoleLogLevel(rootSettings.NonVerbosePrint ? LogLevel.Error : engineSettings.LogLevel);
-        if (ShouldUseLiveRendering(cliSettings))
+        if (CliOutputController.WouldUseLiveRendering(cliSettings))
             engineSettings.ReportIntervalProgress = false;
 
         if (daemonMode)
@@ -115,30 +135,44 @@ internal static partial class Program
             {
                 await RunDaemonAsync(bindArgs, configFile, engineSettings, rootSettings, daemonSettings);
             }
+            catch (ArgumentException ex)
+            {
+                SockseekLog.Error(ex.Message);
+                return CliExitCode.UsageError;
+            }
+            catch (DaemonEndpointUnavailableException ex)
+            {
+                SockseekLog.Error(ex.Message);
+                return CliExitCode.WorkFailed;
+            }
             catch (Exception ex)
             {
-                SockseekLog.Fatal(ex, "Unhandled daemon error");
+                SockseekLog.Fatal($"Unhandled daemon error: {SockseekLog.ExceptionSummary(ex)}");
+                return CliExitCode.WorkFailed;
             }
-            return;
+            return CliExitCode.Success;
         }
 
-        var cts = new CancellationTokenSource();
+        LogCliSessionStart(remoteSettings);
+
+        using var cts = new CancellationTokenSource();
 
         if (remoteSettings.IsEnabled)
         {
             try
             {
-                await RunRemoteAsync(bindArgs, engineSettings, rootSettings, cliSettings, remoteSettings, cts);
+                return await RunRemoteAsync(bindArgs, engineSettings, rootSettings, cliSettings, remoteSettings, output, cts);
             }
             catch (SockseekApiRequestException ex)
             {
                 SockseekLog.Error(ex.Message);
+                return CliExitCode.WorkFailed;
             }
             catch (Exception ex)
             {
-                SockseekLog.Fatal(ex, "Unhandled remote CLI error");
+                SockseekLog.Fatal($"Unhandled remote CLI error: {SockseekLog.ExceptionSummary(ex)}");
+                return CliExitCode.WorkFailed;
             }
-            return;
         }
 
         var clientManager = new SoulseekClientManager(engineSettings);
@@ -152,15 +186,16 @@ internal static partial class Program
             }
             catch (Exception ex)
             {
-                SockseekLog.Error(ex, "Diagnostic action failed");
+                SockseekLog.Error($"Diagnostic action failed: {SockseekLog.ExceptionSummary(ex)}");
             }
 
             if (!rootSettings.PrintOption.HasFlag(PrintOption.Index))
             {
                 SockseekLog.Error("Input error: No input provided.");
                 Help.PrintAndExitIfNeeded([]);
+                return CliExitCode.UsageError;
             }
-            return;
+            return CliExitCode.Success;
         }
 
         IJobSettingsResolver jobSettingsResolver;
@@ -173,7 +208,7 @@ internal static partial class Program
         catch (Exception ex) when (ex is ArgumentException || ex.Message.StartsWith("Input error:"))
         {
             SockseekLog.Error(ex.Message);
-            return;
+            return CliExitCode.UsageError;
         }
 
         var localSubmissionOptionsResolver = new SubmissionOptionsJobSettingsResolver(
@@ -187,19 +222,19 @@ internal static partial class Program
             new JsonStreamProgressReporter(Console.Out).Attach(backend);
         else if (ShouldAttachHumanProgressReporter(rootSettings.PrintOption))
         {
-            cliReporter = new CliProgressReporter(cliSettings);
-            AttachLiveLogSinkIfNeeded(cliReporter, engineSettings.LogLevel);
+            output.ConfigureLiveRendering(cliSettings, engineSettings.LogLevel);
+            cliReporter = new CliProgressReporter(cliSettings, output);
             cliReporter.Attach(backend);
         }
 
-        var eventLogger = new EventLogger(backend, includeDiagnosticDetails: true);
+        var eventLogger = new EventLogger(backend, includeDiagnosticDetails: engineSettings.LogLevel <= LogLevel.Debug);
         eventLogger.Attach();
 
         backend.EventReceived += envelope =>
         {
             if (envelope.Type == "track-batch.resolved"
                 && envelope.Payload is TrackBatchResolvedEventDto batch
-                && !batch.PrintOption.HasFlag(PrintOption.Tracks)
+                && batch.PrintOption == PrintOption.None
                 && ShouldPrintHumanBatchPreview(batch.PrintOption)
                 && cliReporter?.UsesLiveRendering != true)
             {
@@ -356,25 +391,45 @@ internal static partial class Program
         {
             await engine.RunAsync(cts.Token);
             SockseekLog.Trace("Main: RunAsync returned.");
+            bool hasDownloadableJobs = PrintOutputRenderer.HasDownloadableJobs(engine.Queue);
+            bool hasRequestedOutput = PrintOutputRenderer.HasRequestedOutput(engine.Queue);
+
+            if (hasDownloadableJobs)
+                Printing.PrintComplete(engine.Queue);
+
+            if (hasRequestedOutput)
+            {
+                cliReporter?.Stop(printSummary: hasDownloadableJobs);
+                cliReporter = null;
+                PrintOutputRenderer.PrintRequestedOutput(engine.Queue);
+            }
+
+            var exitCode = LogCliSessionExit(DetermineLocalExitCode(engine.Queue));
             cliReporter?.Stop();
             cliReporter = null;
-            Printing.PrintComplete(engine.Queue);
 
-            if (rootSettings.DoNotDownload)
-                Printing.PrintPlannedOutput(engine.Queue);
+            return exitCode;
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
+            return LogCliSessionExit(CliExitCode.Cancelled);
+        }
+        catch (SoulseekConnectionUnavailableException ex)
+        {
+            SockseekLog.Error(ex.Message);
+            return LogCliSessionExit(CliExitCode.WorkFailed);
         }
         catch (Exception ex)
         {
-            SockseekLog.Fatal(ex, "Unhandled CLI error");
+            SockseekLog.Fatal($"Unhandled CLI error: {SockseekLog.ExceptionSummary(ex)}");
+            return LogCliSessionExit(CliExitCode.WorkFailed);
         }
         finally
         {
             SockseekLog.Trace("Main: Entered finally block. Disposing clientManager...");
             engine.Cancel();
-            cts.Cancel();
+            await engine.DisposeAsync();
+            await cts.CancelAsync();
             cliReporter?.Stop();
             clientManager.Dispose();
             Printing.SetBuffering(false);
@@ -382,6 +437,9 @@ internal static partial class Program
             SockseekLog.Trace("Main: Exiting.");
         }
     }
+
+    internal static bool ArgsRequestProgressJson(IReadOnlyList<string> args)
+        => CliOutputController.ArgsRequestProgressJson(args);
 
     private static void ApplyMockFilesDefaults(EngineSettings engineSettings, DownloadSettings downloadSettings)
     {
@@ -399,18 +457,19 @@ internal static partial class Program
         }
     }
 
-    private static async Task RunRemoteAsync(
+    private static async Task<CliExitCode> RunRemoteAsync(
         string[] args,
         EngineSettings engineSettings,
         DownloadSettings rootSettings,
         CliSettings cliSettings,
         RemoteSettings remoteSettings,
+        CliOutputController output,
         CancellationTokenSource cts)
     {
         if (string.IsNullOrWhiteSpace(rootSettings.Extraction.Input))
         {
             SockseekLog.Error("Remote mode requires an input.");
-            return;
+            return CliExitCode.UsageError;
         }
 
         await using var backend = new RemoteCliBackend(remoteSettings.ServerUrl!);
@@ -421,8 +480,8 @@ internal static partial class Program
             new JsonStreamProgressReporter(Console.Out).Attach(backend);
         else if (ShouldAttachHumanProgressReporter(rootSettings.PrintOption))
         {
-            cliReporter = new CliProgressReporter(cliSettings);
-            AttachLiveLogSinkIfNeeded(cliReporter, engineSettings.LogLevel);
+            output.ConfigureLiveRendering(cliSettings, engineSettings.LogLevel);
+            cliReporter = new CliProgressReporter(cliSettings, output);
             cliReporter.Attach(backend);
         }
 
@@ -433,7 +492,7 @@ internal static partial class Program
         {
             if (envelope.Type == "track-batch.resolved"
                 && envelope.Payload is TrackBatchResolvedEventDto batch
-                && !batch.PrintOption.HasFlag(PrintOption.Tracks)
+                && batch.PrintOption == PrintOption.None
                 && ShouldPrintHumanBatchPreview(batch.PrintOption)
                 && cliReporter?.UsesLiveRendering != true)
             {
@@ -445,6 +504,7 @@ internal static partial class Program
         {
             Guid workflowId = Guid.NewGuid();
             await backend.SubscribeWorkflowAsync(workflowId, cts.Token);
+            using var terminalUpdateObserver = new WorkflowTerminalUpdateObserver(backend, workflowId);
 
             var options = BuildRemoteSubmissionOptions(args, cliSettings) with { WorkflowId = workflowId };
             var request = new SubmitExtractJobRequestDto(
@@ -583,19 +643,23 @@ internal static partial class Program
             else
                 await WaitForRemoteWorkflowAsync(backend, submission.WorkflowId, cts.Token);
 
-            cliReporter?.Stop();
-            cliReporter = null;
+            await terminalUpdateObserver.WaitForTerminalUpdateAsync(cts.Token);
 
             if (!rootSettings.DoNotDownload)
                 await PrintRemoteCompleteAsync(backend, submission.WorkflowId, cts.Token);
 
-            if (rootSettings.PrintResults)
-                await PrintRemoteResultsAsync(backend, submission.WorkflowId, rootSettings, cts.Token);
-            else if (rootSettings.PrintTracks)
-                await PrintRemotePlannedOutputAsync(backend, submission.WorkflowId, rootSettings, cts.Token);
+            var exitCode = LogCliSessionExit(await DetermineRemoteExitCodeAsync(backend, submission.WorkflowId, cts.Token), remoteSettings);
+            cliReporter?.Stop();
+            cliReporter = null;
+
+            if (rootSettings.PrintResults || rootSettings.PrintJobs)
+                await PrintRemoteRequestedOutputAsync(backend, submission.WorkflowId, rootSettings, cts.Token);
+
+            return exitCode;
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
+            return LogCliSessionExit(CliExitCode.Cancelled, remoteSettings);
         }
         catch (SockseekApiRequestException ex)
         {
@@ -603,17 +667,21 @@ internal static partial class Program
                 cliReporter.ReportClientError(ex.Message);
             else
                 SockseekLog.Error(ex.Message);
+
+            return LogCliSessionExit(CliExitCode.WorkFailed, remoteSettings);
         }
         catch (Exception ex)
         {
             if (cliReporter != null)
-                cliReporter.ReportClientError(SockseekLog.FormatException("Unhandled remote CLI error", ex));
+                cliReporter.ReportClientError($"Unhandled remote CLI error: {SockseekLog.ExceptionSummary(ex)}");
             else
-                SockseekLog.Fatal(ex, "Unhandled remote CLI error");
+                SockseekLog.Fatal($"Unhandled remote CLI error: {SockseekLog.ExceptionSummary(ex)}");
+
+            return LogCliSessionExit(CliExitCode.WorkFailed, remoteSettings);
         }
         finally
         {
-            cts.Cancel();
+            await cts.CancelAsync();
             cliReporter?.Stop();
         }
     }
@@ -629,6 +697,111 @@ internal static partial class Program
 
             await Task.Delay(200, ct);
         }
+    }
+
+    private sealed class WorkflowTerminalUpdateObserver : IDisposable
+    {
+        private static readonly TimeSpan TerminalUpdateDrainTimeout = TimeSpan.FromSeconds(2);
+
+        private readonly ICliBackend backend;
+        private readonly Guid workflowId;
+        private readonly TaskCompletionSource terminalUpdateSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public WorkflowTerminalUpdateObserver(ICliBackend backend, Guid workflowId)
+        {
+            this.backend = backend;
+            this.workflowId = workflowId;
+            backend.WorkflowUpdated += OnWorkflowUpdated;
+        }
+
+        public async Task WaitForTerminalUpdateAsync(CancellationToken ct)
+        {
+            if (terminalUpdateSeen.Task.IsCompleted)
+                return;
+
+            try
+            {
+                await terminalUpdateSeen.Task.WaitAsync(TerminalUpdateDrainTimeout, ct);
+            }
+            catch (TimeoutException)
+            {
+                // The HTTP snapshot is authoritative for completion. This wait is only to give
+                // the remote event stream a chance to deliver terminal activity before the CLI exits.
+            }
+        }
+
+        public void Dispose()
+            => backend.WorkflowUpdated -= OnWorkflowUpdated;
+
+        private void OnWorkflowUpdated(WorkflowClientUpdate update)
+        {
+            if (update.WorkflowId != workflowId || update.IsStale)
+                return;
+
+            if (update.Workflow?.State is ServerWorkflowState.Completed or ServerWorkflowState.Failed)
+                terminalUpdateSeen.TrySetResult();
+        }
+    }
+
+    internal static CliExitCode DetermineLocalExitCode(JobList queue)
+    {
+        var allJobs = queue.AllJobs().ToArray();
+        if (allJobs.Any(job => job.TerminalOutcome == JobTerminalOutcome.Cancelled))
+            return CliExitCode.Cancelled;
+
+        var (_, fails, _) = Printing.CountUserFacingCompletionsDetailed(queue);
+        if (fails > 0)
+            return CliExitCode.WorkFailed;
+
+        if (allJobs.Any(IsFailedPrintResultsJob))
+            return CliExitCode.WorkFailed;
+
+        return allJobs.Any(IsInfrastructureFailure)
+            ? CliExitCode.WorkFailed
+            : CliExitCode.Success;
+    }
+
+    private static bool IsFailedPrintResultsJob(Job job)
+        => job.Config?.PrintResults == true && job.IsUnsuccessfulTerminal;
+
+    private static bool IsInfrastructureFailure(Job job)
+        => job.IsUnsuccessfulTerminal
+            && job is ExtractJob or JobList;
+
+    private static async Task<CliExitCode> DetermineRemoteExitCodeAsync(
+        ICliBackend backend,
+        Guid workflowId,
+        CancellationToken ct)
+    {
+        var workflow = await backend.GetWorkflowAsync(workflowId, ct);
+        if (workflow == null)
+            return CliExitCode.WorkFailed;
+
+        var summaries = (await backend.GetJobsAsync(
+                new JobQuery(null, null, null, workflowId, IncludeAll: true),
+                ct))
+            .OrderBy(job => job.DisplayId)
+            .ToArray();
+
+        if (summaries.Any(job => job.TerminalOutcome == ServerJobTerminalOutcome.Cancelled))
+            return CliExitCode.Cancelled;
+        var jobsById = summaries.ToDictionary(job => job.JobId);
+        var supersededSourceJobIds = summaries
+            .Select(job => job.SourceJobId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
+
+        int successes = 0;
+        int fails = 0;
+        int skipped = 0;
+        foreach (var summary in summaries)
+            CountRemoteUserFacingCompletion(summary, jobsById, supersededSourceJobIds, ref successes, ref fails, ref skipped);
+
+        if (fails > 0 || workflow.Summary.State == ServerWorkflowState.Failed)
+            return CliExitCode.WorkFailed;
+
+        return CliExitCode.Success;
     }
 
     private static void PrintTrackBatchResolved(TrackBatchResolvedEventDto batch)
@@ -648,11 +821,6 @@ internal static partial class Program
         if (batch.IsNormal && batch.PendingCount == 1 && batch.ExistingCount + batch.NotFoundCount == 0)
             return;
 
-        // For aggregate batches print a context header so the output is anchored even when
-        // concurrent download activity causes it to appear far from the job's progress bar.
-        if (!batch.IsNormal && batch.PendingCount + batch.ExistingCount + batch.NotFoundCount > 0)
-            SockseekLog.Info($"[{batch.Summary.DisplayId}] {batch.Summary.Kind}Job: {batch.Summary.QueryText}:");
-
         if (batch.PendingCount > 0)
         {
             string notFoundLastTime = batch.NotFoundCount > 0 ? $"{batch.NotFoundCount} not found" : "";
@@ -660,7 +828,11 @@ internal static partial class Program
             notFoundLastTime = alreadyExist.Length > 0 && notFoundLastTime.Length > 0 ? ", " + notFoundLastTime : notFoundLastTime;
             string skippedTracks = alreadyExist.Length + notFoundLastTime.Length > 0 ? $" ({alreadyExist}{notFoundLastTime})" : "";
             bool allSkipped = batch.ExistingCount + batch.NotFoundCount > batch.PendingCount;
-            SockseekLog.Info($"Downloading {batch.PendingCount} tracks{skippedTracks}{(allSkipped ? '.' : ':')}");
+            var message = $"Downloading {batch.PendingCount} tracks{skippedTracks}{(allSkipped ? '.' : ':')}";
+            if (batch.IsNormal)
+                SockseekLog.Info(message);
+            else
+                WriteBatchJobLog(batch.Summary, message);
 
             var preview = batch.Pending.Select(ToSongJob).ToList();
             if (preview.Count > 0)
@@ -676,15 +848,43 @@ internal static partial class Program
         {
             if (batch.ExistingCount > 0)
             {
-                SockseekLog.Info($"{batch.ExistingCount} tracks already exist:");
+                WriteBatchJobLog(batch.Summary, $"{batch.ExistingCount} tracks already exist:");
                 Printing.PrintTracks([.. batch.Existing.Select(ToSongJob)], int.MaxValue, fullInfo: false);
             }
             if (batch.NotFoundCount > 0)
             {
-                SockseekLog.Info($"{batch.NotFoundCount} tracks were not found in a prior run:");
+                WriteBatchJobLog(batch.Summary, $"{batch.NotFoundCount} tracks were not found in a prior run:");
                 Printing.PrintTracks([.. batch.NotFound.Select(ToSongJob)], int.MaxValue, fullInfo: false);
             }
         }
+    }
+
+    private static void WriteBatchJobLog(JobSummaryDto summary, string message)
+    {
+        var line = new TerminalLogLine(
+            TerminalLogKind.Status,
+            summary.JobId.ToString(),
+            summary.DisplayId,
+            BatchJobTypeLabel(summary.Kind),
+            message);
+        SockseekLog.Write(new SockseekLog.StructuredLogEntry(
+            LogLevel.Information,
+            SockseekLog.Categories.Jobs,
+            CliLogStyle.FormatTerminalLogText(line),
+            Context: new CliOutputEvent.JobLog(line)));
+    }
+
+    private static string BatchJobTypeLabel(ServerJobKind kind)
+    {
+        if (kind == ServerJobKind.RetrieveFolder)
+            return "Retrieve Folder";
+        if (kind == ServerJobKind.JobList)
+            return "Job List";
+        if (kind == ServerJobKind.AlbumAggregate)
+            return "Album Aggregate";
+
+        string kindText = kind.ToWireString();
+        return $"{char.ToUpperInvariant(kindText[0])}{kindText[1..]}";
     }
 
     private static bool ShouldAttachHumanProgressReporter(PrintOption printOption)
@@ -717,10 +917,11 @@ internal static partial class Program
 
         int successes = 0;
         int fails = 0;
+        int skipped = 0;
         foreach (var summary in summaries)
-            CountRemoteUserFacingCompletion(summary, jobsById, supersededSourceJobIds, ref successes, ref fails);
+            CountRemoteUserFacingCompletion(summary, jobsById, supersededSourceJobIds, ref successes, ref fails, ref skipped);
 
-        Printing.PrintComplete(successes, fails);
+        Printing.PrintComplete(successes, fails, skipped);
     }
 
     private static void CountRemoteUserFacingCompletion(
@@ -728,7 +929,8 @@ internal static partial class Program
         IReadOnlyDictionary<Guid, JobSummaryDto> jobsById,
         IReadOnlySet<Guid> supersededSourceJobIds,
         ref int successes,
-        ref int fails)
+        ref int fails,
+        ref int skipped)
     {
         if (supersededSourceJobIds.Contains(summary.JobId))
             return;
@@ -744,28 +946,23 @@ internal static partial class Program
             return;
         }
 
-        CountSummary(summary, ref successes, ref fails);
+        CountSummary(summary, ref successes, ref fails, ref skipped);
     }
 
+    // TODO [ARCHITECTURE]: Move local and remote completion accounting onto one
+    // shared domain-level summary model. Manual skips, already-exists skips,
+    // partial success, cancellation, and infrastructure jobs should not be
+    // recounted independently by each CLI/API consumer.
     private static bool IsRemoteInfrastructureJobKind(ServerJobKind kind)
         => kind is ServerJobKind.Extract or ServerJobKind.JobList or ServerJobKind.RetrieveFolder
             or ServerJobKind.Aggregate or ServerJobKind.AlbumAggregate;
 
-    private static void CountSong(SongJobPayloadDto song, JobSummaryDto? summary, ref int successes, ref int fails)
-    {
-        var outcome = song.TerminalOutcome ?? summary?.TerminalOutcome ?? ServerJobTerminalOutcome.None;
-        var skipReason = song.SkipReason ?? summary?.SkipReason ?? ServerJobSkipReason.None;
-
-        if (IsSuccessfulRemoteOutcome(outcome, skipReason))
-            successes++;
-        else if (IsFailedRemoteOutcome(outcome, skipReason))
-            fails++;
-    }
-
-    private static void CountSummary(JobSummaryDto summary, ref int successes, ref int fails)
+    private static void CountSummary(JobSummaryDto summary, ref int successes, ref int fails, ref int skipped)
     {
         if (IsSuccessfulRemoteOutcome(summary.TerminalOutcome, summary.SkipReason))
             successes++;
+        else if (IsManualSkipRemoteOutcome(summary.TerminalOutcome, summary.SkipReason))
+            skipped++;
         else if (IsFailedRemoteOutcome(summary.TerminalOutcome, summary.SkipReason))
             fails++;
     }
@@ -774,56 +971,179 @@ internal static partial class Program
         => outcome == ServerJobTerminalOutcome.Succeeded
             || (outcome == ServerJobTerminalOutcome.Skipped && skipReason == ServerJobSkipReason.AlreadyExists);
 
+    private static bool IsManualSkipRemoteOutcome(ServerJobTerminalOutcome outcome, ServerJobSkipReason skipReason)
+        => outcome == ServerJobTerminalOutcome.Skipped && skipReason == ServerJobSkipReason.Manual;
+
     private static bool IsFailedRemoteOutcome(ServerJobTerminalOutcome outcome, ServerJobSkipReason skipReason)
         => (outcome is ServerJobTerminalOutcome.Failed
                 or ServerJobTerminalOutcome.Cancelled
                 or ServerJobTerminalOutcome.PartialSuccess)
-            || (outcome == ServerJobTerminalOutcome.Skipped && skipReason != ServerJobSkipReason.AlreadyExists);
+            || (outcome == ServerJobTerminalOutcome.Skipped
+                && skipReason is not ServerJobSkipReason.AlreadyExists and not ServerJobSkipReason.Manual);
 
     private static IEnumerable<SongJobPayloadDto> ResolvedAlbumSongs(AlbumJobPayloadDto album)
         => album.Tracks?.Where(song => Utils.IsMusicFile(song.ResolvedFilename ?? "")) ?? [];
+
+    internal static async Task PrintRemoteRequestedOutputAsync(
+        ICliBackend backend,
+        Guid workflowId,
+        DownloadSettings settings,
+        CancellationToken ct)
+    {
+        var queue = await BuildRemotePrintQueueAsync(backend, workflowId, settings, ct);
+        PrintOutputRenderer.PrintRequestedOutput(queue);
+    }
 
     internal static async Task PrintRemoteResultsAsync(
         ICliBackend backend,
         Guid workflowId,
         DownloadSettings settings,
         CancellationToken ct)
+        => await PrintRemoteRequestedOutputAsync(backend, workflowId, settings, ct);
+
+    internal static async Task PrintRemoteJobOutputAsync(
+        ICliBackend backend,
+        Guid workflowId,
+        DownloadSettings settings,
+        CancellationToken ct)
+        => await PrintRemoteRequestedOutputAsync(backend, workflowId, settings, ct);
+
+    private static async Task<JobList> BuildRemotePrintQueueAsync(
+        ICliBackend backend,
+        Guid workflowId,
+        DownloadSettings settings,
+        CancellationToken ct)
     {
+        var queue = new JobList("remote workflow")
+        {
+            Config = SettingsCloner.Clone(settings),
+        };
+
         var workflow = await backend.GetWorkflowAsync(workflowId, ct);
         if (workflow == null)
-            return;
+            return queue;
 
-        bool nonVerbose = (settings.PrintOption & (PrintOption.Json | PrintOption.Link | PrintOption.Index)) != 0;
-        bool printedAny = false;
+        var details = new Dictionary<Guid, JobDetailDto>();
+        foreach (var summary in workflow.Jobs)
+            await LoadRemoteJobTreeAsync(backend, summary.JobId, details, ct);
 
-        foreach (var summary in workflow.Jobs.OrderBy(job => job.DisplayId))
+        var roots = details.Values
+            .Where(detail => workflow.Jobs.Any(root => root.JobId == detail.Summary.JobId))
+            .OrderBy(detail => detail.Summary.DisplayId)
+            .ToList();
+
+        var visited = new HashSet<Guid>();
+        foreach (var root in roots)
         {
-            var detail = await backend.GetJobDetailAsync(summary.JobId, ct);
-            if (detail?.Payload == null)
-                continue;
-
-            Job? job = detail.Payload switch
-            {
-                SongJobPayloadDto song when song.CandidateCount.GetValueOrDefault() > 0
-                    => await ToSongResultsJobAsync(backend, summary.JobId, song, ct),
-                SearchJobPayloadDto search when search.ResultCount > 0
-                    => await ToSearchResultsJobAsync(backend, summary.JobId, search, ct),
-                AlbumJobPayloadDto album when album.ResultCount > 0
-                    => await ToAlbumResultsJobAsync(backend, summary.JobId, album, ct),
-                AggregateJobPayloadDto aggregate when aggregate.SongCount > 0
-                    => await ToAggregateResultsJobAsync(backend, aggregate, detail.Children, ct),
-                _ => null,
-            };
-
-            if (job == null)
-                continue;
-
-            if (printedAny && !nonVerbose)
-                Printing.WriteLine();
-
-            Printing.PrintResults(job, settings.PrintOption, settings.Search);
-            printedAny = true;
+            var job = await ToRemotePrintJobAsync(backend, root, details, settings, visited, ct);
+            if (job != null)
+                queue.Add(job);
         }
+
+        return queue;
+    }
+
+    private static async Task<Job?> ToRemotePrintJobAsync(
+        ICliBackend backend,
+        JobDetailDto detail,
+        IReadOnlyDictionary<Guid, JobDetailDto> details,
+        DownloadSettings settings,
+        HashSet<Guid> visited,
+        CancellationToken ct)
+    {
+        if (!visited.Add(detail.Summary.JobId) || detail.Payload == null)
+            return null;
+
+        var effectiveSettings = RemotePrintSettings(settings, detail.Summary);
+
+        Job? job = detail.Payload switch
+        {
+            ExtractJobPayloadDto extract
+                => await ToRemoteExtractPrintJobAsync(backend, detail, extract, details, effectiveSettings, visited, ct),
+
+            JobListPayloadDto
+                => await ToRemoteJobListPrintJobAsync(backend, detail, details, effectiveSettings, visited, ct),
+
+            SearchJobPayloadDto search
+                => effectiveSettings.PrintResults
+                    ? await ToSearchResultsJobAsync(backend, detail.Summary.JobId, search, ct)
+                    : ToSearchJob(search, detail.Summary),
+
+            SongJobPayloadDto song
+                => effectiveSettings.PrintResults
+                    ? await ToSongResultsJobAsync(backend, detail.Summary.JobId, song, ct)
+                    : ToSongJob(song, detail.Summary),
+
+            AlbumJobPayloadDto album
+                => effectiveSettings.PrintResults
+                    ? await ToAlbumResultsJobAsync(backend, detail.Summary.JobId, album, detail.Summary, ct)
+                    : ToAlbumJob(album, detail.Summary),
+
+            AggregateJobPayloadDto aggregate
+                => effectiveSettings.PrintResults
+                    ? await ToAggregateResultsJobAsync(backend, aggregate, detail.Children, details, ct)
+                    : ToAggregateJob(aggregate),
+
+            AlbumAggregateJobPayloadDto albumAggregate
+                => effectiveSettings.PrintResults
+                    ? await ToAlbumAggregateResultsJobAsync(backend, albumAggregate, detail.Children, details, ct)
+                    : ToAlbumAggregateJob(albumAggregate, detail.Summary),
+
+            RetrieveFolderJobPayloadDto folder
+                => ToRetrieveFolderJob(folder, detail.Summary),
+
+            _ => null,
+        };
+
+        if (job != null)
+            ApplyRemotePrintConfig(job, effectiveSettings);
+
+        return job;
+    }
+
+    private static async Task<ExtractJob> ToRemoteExtractPrintJobAsync(
+        ICliBackend backend,
+        JobDetailDto detail,
+        ExtractJobPayloadDto extract,
+        IReadOnlyDictionary<Guid, JobDetailDto> details,
+        DownloadSettings settings,
+        HashSet<Guid> visited,
+        CancellationToken ct)
+    {
+        var job = new ExtractJob(extract.Input, ParseRemoteInputType(extract.InputType))
+        {
+            AutoProcessResult = extract.AutoProcessResult,
+        };
+        ApplyJobOutcome(job, detail.Summary.LifecycleState, detail.Summary.ActivityPhase, detail.Summary.TerminalOutcome, detail.Summary.SkipReason, detail.Summary.FailureReason, detail.Summary.FailureMessage, detail.Summary.CancellationSource);
+
+        if (extract.ResultJobId is Guid resultJobId
+            && details.TryGetValue(resultJobId, out var resultDetail))
+        {
+            job.Result = await ToRemotePrintJobAsync(backend, resultDetail, details, settings, visited, ct);
+        }
+
+        return job;
+    }
+
+    private static async Task<JobList> ToRemoteJobListPrintJobAsync(
+        ICliBackend backend,
+        JobDetailDto detail,
+        IReadOnlyDictionary<Guid, JobDetailDto> details,
+        DownloadSettings settings,
+        HashSet<Guid> visited,
+        CancellationToken ct)
+    {
+        var jobList = new JobList(detail.Summary.ItemName ?? detail.Summary.QueryText);
+        ApplyJobOutcome(jobList, detail.Summary.LifecycleState, detail.Summary.ActivityPhase, detail.Summary.TerminalOutcome, detail.Summary.SkipReason, detail.Summary.FailureReason, detail.Summary.FailureMessage, detail.Summary.CancellationSource);
+
+        foreach (var child in ChildrenOf(detail, details))
+        {
+            var childJob = await ToRemotePrintJobAsync(backend, child, details, settings, visited, ct);
+            if (childJob != null)
+                jobList.Add(childJob);
+        }
+
+        return jobList;
     }
 
     private static async Task<Job?> ToSearchResultsJobAsync(
@@ -873,10 +1193,11 @@ internal static partial class Program
         ICliBackend backend,
         Guid albumJobId,
         AlbumJobPayloadDto album,
+        JobSummaryDto? summary,
         CancellationToken ct)
     {
         var folders = await backend.GetFolderResultsAsync(albumJobId, includeFiles: true, ct);
-        var job = ToAlbumJob(album);
+        var job = ToAlbumJob(album, summary);
         job.Results = folders?.Items.Select(ToAlbumFolder).ToList() ?? [];
         return job;
     }
@@ -885,12 +1206,15 @@ internal static partial class Program
         ICliBackend backend,
         AggregateJobPayloadDto aggregate,
         IReadOnlyList<JobSummaryDto> children,
+        IReadOnlyDictionary<Guid, JobDetailDto> details,
         CancellationToken ct)
     {
         var job = new AggregateJob(ToSongQuery(aggregate.Query));
         foreach (var summary in children.Where(child => child.Kind == ServerJobKind.Song).OrderBy(child => child.DisplayId))
         {
-            var detail = await backend.GetJobDetailAsync(summary.JobId, ct);
+            if (!details.TryGetValue(summary.JobId, out var detail))
+                detail = await backend.GetJobDetailAsync(summary.JobId, ct);
+
             if (detail?.Payload is not SongJobPayloadDto payload)
                 continue;
 
@@ -907,33 +1231,86 @@ internal static partial class Program
         return job;
     }
 
-    internal static async Task PrintRemotePlannedOutputAsync(
+    private static async Task<Job?> ToAlbumAggregateResultsJobAsync(
         ICliBackend backend,
-        Guid workflowId,
-        DownloadSettings settings,
+        AlbumAggregateJobPayloadDto aggregate,
+        IReadOnlyList<JobSummaryDto> children,
+        IReadOnlyDictionary<Guid, JobDetailDto> details,
         CancellationToken ct)
     {
-        var workflow = await backend.GetWorkflowAsync(workflowId, ct);
-        if (workflow == null)
-            return;
+        var job = new AlbumAggregateJob(ToAlbumQuery(aggregate.Query));
+        foreach (var summary in children.Where(child => child.Kind == ServerJobKind.Album).OrderBy(child => child.DisplayId))
+        {
+            if (!details.TryGetValue(summary.JobId, out var detail))
+                detail = await backend.GetJobDetailAsync(summary.JobId, ct);
 
-        var details = new Dictionary<Guid, JobDetailDto>();
-        foreach (var summary in workflow.Jobs)
-            await LoadRemoteJobTreeAsync(backend, summary.JobId, details, ct);
+            if (detail?.Payload is not AlbumJobPayloadDto payload)
+                continue;
 
-        var roots = details.Values
-            .Where(detail => workflow.Jobs.Any(root => root.JobId == detail.Summary.JobId))
-            .OrderBy(detail => detail.Summary.DisplayId)
-            .ToList();
+            if (await ToAlbumResultsJobAsync(backend, summary.JobId, payload, summary, ct) is AlbumJob album)
+                job.Albums.Add(album);
+        }
 
-        var visited = new HashSet<Guid>();
-        var plannedJobs = new List<Job>();
-        foreach (var root in roots)
-            CollectRemotePlannedDownloads(root, details, plannedJobs, visited);
-
-        if (plannedJobs.Count > 0 && settings.PrintTracks)
-            Printing.PrintPlannedDownloads(plannedJobs, settings);
+        return job;
     }
+
+    private static SearchJob ToSearchJob(SearchJobPayloadDto search, JobSummaryDto summary)
+    {
+        SearchJob job;
+        if (search.DefaultFolderProjection != null)
+        {
+            job = new SearchJob(ToAlbumQuery(search.DefaultFolderProjection.AlbumQuery));
+        }
+        else if (search.DefaultFileProjection?.SongQuery != null)
+        {
+            job = new SearchJob(
+                ToSongQuery(search.DefaultFileProjection.SongQuery),
+                search.DefaultFileProjection.IncludeFullResults);
+        }
+        else
+        {
+            job = new SearchJob(search.QueryText);
+        }
+
+        ApplyJobOutcome(job, summary.LifecycleState, summary.ActivityPhase, summary.TerminalOutcome, summary.SkipReason, summary.FailureReason, summary.FailureMessage, summary.CancellationSource);
+        return job;
+    }
+
+    private static RetrieveFolderJob ToRetrieveFolderJob(RetrieveFolderJobPayloadDto folder, JobSummaryDto summary)
+    {
+        var target = folder.Folder != null
+            ? ToAlbumFolder(folder.Folder)
+            : new AlbumFolder(folder.Username, folder.FolderPath, []);
+        var job = new RetrieveFolderJob(target)
+        {
+            NewFilesFoundCount = folder.NewFilesFoundCount,
+            RetrievalOutcome = ToCoreFolderRetrievalOutcome(folder.RetrievalOutcome),
+        };
+
+        ApplyJobOutcome(job, summary.LifecycleState, summary.ActivityPhase, summary.TerminalOutcome, summary.SkipReason, summary.FailureReason, summary.FailureMessage, summary.CancellationSource);
+        return job;
+    }
+
+    private static void ApplyRemotePrintConfig(Job job, DownloadSettings settings)
+        => job.Config = SettingsCloner.Clone(settings);
+
+    private static DownloadSettings RemotePrintSettings(DownloadSettings inherited, JobSummaryDto summary)
+    {
+        var settings = SettingsCloner.Clone(inherited);
+        if (summary.PrintOption != PrintOption.None)
+            settings.PrintOption = summary.PrintOption;
+        return settings;
+    }
+
+    private static InputType? ParseRemoteInputType(string? inputType)
+        => Enum.TryParse<InputType>(inputType, ignoreCase: true, out var parsed)
+            ? parsed
+            : null;
+
+    private static FolderRetrievalOutcome ToCoreFolderRetrievalOutcome(ServerFolderRetrievalOutcome outcome)
+        => Enum.TryParse<FolderRetrievalOutcome>(outcome.ToString(), out var parsed)
+            ? parsed
+            : FolderRetrievalOutcome.None;
 
     private static async Task LoadRemoteJobTreeAsync(
         ICliBackend backend,
@@ -950,6 +1327,9 @@ internal static partial class Program
 
         details[jobId] = detail;
 
+        if (detail.Payload is ExtractJobPayloadDto { ResultJobId: Guid resultJobId })
+            await LoadRemoteJobTreeAsync(backend, resultJobId, details, ct);
+
         foreach (var child in detail.Children)
         {
             if (detail.Summary.Kind == ServerJobKind.Album
@@ -957,49 +1337,6 @@ internal static partial class Program
                 continue;
 
             await LoadRemoteJobTreeAsync(backend, child.JobId, details, ct);
-        }
-    }
-
-    private static void CollectRemotePlannedDownloads(
-        JobDetailDto detail,
-        IReadOnlyDictionary<Guid, JobDetailDto> details,
-        List<Job> plannedJobs,
-        HashSet<Guid> visited)
-    {
-        if (!visited.Add(detail.Summary.JobId))
-            return;
-
-        if (detail.Payload is ExtractJobPayloadDto extract
-            && extract.ResultJobId is Guid resultJobId
-            && details.TryGetValue(resultJobId, out var resultDetail))
-        {
-            CollectRemotePlannedDownloads(resultDetail, details, plannedJobs, visited);
-            return;
-        }
-
-        switch (detail.Payload)
-        {
-            case SongJobPayloadDto song:
-                plannedJobs.Add(ToSongJob(song));
-                break;
-
-            case AlbumJobPayloadDto album:
-                plannedJobs.Add(ToAlbumJob(album, detail.Summary));
-                break;
-
-            case AggregateJobPayloadDto:
-                foreach (var child in ChildrenOf(detail, details))
-                    CollectRemotePlannedDownloads(child, details, plannedJobs, visited);
-                break;
-
-            case AlbumAggregateJobPayloadDto albumAggregate:
-                plannedJobs.Add(ToAlbumAggregateJob(albumAggregate, detail.Summary));
-                break;
-
-            case JobListPayloadDto:
-                foreach (var child in ChildrenOf(detail, details))
-                    CollectRemotePlannedDownloads(child, details, plannedJobs, visited);
-                break;
         }
     }
 
@@ -1029,18 +1366,27 @@ internal static partial class Program
             ? null
             : names.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-    private static bool ShouldUseLiveRendering(CliSettings cliSettings)
-        => !cliSettings.NoProgress
-            && !cliSettings.ProgressJson
-            && !Console.IsOutputRedirected;
-
-    private static void AttachLiveLogSinkIfNeeded(CliProgressReporter reporter, LogLevel minimumLevel)
+    private static void LogCliSessionStart(RemoteSettings remoteSettings)
     {
-        if (!reporter.UsesLiveRendering)
+        if (remoteSettings.IsEnabled)
+        {
+            SockseekLog.Cli.Info($"Starting CLI session in remote mode: {remoteSettings.ServerUrl}");
             return;
+        }
 
-        SockseekLog.RemoveConsoleOutputs();
-        reporter.AttachLogSink(minimumLevel);
+        SockseekLog.Cli.Info("Starting CLI session in local mode");
+    }
+
+    private static CliExitCode LogCliSessionExit(CliExitCode exitCode, RemoteSettings? remoteSettings = null)
+    {
+        if (remoteSettings?.IsEnabled == true)
+        {
+            SockseekLog.Cli.Debug($"Exiting CLI session in remote mode with code {(int)exitCode} ({exitCode})");
+            return exitCode;
+        }
+
+        SockseekLog.Cli.Debug($"Exiting CLI session in local mode with code {(int)exitCode} ({exitCode})");
+        return exitCode;
     }
 
     private static async Task RunDaemonAsync(
@@ -1050,7 +1396,8 @@ internal static partial class Program
         DownloadSettings rootSettings,
         DaemonSettings daemonSettings)
     {
-        var url = $"http://{daemonSettings.ListenIp}:{daemonSettings.ListenPort}";
+        var url = BuildDaemonListenUrl(daemonSettings);
+        EnsureDaemonEndpointAvailable(daemonSettings);
         var options = new ServerOptions
         {
             Engine = SettingsCloner.Clone(engineSettings),
@@ -1062,8 +1409,69 @@ internal static partial class Program
 
         var app = ServerHost.Build(args, options, url);
         SockseekLog.Info($"Starting Sockseek daemon on {url}", categoryName: SockseekLog.Categories.Daemon);
+        if (IsDaemonListenAddressNetworkExposed(daemonSettings))
+        {
+            SockseekLog.Warn(
+                "Sockseek daemon is listening on all network interfaces. The API is unauthenticated; expose it only on trusted networks or behind your own access control.",
+                categoryName: SockseekLog.Categories.Daemon);
+        }
         SockseekLog.Info("Press Ctrl+C to stop.", categoryName: SockseekLog.Categories.Daemon);
-        await app.RunAsync();
+        try
+        {
+            await app.RunAsync();
+        }
+        finally
+        {
+            SockseekLog.Info($"Exiting Sockseek daemon on {url}", categoryName: SockseekLog.Categories.Daemon);
+        }
+    }
+
+    internal static void EnsureDaemonEndpointAvailable(DaemonSettings daemonSettings)
+    {
+        if (!System.Net.IPAddress.TryParse(daemonSettings.ListenIp, out var ipAddress))
+            throw new ArgumentException($"Invalid daemon listen IP '{daemonSettings.ListenIp}'. Use a valid IP address such as 127.0.0.1, 0.0.0.0, ::1, or ::.");
+
+        try
+        {
+            using var listener = new System.Net.Sockets.TcpListener(ipAddress, daemonSettings.ListenPort);
+            listener.Start();
+            listener.Stop();
+        }
+        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or InvalidOperationException)
+        {
+            throw new DaemonEndpointUnavailableException(
+                $"Cannot start Sockseek daemon on {BuildDaemonListenUrl(daemonSettings)}: {SockseekLog.ExceptionSummary(ex)}",
+                ex);
+        }
+    }
+
+    internal static string BuildDaemonListenUrl(DaemonSettings daemonSettings)
+    {
+        if (!System.Net.IPAddress.TryParse(daemonSettings.ListenIp, out var ipAddress))
+            throw new ArgumentException($"Invalid daemon listen IP '{daemonSettings.ListenIp}'. Use a valid IP address such as 127.0.0.1, 0.0.0.0, ::1, or ::.");
+
+        var host = ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+            ? $"[{ipAddress}]"
+            : ipAddress.ToString();
+
+        return $"http://{host}:{daemonSettings.ListenPort}";
+    }
+
+    internal static bool IsDaemonListenAddressNetworkExposed(DaemonSettings daemonSettings)
+    {
+        if (!System.Net.IPAddress.TryParse(daemonSettings.ListenIp, out var ipAddress))
+            throw new ArgumentException($"Invalid daemon listen IP '{daemonSettings.ListenIp}'. Use a valid IP address such as 127.0.0.1, 0.0.0.0, ::1, or ::.");
+
+        return ipAddress.Equals(System.Net.IPAddress.Any)
+            || ipAddress.Equals(System.Net.IPAddress.IPv6Any);
+    }
+
+    internal sealed class DaemonEndpointUnavailableException : Exception
+    {
+        public DaemonEndpointUnavailableException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
     }
 
     private static SongJob ToSongJob(SongJobPayloadDto song)
@@ -1083,6 +1491,7 @@ internal static partial class Program
         {
             DownloadPath = song.DownloadPath,
             Candidates = song.Candidates?.Select(ToFileCandidate).ToList(),
+            DownloadSource = ToSongDownloadSource(song.DownloadSource),
         };
 
         ApplyJobOutcome(job, song.LifecycleState, song.ActivityPhase, song.TerminalOutcome, song.SkipReason, song.FailureReason, song.FailureMessage, song.CancellationSource);
@@ -1209,6 +1618,7 @@ internal static partial class Program
             ServerJobActivityPhase.ProcessingSearchResults => JobActivityPhase.ProcessingSearchResults,
             ServerJobActivityPhase.Organizing => JobActivityPhase.Organizing,
             ServerJobActivityPhase.RunningOnComplete => JobActivityPhase.RunningOnComplete,
+            ServerJobActivityPhase.RunningFallback => JobActivityPhase.RunningFallback,
             _ => JobActivityPhase.None,
         };
 
@@ -1229,6 +1639,11 @@ internal static partial class Program
         return Enum.TryParse(reason.Value.ToString(), out coreReason);
     }
 
+    private static SongDownloadSource ToSongDownloadSource(ServerSongDownloadSource source)
+        => Enum.TryParse<SongDownloadSource>(source.ToString(), out var coreSource)
+            ? coreSource
+            : SongDownloadSource.None;
+
     private static JobSkipReason ToCoreSkipReason(ServerJobSkipReason? reason)
         => reason == null
             ? JobSkipReason.None
@@ -1247,16 +1662,17 @@ internal static partial class Program
         => new(
             folder.Username,
             folder.FolderPath,
-            folder.Files?.Select(ToSongJob).ToList() ?? [])
+            folder.Files?.Select(ToAlbumFile).ToList() ?? [])
         {
             IsFullyRetrieved = folder.IsFullyRetrieved,
         };
 
-    private static SongJob ToSongJob(FileCandidateDto file)
+    private static AlbumFile ToAlbumFile(FileCandidateDto file)
     {
         var candidate = ToFileCandidate(file);
-        var query = Searcher.InferSongQuery(candidate.Filename, new SongQuery());
-        return new SongJob(query) { ResolvedTarget = candidate };
+        return AlbumFile.WithLazyQuery(
+            () => Searcher.InferSongQuery(candidate.Filename, new SongQuery()),
+            candidate);
     }
 
     private static SongQuery ToSongQuery(SongQueryDto query)

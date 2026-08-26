@@ -17,6 +17,7 @@ public class CliJobStatusPresenterTests
             transferState: "InProgress");
 
         Assert.AreEqual("partial", status.Label);
+        Assert.AreEqual(ConsoleColor.Yellow, status.Color);
         Assert.IsTrue(status.IsFailed);
     }
 
@@ -42,6 +43,18 @@ public class CliJobStatusPresenterTests
             ServerJobTerminalOutcome.None);
 
         Assert.AreEqual("processing results", status.Label);
+        Assert.IsTrue(status.IsActive);
+    }
+
+    [TestMethod]
+    public void ForSplit_RunningOnComplete_UsesOnCompleteLabel()
+    {
+        var status = CliJobStatusPresenter.ForSplit(
+            ServerJobLifecycleState.Running,
+            ServerJobActivityPhase.RunningOnComplete,
+            ServerJobTerminalOutcome.None);
+
+        Assert.AreEqual("on-complete", status.Label);
         Assert.IsTrue(status.IsActive);
     }
 

@@ -1,6 +1,7 @@
 using Sockseek.Core.Models;
 using Sockseek.Core.Jobs;
 using Sockseek.Core.Settings;
+using System.Globalization;
 
 namespace Sockseek.Core.Extractors;
     public class StringExtractor : IExtractor, IInputMatcher
@@ -12,13 +13,12 @@ namespace Sockseek.Core.Extractors;
 
         public Task<Job> GetTracks(string input, ExtractionSettings extraction, ExtractorContext? context = null)
         {
-            bool isAlbum = extraction.IsAlbum;
-
-            if (input.StartsWith("album://"))
+            bool isAlbum = extraction.RequestedMode switch
             {
-                isAlbum = true;
-                input = input[8..];
-            }
+                ExtractionMode.Album => true,
+                ExtractionMode.Song => false,
+                _ => !HasExplicitNonEmptyTitleKey(input),
+            };
 
             // Catch the common mistake of passing a local file path without --input-type.
             var expanded = Utils.ExpandVariables(input);
@@ -95,7 +95,7 @@ namespace Sockseek.Core.Extractors;
                 {
                     case "title":   _title  = value; break;
                     case "artist":  _artist = value; break;
-                    case "length":  _length = int.Parse(value); break;
+                    case "length":  _length = int.Parse(value, CultureInfo.InvariantCulture); break;
                     case "album":   _album  = value; break;
                     case "artist-maybe-wrong":
                         if (value == "true") _artistMaybeWrong = true;
@@ -107,12 +107,12 @@ namespace Sockseek.Core.Extractors;
                             _maxCount = -1;
                         }
                         else if (value.Last() == '-')
-                            _maxCount = int.Parse(value[..^1]);
+                            _maxCount = int.Parse(value[..^1], CultureInfo.InvariantCulture);
                         else if (value.Last() == '+')
-                            _minCount = int.Parse(value[..^1]);
+                            _minCount = int.Parse(value[..^1], CultureInfo.InvariantCulture);
                         else
                         {
-                            _minCount = int.Parse(value);
+                            _minCount = int.Parse(value, CultureInfo.InvariantCulture);
                             _maxCount = _minCount;
                         }
                         break;
@@ -212,5 +212,40 @@ namespace Sockseek.Core.Extractors;
                 Length          = length,
                 ArtistMaybeWrong = artistMaybeWrong,
             };
+        }
+
+        private static bool HasExplicitNonEmptyTitleKey(string input)
+        {
+            var keys = new string[] { "title", "artist", "length", "album", "artist-maybe-wrong", "album-track-count" };
+            string? currentKey = null;
+            string? currentVal = null;
+
+            foreach (var part in input.Split(','))
+            {
+                bool keyval = false;
+
+                if (part.Contains('='))
+                {
+                    var lr = part.Split('=', 2);
+                    lr[0] = lr[0].Trim();
+                    if (lr.Length == 2 && keys.Contains(lr[0]))
+                    {
+                        if (IsNonEmptyTitle(currentKey, currentVal))
+                            return true;
+
+                        currentKey = lr[0];
+                        currentVal = lr[1];
+                        keyval = true;
+                    }
+                }
+
+                if (!keyval && currentVal != null)
+                    currentVal += ',' + part;
+            }
+
+            return IsNonEmptyTitle(currentKey, currentVal);
+
+            static bool IsNonEmptyTitle(string? key, string? value)
+                => key == "title" && !string.IsNullOrWhiteSpace(value);
         }
     }

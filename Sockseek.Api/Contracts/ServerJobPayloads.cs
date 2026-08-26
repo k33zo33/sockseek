@@ -93,7 +93,8 @@ public sealed record SongJobPayloadDto(
     double? ProgressPercent = null,
     IReadOnlyList<ResourceActionDto>? AvailableActions = null,
     string? TransferState = null,
-    ServerJobCancellationSource CancellationSource = ServerJobCancellationSource.None) : JobPayloadDto;
+    ServerJobCancellationSource CancellationSource = ServerJobCancellationSource.None,
+    ServerSongDownloadSource DownloadSource = ServerSongDownloadSource.None) : JobPayloadDto;
 
 /// <summary>
 /// Payload for album search/download jobs.
@@ -175,7 +176,8 @@ public sealed record RetrieveFolderJobPayloadDto(
     string Username,
     int NewFilesFoundCount,
     ServerFolderRetrievalOutcome RetrievalOutcome,
-    bool RetrievalCancelled) : JobPayloadDto;
+    bool RetrievalCancelled,
+    AlbumFolderDto? Folder = null) : JobPayloadDto;
 
 /// <summary>
 /// Fallback payload for job kinds without a specialized DTO.

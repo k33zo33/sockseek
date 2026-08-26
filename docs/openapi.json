@@ -3,9 +3,29 @@
   "info": {
     "title": "Sockseek daemon API",
     "description": "HTTP API for the Sockseek daemon.",
-    "version": "3.0.0-dev.13"
+    "version": "3.0.5"
   },
   "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets a minimal daemon health response.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/server/info": {
       "get": {
         "tags": [
@@ -19,6 +39,116 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServerInfoDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/info": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets versioned application API system information.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfoDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets application API health and correlation metadata.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/capabilities": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Gets the versioned application API capability snapshot.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemCapabilitiesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
                 }
               }
             }
@@ -827,6 +957,34 @@
         ],
         "summary": "Completes a manual-selection job without starting additional downloads.",
         "description": "Use this when a DownloadBehavior.Manual job reached AwaitingSelection and the caller wants to close the manual step without resuming the job.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/jobs/{jobId}/manual/skip": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Skips a manual-selection job without starting additional downloads.",
+        "description": "Use this when a DownloadBehavior.Manual job reached AwaitingSelection and the caller wants to record an explicit user skip.",
         "parameters": [
           {
             "name": "jobId",
@@ -1712,6 +1870,25 @@
           }
         }
       },
+      "AppErrorDto": {
+        "required": [
+          "code",
+          "message",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          }
+        }
+      },
       "BandcampSettingsPatchDto": {
         "type": "object",
         "properties": {
@@ -2024,6 +2201,9 @@
           }
         }
       },
+      "ExtractionMode": {
+        "type": "integer"
+      },
       "ExtractionSettingsPatchDto": {
         "type": "object",
         "properties": {
@@ -2073,7 +2253,17 @@
               "boolean"
             ]
           },
-          "isAlbum": {
+          "requestedMode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExtractionMode"
+              }
+            ]
+          },
+          "upgradeToAlbum": {
             "type": [
               "null",
               "boolean"
@@ -2397,6 +2587,35 @@
           "includeFiles": {
             "type": "boolean",
             "default": false
+          }
+        }
+      },
+      "IncompleteAlbumActionKind": {
+        "enum": [
+          "Move",
+          "Delete",
+          "Keep",
+          null
+        ]
+      },
+      "IncompleteAlbumActionSettingsPatchDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IncompleteAlbumActionKind"
+              }
+            ]
+          },
+          "path": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -3238,6 +3457,16 @@
           },
           "retrievalCancelled": {
             "type": "boolean"
+          },
+          "folder": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AlbumFolderDto"
+              }
+            ]
           }
         }
       },
@@ -3524,6 +3753,9 @@
           },
           "cancellationSource": {
             "$ref": "#/components/schemas/ServerJobCancellationSource"
+          },
+          "downloadSource": {
+            "$ref": "#/components/schemas/ServerSongDownloadSource"
           }
         }
       },
@@ -3650,7 +3882,7 @@
             ],
             "format": "uuid"
           },
-          "discoveryResultCount": {
+          "discoveryRawResultCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",
@@ -3688,6 +3920,9 @@
           },
           "cancellationSource": {
             "$ref": "#/components/schemas/ServerJobCancellationSource"
+          },
+          "printOption": {
+            "$ref": "#/components/schemas/PrintOption"
           }
         }
       },
@@ -3742,10 +3977,14 @@
               "string"
             ]
           },
-          "failedAlbumPath": {
-            "type": [
-              "null",
-              "string"
+          "incompleteAlbumAction": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IncompleteAlbumActionSettingsPatchDto"
+              }
             ]
           },
           "onComplete": {
@@ -4261,6 +4500,12 @@
               "boolean"
             ]
           },
+          "strictAlbumQuality": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
           "artistMaybeWrong": {
             "type": [
               "null",
@@ -4356,7 +4601,8 @@
           "RetrievingFolder",
           "RunningChildren",
           "Organizing",
-          "RunningOnComplete"
+          "RunningOnComplete",
+          "RunningFallback"
         ]
       },
       "ServerJobCancellationSource": {
@@ -4374,12 +4620,13 @@
           "None",
           "InvalidSearchString",
           "OutOfDownloadRetries",
-          "NoSuitableFileFound",
           "AllDownloadsFailed",
           "Other",
           "ExtractionFailed",
           "Cancelled",
           "ChildJobsFailed",
+          "NoSearchResults",
+          "NoMatchingResults",
           null
         ]
       },
@@ -4427,6 +4674,14 @@
         "enum": [
           "cancel"
         ]
+      },
+      "ServerSongDownloadSource": {
+        "enum": [
+          "None",
+          "Soulseek",
+          "Fallback"
+        ],
+        "default": "None"
       },
       "ServerStatusDto": {
         "required": [
@@ -4743,6 +4998,9 @@
           },
           "cancellationSource": {
             "$ref": "#/components/schemas/ServerJobCancellationSource"
+          },
+          "downloadSource": {
+            "$ref": "#/components/schemas/ServerSongDownloadSource"
           }
         }
       },
@@ -4947,6 +5205,16 @@
               },
               {
                 "$ref": "#/components/schemas/AlbumFolderDownloadSelectionDto"
+              }
+            ]
+          },
+          "selectedFolder": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AlbumFolderDto"
               }
             ]
           }
@@ -5263,6 +5531,90 @@
           }
         }
       },
+      "SystemCapabilitiesDto": {
+        "required": [
+          "legacyApi",
+          "versionedApi",
+          "signalR",
+          "structuredErrors",
+          "correlationIds"
+        ],
+        "type": "object",
+        "properties": {
+          "legacyApi": {
+            "type": "boolean"
+          },
+          "versionedApi": {
+            "type": "boolean"
+          },
+          "signalR": {
+            "type": "boolean"
+          },
+          "structuredErrors": {
+            "type": "boolean"
+          },
+          "correlationIds": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SystemHealthDto": {
+        "required": [
+          "status",
+          "startedAtUtc",
+          "restartCount",
+          "correlationId"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "restartCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "correlationId": {
+            "type": "string"
+          }
+        }
+      },
+      "SystemInfoDto": {
+        "required": [
+          "name",
+          "version",
+          "commit",
+          "startedAtUtc",
+          "capabilities"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/SystemCapabilitiesDto"
+          }
+        }
+      },
       "TransferSettingsPatchDto": {
         "type": "object",
         "properties": {
@@ -5453,6 +5805,9 @@
     }
   },
   "tags": [
+    {
+      "name": "System"
+    },
     {
       "name": "Server"
     },

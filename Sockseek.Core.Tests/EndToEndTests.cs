@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Text;
+using Sockseek.Core;
 using Sockseek.Core.Jobs;
 using Sockseek.Core.Services;
 
@@ -90,6 +91,7 @@ namespace Tests.EndToEnd
                 var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
                 var rootSettings = new DownloadSettings();
                 rootSettings.Extraction.Input = "electric light orchestra twilight";
+                rootSettings.Extraction.RequestedMode = ExtractionMode.Song;
                 rootSettings.Output.ParentDir = outputDir;
                 rootSettings.Output.WritePlaylist = true;
 
@@ -142,6 +144,7 @@ namespace Tests.EndToEnd
                 var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
                 var rootSettings = new DownloadSettings();
                 rootSettings.Extraction.Input = "Test Artist - Test Title";
+                rootSettings.Extraction.RequestedMode = ExtractionMode.Song;
                 rootSettings.Output.ParentDir = outputDir;
                 rootSettings.Output.WriteIndex = true;
                 rootSettings.Output.HasConfiguredIndex = true;
@@ -173,6 +176,186 @@ namespace Tests.EndToEnd
             {
                 if (System.IO.Directory.Exists(musicRoot)) System.IO.Directory.Delete(musicRoot, true);
                 if (System.IO.Directory.Exists(outputDir)) System.IO.Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task CsvSongList_DefaultOutputDir_DownloadsSongsInsideCsvNamedFolder()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), "slsk-csv-default-folder-" + Guid.NewGuid());
+            var musicRoot = Path.Combine(tempRoot, "music");
+            var outputDir = Path.Combine(tempRoot, "out");
+            var sourceDir = Path.Combine(tempRoot, "source");
+            Directory.CreateDirectory(musicRoot);
+            Directory.CreateDirectory(outputDir);
+            Directory.CreateDirectory(sourceDir);
+
+            var csvPath = Path.Combine(sourceDir, "tracks_to_download.csv");
+            File.WriteAllText(csvPath, "artist,title\nTest Artist,First Track\n");
+            File.WriteAllBytes(Path.Combine(musicRoot, "Test Artist - First Track.mp3"), TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Extraction.Input = csvPath;
+                settings.Output.ParentDir = outputDir;
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, musicRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(new ExtractJob(csvPath, InputType.None), settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                var expectedPath = Path.Combine(outputDir, "tracks_to_download", "Test Artist - First Track.mp3");
+                var rootPath = Path.Combine(outputDir, "Test Artist - First Track.mp3");
+                var tree = string.Join("\n", Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories)
+                    .Select(path => Path.GetRelativePath(outputDir, path)));
+
+                Assert.IsTrue(File.Exists(expectedPath), $"Expected downloaded song at '{expectedPath}'. Actual tree:\n{tree}");
+                Assert.IsFalse(File.Exists(rootPath), "CSV song downloads should not be placed directly in the output root.");
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task CsvSongList_NameFormat_DoesNotPrefixCsvNamedFolder()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), "slsk-csv-name-format-folder-" + Guid.NewGuid());
+            var musicRoot = Path.Combine(tempRoot, "music");
+            var outputDir = Path.Combine(tempRoot, "out");
+            var sourceDir = Path.Combine(tempRoot, "source");
+            Directory.CreateDirectory(musicRoot);
+            Directory.CreateDirectory(outputDir);
+            Directory.CreateDirectory(sourceDir);
+
+            var csvPath = Path.Combine(sourceDir, "tracks_to_download.csv");
+            File.WriteAllText(csvPath, "artist,title\nTest Artist,First Track\n");
+            File.WriteAllBytes(Path.Combine(musicRoot, "Test Artist - First Track.mp3"), TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Extraction.Input = csvPath;
+                settings.Output.ParentDir = outputDir;
+                settings.Output.NameFormat = "Custom/{sartist} - {stitle}";
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, musicRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(new ExtractJob(csvPath, InputType.None), settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                var expectedPath = Path.Combine(outputDir, "Custom", "Test Artist - First Track.mp3");
+                var csvPrefixedPath = Path.Combine(outputDir, "tracks_to_download", "Custom", "Test Artist - First Track.mp3");
+                var tree = string.Join("\n", Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories)
+                    .Select(path => Path.GetRelativePath(outputDir, path)));
+
+                Assert.IsTrue(File.Exists(expectedPath), $"Expected name-formatted song at '{expectedPath}'. Actual tree:\n{tree}");
+                Assert.IsFalse(File.Exists(csvPrefixedPath), "Name format should not be wrapped in the CSV default folder.");
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task CsvAlbumList_DefaultOutputDir_DownloadsAlbumInsideCsvNamedFolder()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), "slsk-csv-album-default-folder-" + Guid.NewGuid());
+            var musicRoot = Path.Combine(tempRoot, "music");
+            var albumRoot = Path.Combine(musicRoot, "Test Artist", "Test Album");
+            var outputDir = Path.Combine(tempRoot, "out");
+            var sourceDir = Path.Combine(tempRoot, "source");
+            Directory.CreateDirectory(albumRoot);
+            Directory.CreateDirectory(outputDir);
+            Directory.CreateDirectory(sourceDir);
+
+            var csvPath = Path.Combine(sourceDir, "albums_to_download.csv");
+            File.WriteAllText(csvPath, "artist,title,album\nTest Artist,,Test Album\n");
+            File.WriteAllBytes(Path.Combine(albumRoot, "01. Test Artist - First Track.mp3"), TestHelpers.EmptyMp3Bytes);
+            File.WriteAllBytes(Path.Combine(albumRoot, "02. Test Artist - Second Track.mp3"), TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Extraction.Input = csvPath;
+                settings.Output.ParentDir = outputDir;
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, musicRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(new ExtractJob(csvPath, InputType.None), settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                var expectedPath = Path.Combine(outputDir, "albums_to_download", "Test Album", "01. Test Artist - First Track.mp3");
+                var oldPath = Path.Combine(outputDir, "Test Album", "01. Test Artist - First Track.mp3");
+                var tree = string.Join("\n", Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories)
+                    .Select(path => Path.GetRelativePath(outputDir, path)));
+
+                Assert.IsTrue(File.Exists(expectedPath), $"Expected CSV album track at '{expectedPath}'. Actual tree:\n{tree}");
+                Assert.IsFalse(File.Exists(oldPath), "CSV album downloads should not skip the CSV default folder.");
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task NestedListCsv_DefaultOutputDir_DownloadsSongsInsideAllContainerFolders()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), "slsk-nested-default-folder-" + Guid.NewGuid());
+            var sourceDir = Path.Combine(tempRoot, "source");
+            var musicRoot = Path.Combine(tempRoot, "music");
+            var outputDir = Path.Combine(tempRoot, "out");
+            Directory.CreateDirectory(sourceDir);
+            Directory.CreateDirectory(musicRoot);
+            Directory.CreateDirectory(outputDir);
+
+            var csvPath = Path.Combine(sourceDir, "songs.csv");
+            var listPath = Path.Combine(sourceDir, "wishlist.txt");
+            File.WriteAllText(csvPath, "artist,title\nTest Artist,First Song\n");
+            File.WriteAllText(listPath, $"\"{csvPath}\"\n");
+            File.WriteAllBytes(Path.Combine(musicRoot, "Test Artist - First Song.mp3"), TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Extraction.Input = listPath;
+                settings.Extraction.InputType = InputType.List;
+                settings.Output.ParentDir = outputDir;
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, musicRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(new ExtractJob(listPath, InputType.List), settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                var expectedPath = Path.Combine(outputDir, "wishlist", "songs", "Test Artist - First Song.mp3");
+                var tree = string.Join("\n", Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories)
+                    .Select(path => Path.GetRelativePath(outputDir, path)));
+
+                Assert.IsTrue(File.Exists(expectedPath), $"Expected nested container song at '{expectedPath}'. Actual tree:\n{tree}");
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                    Directory.Delete(tempRoot, true);
             }
         }
 
@@ -221,7 +404,7 @@ namespace Tests.EndToEnd
                 await RunAsync(LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, musicRoot));
 
                 var listIndexPath = Path.Combine(outputDir, "list", "_index.csv");
-                var csvIndexPath = Path.Combine(outputDir, "songs", "_index.csv");
+                var csvIndexPath = Path.Combine(outputDir, "list", "songs", "_index.csv");
                 Assert.IsTrue(File.Exists(listIndexPath), "The outer list should auto-create an index file.");
                 Assert.IsTrue(File.Exists(csvIndexPath), "The nested CSV should auto-create an index file.");
 
@@ -271,6 +454,7 @@ namespace Tests.EndToEnd
                 var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
                 var settings = new DownloadSettings();
                 settings.Extraction.Input = "Test Artist - Test Title";
+                settings.Extraction.RequestedMode = ExtractionMode.Song;
                 settings.Output.ParentDir = outputDir;
                 settings.Output.NameFormat = "Renamed/{sartist} - {stitle}";
                 settings.Output.WriteIndex = true;
@@ -293,6 +477,130 @@ namespace Tests.EndToEnd
             {
                 if (Directory.Exists(musicRoot)) Directory.Delete(musicRoot, true);
                 if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task AutoProfile_AlbumRequiredFormat_IsAppliedDuringRuntimeSearch()
+        {
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-auto-profile-format-out-" + Guid.NewGuid());
+            var autoOutDir = Path.Combine(outputDir, "auto-out");
+            Directory.CreateDirectory(outputDir);
+
+            var mp3 = TestHelpers.CreateSlFile(@"Music\Artist\Album\01. Artist - Song.mp3", length: 180);
+            var response = new Soulseek.SearchResponse("user1", 1, true, 100, 0, [mp3]);
+            var testClient = new ClientTests.MockSoulseekClient([response]);
+
+            try
+            {
+                var eng = new EngineSettings { Username = "u", Password = "p" };
+                var rootSettings = new DownloadSettings();
+                rootSettings.Output.ParentDir = outputDir;
+                rootSettings.Search.NoBrowseFolder = true;
+
+                var autoProfile = new SettingsProfile
+                {
+                    Name = "album-ogg",
+                    Condition = "album",
+                    Download = new DownloadSettingsPatch(),
+                };
+                autoProfile.Download.Add(dl => dl.Output.ParentDir = autoOutDir);
+                autoProfile.Download.Add(dl => dl.Search.NecessaryCond.Formats = ["ogg"]);
+
+                var resolver = new ProfileJobSettingsResolver(
+                    rootSettings,
+                    defaultProfile: null,
+                    autoProfiles: [autoProfile],
+                    namedProfiles: [],
+                    cliProfile: null,
+                    normalize: SettingsNormalizer.Normalize);
+
+                var album = new AlbumJob(new AlbumQuery { Artist = "Artist", Album = "Album" });
+                var app = new DownloadEngine(eng, TestHelpers.CreateMockClientManager(testClient, eng), resolver);
+                app.Enqueue(album, rootSettings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                CollectionAssert.Contains(album.Config.AppliedAutoProfiles.ToList(), "album-ogg");
+                CollectionAssert.AreEqual(new[] { "ogg" }, album.Config.Search.NecessaryCond.Formats);
+                Assert.AreEqual(autoOutDir, album.Config.Output.ParentDir);
+                Assert.IsTrue(album.IsUnsuccessfulTerminal, "The MP3-only folder must not download when an auto profile requires OGG.");
+                Assert.AreEqual(JobFailureReason.NoMatchingResults, album.FailureReason);
+                Assert.AreEqual(0, Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Count(Utils.IsMusicFile));
+            }
+            finally
+            {
+                if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task AutoProfile_ListAlbumLines_LogsNewProfilesOnceAndDebugSummary()
+        {
+            var listPath = Path.Combine(Path.GetTempPath(), "slsk-auto-profile-list-" + Guid.NewGuid() + ".txt");
+            await File.WriteAllLinesAsync(listPath,
+            [
+                "a:\"Artist One - Album One\"",
+                "a:\"Artist Two - Album Two\"",
+            ]);
+
+            try
+            {
+                var eng = new EngineSettings { Username = "u", Password = "p" };
+                var rootSettings = new DownloadSettings();
+                rootSettings.Extraction.RequestedMode = ExtractionMode.Album;
+                rootSettings.Search.NoBrowseFolder = true;
+
+                var autoProfile = new SettingsProfile
+                {
+                    Name = "album-profile",
+                    Condition = "album",
+                    Download = new DownloadSettingsPatch(),
+                };
+
+                var resolver = new ProfileJobSettingsResolver(
+                    rootSettings,
+                    defaultProfile: null,
+                    autoProfiles: [autoProfile],
+                    namedProfiles: [],
+                    cliProfile: null,
+                    normalize: SettingsNormalizer.Normalize);
+
+                var messages = new List<(string Scope, LogLevel Level, string Message)>();
+                var app = new DownloadEngine(eng, TestHelpers.CreateMockClientManager(new ClientTests.MockSoulseekClient([]), eng), resolver);
+                app.Events.JobMessage += (_, level, _, message) => messages.Add(("job", level, message));
+                app.Events.WorkflowMessage += (_, level, _, message) => messages.Add(("workflow", level, message));
+                app.Enqueue(new ExtractJob(listPath, InputType.List), rootSettings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                var activeMessages = messages
+                    .Where(x => x.Scope == "workflow" && x.Level == LogLevel.Information && x.Message.Contains("Auto profiles active"))
+                    .Select(x => x.Message)
+                    .ToList();
+                var allMessages = string.Join("\n", messages.Select(x => $"{x.Scope} {x.Level}: {x.Message}"));
+                Assert.AreEqual(1, activeMessages.Count, allMessages);
+                Assert.AreEqual("Auto profiles active: album-profile", activeMessages[0]);
+
+                var debugTriggerMessages = messages
+                    .Where(x => x.Scope == "job" && x.Level == LogLevel.Debug && x.Message.Contains("Auto profiles active"))
+                    .Select(x => x.Message)
+                    .ToList();
+                Assert.AreEqual(1, debugTriggerMessages.Count, allMessages);
+                Assert.AreEqual("Auto profiles active: album-profile", debugTriggerMessages[0]);
+
+                var summaryMessages = messages
+                    .Where(x => x.Scope == "workflow" && x.Level == LogLevel.Debug && x.Message.Contains("Auto profiles applied"))
+                    .Select(x => x.Message)
+                    .ToList();
+                Assert.AreEqual(1, summaryMessages.Count, allMessages);
+                Assert.AreEqual("Auto profiles applied: album-profile (2 albums)", summaryMessages[0]);
+            }
+            finally
+            {
+                if (File.Exists(listPath)) File.Delete(listPath);
             }
         }
 
@@ -364,6 +672,7 @@ namespace Tests.EndToEnd
                 var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
                 var settings = new DownloadSettings();
                 settings.Extraction.Input = "Test Artist - Test Title";
+                settings.Extraction.RequestedMode = ExtractionMode.Song;
                 settings.Output.ParentDir = outputDir;
                 settings.Output.WriteIndex = true;
                 settings.Output.HasConfiguredIndex = true;
@@ -406,19 +715,13 @@ namespace Tests.EndToEnd
                 [completedRemoteFile, failingRemoteFile]);
             var testClient = new ClientTests.MockSoulseekClient([response], failingUsers: ["failuser"]);
 
-            var completedSong = new SongJob(new SongQuery { Artist = "Test Artist", Album = "Test Album", Title = "First" })
-            {
-                ResolvedTarget = new FileCandidate(response, completedRemoteFile),
-            };
-            completedSong.SetDone(completedPath);
-            var failingSong = new SongJob(new SongQuery { Artist = "Test Artist", Album = "Test Album", Title = "Second" })
-            {
-                ResolvedTarget = new FileCandidate(response, failingRemoteFile),
-            };
             var folder = new AlbumFolder(
                 response.Username,
                 Utils.GetDirectoryNameSlsk(failingRemoteFile.Filename),
-                [completedSong, failingSong])
+                [
+                    TestHelpers.CreateAlbumFile(response, completedRemoteFile),
+                    TestHelpers.CreateAlbumFile(response, failingRemoteFile),
+                ])
                 {
                     IsFullyRetrieved = true,
                 };
@@ -426,6 +729,9 @@ namespace Tests.EndToEnd
             {
                 Results = [folder],
             };
+            album.EnsureTrackJobs(folder)
+                .Single(song => song.ResolvedTarget!.Filename == completedRemoteFile.Filename)
+                .SetDone(completedPath);
 
             try
             {
@@ -435,7 +741,8 @@ namespace Tests.EndToEnd
                 settings.Extraction.IsAlbum = true;
                 settings.Search.NoBrowseFolder = true;
                 settings.Output.ParentDir = outputDir;
-                settings.Output.FailedAlbumPath = failedDir;
+                settings.Output.IncompleteAlbumAction.Kind = IncompleteAlbumActionKind.Move;
+                settings.Output.IncompleteAlbumAction.Path = failedDir;
                 settings.Output.WriteIndex = true;
                 settings.Output.HasConfiguredIndex = true;
                 settings.Output.IndexFilePath = Path.Combine(outputDir, "_index.csv");
@@ -449,18 +756,219 @@ namespace Tests.EndToEnd
 
                 Assert.IsTrue(Directory.GetFiles(failedDir, "*", SearchOption.AllDirectories)
                         .Any(path => Path.GetFileName(path) == "01. Test Artist - First.mp3"),
-                    "The already-downloaded album file should have been moved to failed-album-path.");
+                    "The already-downloaded album file should have been moved by the incomplete album action.");
 
                 var lines = File.ReadAllLines(settings.Output.IndexFilePath);
                 Assert.IsTrue(lines.Any(line => line == ",Test Artist,Test Album,,-1,1,2,4"),
                     string.Join("\n", lines));
                 Assert.IsFalse(lines.Any(line => line.Contains(failedDir) || line.Contains("First.mp3")),
-                    "Failed album index entry should record only album failure, not failed-album-path or child files.");
+                    "Failed album index entry should record only album failure, not incomplete-album-action path or child files.");
             }
             finally
             {
                 if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
                 if (Directory.Exists(failedDir)) Directory.Delete(failedDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task AlbumDownload_IncompleteAlbumActionDelete_DeletesCompletedAlbumFiles()
+        {
+            await RunIncompleteAlbumActionScenario(IncompleteAlbumActionKind.Delete, actionPath: null,
+                async (completedPath, _, _) =>
+                {
+                    await Task.CompletedTask;
+                    Assert.IsFalse(File.Exists(completedPath),
+                        "Delete action should remove completed files from a failed album folder.");
+                });
+        }
+
+        [TestMethod]
+        public async Task AlbumDownload_IncompleteAlbumActionMovePath_MovesCompletedAlbumFilesToConfiguredPath()
+        {
+            var failedDir = Path.Combine(Path.GetTempPath(), "slsk-incomplete-album-action-configured-" + Guid.NewGuid());
+
+            await RunIncompleteAlbumActionScenario(IncompleteAlbumActionKind.Move, failedDir,
+                async (completedPath, actionDir, _) =>
+                {
+                    await Task.CompletedTask;
+                    Assert.IsFalse(File.Exists(completedPath),
+                        "Move action should remove completed files from their original failed album location.");
+                    Assert.IsTrue(Directory.GetFiles(actionDir, "*", SearchOption.AllDirectories)
+                            .Any(path => Path.GetFileName(path) == "01. Test Artist - First.mp3"),
+                        "Move action should move completed files to the configured incomplete album action path.");
+                });
+        }
+
+        [TestMethod]
+        public async Task AlbumDownload_IncompleteAlbumActionMoveWithoutPath_MovesCompletedAlbumFilesToDefaultFailedPath()
+        {
+            await RunIncompleteAlbumActionScenario(IncompleteAlbumActionKind.Move, actionPath: null,
+                async (completedPath, _, settings) =>
+                {
+                    await Task.CompletedTask;
+                    var defaultFailedDir = Path.Combine(settings.Output.ParentDir!, "failed");
+
+                    Assert.IsFalse(File.Exists(completedPath),
+                        "Move action should remove completed files from their original failed album location.");
+                    Assert.IsTrue(Directory.GetFiles(defaultFailedDir, "*", SearchOption.AllDirectories)
+                            .Any(path => Path.GetFileName(path) == "01. Test Artist - First.mp3"),
+                        "Bare move action should move completed files to the default failed directory.");
+                });
+        }
+
+        [TestMethod]
+        public async Task AlbumDownload_CancelledAfterCompletedFile_RunsIncompleteAlbumAction()
+        {
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-incomplete-album-cancel-out-" + Guid.NewGuid());
+            Directory.CreateDirectory(outputDir);
+
+            var completedAlbumDir = Path.Combine(outputDir, "Test Album");
+            Directory.CreateDirectory(completedAlbumDir);
+            var completedPath = Path.Combine(completedAlbumDir, "01. Test Artist - First.mp3");
+            File.WriteAllBytes(completedPath, TestHelpers.EmptyMp3Bytes);
+
+            var completedRemoteFile = TestHelpers.CreateSlFile(@"Music\Test Artist\Test Album\01. Test Artist - First.mp3", length: 180);
+            var cancellableRemoteFile = TestHelpers.CreateSlFile(@"Music\Test Artist\Test Album\02. Test Artist - Second.mp3", length: 181);
+            var response = new Soulseek.SearchResponse(
+                "canceluser", 1, true, 100_000, 0,
+                [completedRemoteFile, cancellableRemoteFile]);
+
+            var folder = new AlbumFolder(
+                response.Username,
+                Utils.GetDirectoryNameSlsk(cancellableRemoteFile.Filename),
+                [
+                    TestHelpers.CreateAlbumFile(response, completedRemoteFile),
+                    TestHelpers.CreateAlbumFile(response, cancellableRemoteFile),
+                ])
+                {
+                    IsFullyRetrieved = true,
+                };
+            var album = new AlbumJob(new AlbumQuery { Artist = "Test Artist", Album = "Test Album" })
+            {
+                Results = [folder],
+            };
+            album.EnsureTrackJobs(folder)
+                .Single(song => song.ResolvedTarget!.Filename == completedRemoteFile.Filename)
+                .SetDone(completedPath);
+
+            var testClient = new ClientTests.MockSoulseekClient([response])
+            {
+                BeforeDownloadCompletesAsync = (_, remoteFilename, ct) =>
+                {
+                    if (remoteFilename.Equals(cancellableRemoteFile.Filename, StringComparison.OrdinalIgnoreCase))
+                        album.Cancel(JobCancellationSource.UserRequestedJob);
+
+                    ct.ThrowIfCancellationRequested();
+                    return Task.CompletedTask;
+                },
+            };
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Extraction.Input = "artist=Test Artist, album=Test Album";
+                settings.Extraction.IsAlbum = true;
+                settings.Search.NoBrowseFolder = true;
+                settings.Output.ParentDir = outputDir;
+                settings.Output.IncompleteAlbumAction.Kind = IncompleteAlbumActionKind.Move;
+                settings.Transfer.MaxDownloadRetries = 1;
+
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(testClient, engineSettings));
+                app.Enqueue(album, settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                var defaultFailedDir = Path.Combine(outputDir, "failed");
+                Assert.AreEqual(JobFailureReason.Cancelled, album.FailureReason);
+                Assert.IsFalse(File.Exists(completedPath),
+                    "Cancelling an incomplete album should move already-completed files out of the normal output location.");
+                Assert.IsTrue(Directory.GetFiles(defaultFailedDir, "*", SearchOption.AllDirectories)
+                        .Any(path => Path.GetFileName(path) == "01. Test Artist - First.mp3"),
+                    "Cancelling an incomplete album should run the configured incomplete album action.");
+            }
+            finally
+            {
+                if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task AlbumDownload_IncompleteAlbumActionKeep_LeavesCompletedAlbumFilesInPlace()
+        {
+            await RunIncompleteAlbumActionScenario(IncompleteAlbumActionKind.Keep, actionPath: null,
+                async (completedPath, _, _) =>
+                {
+                    await Task.CompletedTask;
+                    Assert.IsTrue(File.Exists(completedPath),
+                        "Keep action should leave completed files from a failed album folder in place.");
+                });
+        }
+
+        private static async Task RunIncompleteAlbumActionScenario(
+            IncompleteAlbumActionKind kind,
+            string? actionPath,
+            Func<string, string, DownloadSettings, Task> assert)
+        {
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-incomplete-album-action-out-" + Guid.NewGuid());
+            var actionDir = actionPath ?? Path.Combine(Path.GetTempPath(), "slsk-incomplete-album-action-target-" + Guid.NewGuid());
+            Directory.CreateDirectory(outputDir);
+
+            var completedAlbumDir = Path.Combine(outputDir, "Test Album");
+            Directory.CreateDirectory(completedAlbumDir);
+            var completedPath = Path.Combine(completedAlbumDir, "01. Test Artist - First.mp3");
+            File.WriteAllBytes(completedPath, TestHelpers.EmptyMp3Bytes);
+
+            var completedRemoteFile = TestHelpers.CreateSlFile(@"Music\Test Artist\Test Album\01. Test Artist - First.mp3", length: 180);
+            var failingRemoteFile = TestHelpers.CreateSlFile(@"Music\Test Artist\Test Album\02. Test Artist - Second.mp3", length: 181);
+            var response = new Soulseek.SearchResponse(
+                "failuser", 1, true, 100_000, 0,
+                [completedRemoteFile, failingRemoteFile]);
+            var testClient = new ClientTests.MockSoulseekClient([response], failingUsers: ["failuser"]);
+
+            var folder = new AlbumFolder(
+                response.Username,
+                Utils.GetDirectoryNameSlsk(failingRemoteFile.Filename),
+                [
+                    TestHelpers.CreateAlbumFile(response, completedRemoteFile),
+                    TestHelpers.CreateAlbumFile(response, failingRemoteFile),
+                ])
+                {
+                    IsFullyRetrieved = true,
+                };
+            var album = new AlbumJob(new AlbumQuery { Artist = "Test Artist", Album = "Test Album" })
+            {
+                Results = [folder],
+            };
+            album.EnsureTrackJobs(folder)
+                .Single(song => song.ResolvedTarget!.Filename == completedRemoteFile.Filename)
+                .SetDone(completedPath);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Extraction.Input = "artist=Test Artist, album=Test Album";
+                settings.Extraction.IsAlbum = true;
+                settings.Search.NoBrowseFolder = true;
+                settings.Output.ParentDir = outputDir;
+                settings.Output.IncompleteAlbumAction.Kind = kind;
+                settings.Output.IncompleteAlbumAction.Path = actionPath;
+                settings.Transfer.MaxDownloadRetries = 1;
+
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(testClient, engineSettings));
+                app.Enqueue(album, settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+                await assert(completedPath, actionDir, settings);
+            }
+            finally
+            {
+                if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+                if (Directory.Exists(actionDir)) Directory.Delete(actionDir, true);
             }
         }
 
@@ -500,7 +1008,7 @@ namespace Tests.EndToEnd
                 if (albumJob2 != null)
                 {
                     Console.WriteLine($"[Trace] AlbumJob state={albumJob2.LifecycleState}/{albumJob2.ActivityPhase}/{albumJob2.TerminalOutcome}/{albumJob2.SkipReason} failureReason={albumJob2.FailureReason} resolvedTarget={albumJob2.ResolvedTarget?.FolderPath} results={albumJob2.Results.Count}");
-                    foreach (var f in albumJob2.Results.SelectMany(r => r.Files))
+                    foreach (var f in albumJob2.TrackJobs)
                         Console.WriteLine($"[Trace]   file: {f.Query.Title} state={f.LifecycleState}/{f.ActivityPhase}/{f.TerminalOutcome}/{f.SkipReason} dp={f.DownloadPath} candidates={f.Candidates?.Count} rt={f.ResolvedTarget?.Filename}");
                 }
                 var downloadedFiles = System.IO.Directory.GetFiles(Path.Combine(outputDir, "(2011) testalbum [MP3]"), "*", SearchOption.AllDirectories);
@@ -825,7 +1333,7 @@ namespace Tests.EndToEnd
 
                 Assert.IsNotNull(albumJob, "The list input should produce an album job.");
                 Assert.IsTrue(albumJob.IsUnsuccessfulTerminal);
-                Assert.AreEqual(JobFailureReason.NoSuitableFileFound, albumJob.FailureReason);
+                Assert.AreEqual(JobFailureReason.NoMatchingResults, albumJob.FailureReason);
                 Assert.AreEqual(0, testClient.BrowseCallCount,
                     "Normal album searches should filter visible min-count underflow before the slow full-user browse.");
                 Assert.AreEqual(0, downloadedFiles.Count,
@@ -867,8 +1375,8 @@ namespace Tests.EndToEnd
                 rootSettings.Search.NoBrowseFolder = true;
 
                 var clientManager = TestHelpers.CreateMockClientManager(testClient, engineSettings);
-                var registry = TestHelpers.CreateSessionRegistry();
-                var searcher = new Searcher(testClient, registry, registry, new EngineEvents(), 10, 10);
+                var registry = TestHelpers.CreateUserSuccessTracker();
+                var searcher = new Searcher(testClient, registry, new DownloadEvents(), 10, 10);
                 var seedJob = new AlbumJob(new AlbumQuery { Artist = "Artist", Album = "Chosen Album" });
                 await searcher.SearchAlbum(seedJob, rootSettings.Search, new ResponseData(), CancellationToken.None);
                 var selected = seedJob.Results.Single();
@@ -926,8 +1434,8 @@ namespace Tests.EndToEnd
                 rootSettings.Output.NameFormat = "{filename}";
 
                 var clientManager = TestHelpers.CreateMockClientManager(testClient, engineSettings);
-                var registry = TestHelpers.CreateSessionRegistry();
-                var searcher = new Searcher(testClient, registry, registry, new EngineEvents(), 10, 10);
+                var registry = TestHelpers.CreateUserSuccessTracker();
+                var searcher = new Searcher(testClient, registry, new DownloadEvents(), 10, 10);
                 var seedSong = new SongJob(new SongQuery { Artist = "Artist", Title = "Real Track" });
                 await searcher.SearchSong(seedSong, rootSettings.Search, new ResponseData(), CancellationToken.None);
                 var selected = seedSong.Candidates!.Single();
@@ -952,6 +1460,48 @@ namespace Tests.EndToEnd
             {
                 if (Directory.Exists(musicRoot)) Directory.Delete(musicRoot, true);
                 if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task PrintJobs_AggregateJob_DoesNotSearchOrDownload()
+        {
+            var testClient = new ClientTests.MockSoulseekClient(TestHelpers.CreateTestIndex());
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-print-jobs-aggregate-" + Guid.NewGuid());
+            Directory.CreateDirectory(outputDir);
+
+            try
+            {
+                var engineSettings = new EngineSettings();
+                var rootSettings = new DownloadSettings();
+                rootSettings.Output.ParentDir = outputDir;
+                rootSettings.PrintOption = PrintOption.Jobs;
+
+                var aggregateJob = new AggregateJob(new SongQuery { Artist = "testartist" });
+                var clientManager = TestHelpers.CreateMockClientManager(testClient, engineSettings);
+                var app = new DownloadEngine(engineSettings, clientManager);
+                var searched = false;
+                app.Events.JobStateChanged += job =>
+                {
+                    if (job.ActivityPhase == JobActivityPhase.Searching)
+                        searched = true;
+                };
+
+                app.Enqueue(aggregateJob, rootSettings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                Assert.AreEqual(JobTerminalOutcome.Succeeded, aggregateJob.TerminalOutcome);
+                Assert.IsFalse(searched, "Print-jobs mode should not search, even for aggregate jobs.");
+                Assert.AreEqual(0, aggregateJob.Songs.Count, "Print-jobs mode should not populate aggregate search results.");
+                Assert.AreEqual(0, Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Length,
+                    "Print-jobs mode should not download files.");
+            }
+            finally
+            {
+                if (Directory.Exists(outputDir))
+                    Directory.Delete(outputDir, true);
             }
         }
 
@@ -1013,6 +1563,8 @@ namespace Tests.EndToEnd
                 await app.RunAsync(CancellationToken.None);
 
                 Assert.IsTrue(albumJob.Results.Count > 0, "Print-results mode should populate album search results.");
+                Assert.AreEqual(4, albumJob.Discovery?.RawResultCount, "Live discovery count should remain the raw file-hit count, not the projected album-folder count.");
+                Assert.IsTrue(albumJob.Results.Count < albumJob.Discovery?.RawResultCount, "This fixture must keep projected album folders fewer than raw file hits.");
                 Assert.AreEqual(0, Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Length,
                     "Print-results mode should not download album files.");
             }
@@ -1080,6 +1632,8 @@ namespace Tests.EndToEnd
 
                 Assert.AreEqual(JobTerminalOutcome.Succeeded, aggregateJob.TerminalOutcome);
                 Assert.IsTrue(aggregateJob.Albums.Count > 0, "Print-results mode should retain album-aggregate candidates for printing.");
+                Assert.AreEqual(4, aggregateJob.Discovery?.RawResultCount, "Live discovery count should remain the raw file-hit count, not the projected album-bucket count.");
+                Assert.IsTrue(aggregateJob.Albums.Count < aggregateJob.Discovery?.RawResultCount, "This fixture must keep projected album buckets fewer than raw file hits.");
                 Assert.AreEqual(0, searchedAlbumJobs, "Print-results mode should not re-search album-aggregate candidate albums.");
                 Assert.AreEqual(0, Directory.GetFiles(outputDir, "*", SearchOption.AllDirectories).Length,
                     "Print-results mode should not download album-aggregate files.");
@@ -1315,6 +1869,142 @@ namespace Tests.EndToEnd
             }
         }
 
+        [TestMethod]
+        public async Task SongInput_SkipMusicDir_SkipsMatchingLibraryTrack()
+        {
+            var sourceRoot = Path.Combine(Path.GetTempPath(), "slsk-smd-song-source-" + Guid.NewGuid());
+            var musicDir = Path.Combine(Path.GetTempPath(), "slsk-smd-song-library-" + Guid.NewGuid());
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-smd-song-out-" + Guid.NewGuid());
+            Directory.CreateDirectory(sourceRoot);
+            Directory.CreateDirectory(musicDir);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllBytes(Path.Combine(sourceRoot, "Existing Artist - Existing Song.mp3"), TestHelpers.EmptyMp3Bytes);
+            var existingPath = Path.Combine(musicDir, "Existing Artist - Existing Song.mp3");
+            File.WriteAllBytes(existingPath, TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Output.ParentDir = outputDir;
+                settings.Skip.SkipExisting = true;
+                settings.Skip.SkipMusicDir = musicDir;
+                settings.Skip.SkipModeMusicDir = SkipMode.Name;
+                var song = new SongJob(new SongQuery { Artist = "Existing Artist", Title = "Existing Song" });
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, failDownloads: 10, sourceRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(song, settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                Assert.IsTrue(song.IsSkippedAlreadyExists);
+                Assert.AreEqual(existingPath, song.DownloadPath);
+                Assert.AreEqual(0, Directory.GetFiles(outputDir, "*.mp3", SearchOption.AllDirectories).Length);
+            }
+            finally
+            {
+                if (Directory.Exists(sourceRoot)) Directory.Delete(sourceRoot, true);
+                if (Directory.Exists(musicDir)) Directory.Delete(musicDir, true);
+                if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task JobListInput_SkipMusicDir_SkipsMatchingLibraryTracks()
+        {
+            var sourceRoot = Path.Combine(Path.GetTempPath(), "slsk-smd-list-source-" + Guid.NewGuid());
+            var musicDir = Path.Combine(Path.GetTempPath(), "slsk-smd-list-library-" + Guid.NewGuid());
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-smd-list-out-" + Guid.NewGuid());
+            Directory.CreateDirectory(sourceRoot);
+            Directory.CreateDirectory(musicDir);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllBytes(Path.Combine(sourceRoot, "Artist One - First Song.mp3"), TestHelpers.EmptyMp3Bytes);
+            File.WriteAllBytes(Path.Combine(sourceRoot, "Artist Two - Second Song.mp3"), TestHelpers.EmptyMp3Bytes);
+            var firstExistingPath = Path.Combine(musicDir, "Artist One - First Song.mp3");
+            var secondExistingPath = Path.Combine(musicDir, "Artist Two - Second Song.mp3");
+            File.WriteAllBytes(firstExistingPath, TestHelpers.EmptyMp3Bytes);
+            File.WriteAllBytes(secondExistingPath, TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Output.ParentDir = outputDir;
+                settings.Skip.SkipExisting = true;
+                settings.Skip.SkipMusicDir = musicDir;
+                settings.Skip.SkipModeMusicDir = SkipMode.Name;
+                var firstSong = new SongJob(new SongQuery { Artist = "Artist One", Title = "First Song" });
+                var secondSong = new SongJob(new SongQuery { Artist = "Artist Two", Title = "Second Song" });
+                var list = new JobList("skip music dir list", [firstSong, secondSong]);
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, failDownloads: 10, sourceRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(list, settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                Assert.IsTrue(firstSong.IsSkippedAlreadyExists);
+                Assert.IsTrue(secondSong.IsSkippedAlreadyExists);
+                Assert.AreEqual(firstExistingPath, firstSong.DownloadPath);
+                Assert.AreEqual(secondExistingPath, secondSong.DownloadPath);
+                Assert.AreEqual(0, Directory.GetFiles(outputDir, "*.mp3", SearchOption.AllDirectories).Length);
+            }
+            finally
+            {
+                if (Directory.Exists(sourceRoot)) Directory.Delete(sourceRoot, true);
+                if (Directory.Exists(musicDir)) Directory.Delete(musicDir, true);
+                if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
+        [TestMethod]
+        public async Task AlbumInput_SkipMusicDir_SkipsMatchingLibraryAlbum()
+        {
+            var sourceRoot = Path.Combine(Path.GetTempPath(), "slsk-smd-album-source-" + Guid.NewGuid());
+            var sourceAlbumDir = Path.Combine(sourceRoot, "Existing Artist", "Existing Album");
+            var musicDir = Path.Combine(Path.GetTempPath(), "slsk-smd-album-library-" + Guid.NewGuid());
+            var libraryAlbumDir = Path.Combine(musicDir, "Existing Artist", "Existing Album");
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-smd-album-out-" + Guid.NewGuid());
+            Directory.CreateDirectory(sourceAlbumDir);
+            Directory.CreateDirectory(libraryAlbumDir);
+            Directory.CreateDirectory(outputDir);
+            File.WriteAllBytes(Path.Combine(sourceAlbumDir, "01. Existing Artist - First Song.mp3"), TestHelpers.EmptyMp3Bytes);
+            File.WriteAllBytes(Path.Combine(sourceAlbumDir, "02. Existing Artist - Second Song.mp3"), TestHelpers.EmptyMp3Bytes);
+            File.WriteAllBytes(Path.Combine(libraryAlbumDir, "01. Existing Artist - First Song.mp3"), TestHelpers.EmptyMp3Bytes);
+            File.WriteAllBytes(Path.Combine(libraryAlbumDir, "02. Existing Artist - Second Song.mp3"), TestHelpers.EmptyMp3Bytes);
+
+            try
+            {
+                var engineSettings = new EngineSettings { Username = "test_user", Password = "test_pass" };
+                var settings = new DownloadSettings();
+                settings.Output.ParentDir = outputDir;
+                settings.Skip.SkipExisting = true;
+                settings.Skip.SkipMusicDir = musicDir;
+                settings.Skip.SkipModeMusicDir = SkipMode.Name;
+                var album = new AlbumJob(new AlbumQuery { Artist = "Existing Artist", Album = "Existing Album" });
+
+                var client = LocalFilesSoulseekClient.FromLocalPaths(useTags: false, slowMode: false, failDownloads: 10, sourceRoot);
+                var app = new DownloadEngine(engineSettings, TestHelpers.CreateMockClientManager(client, engineSettings));
+                app.Enqueue(album, settings);
+                app.CompleteEnqueue();
+
+                await app.RunAsync(CancellationToken.None);
+
+                Assert.IsTrue(album.IsSkippedAlreadyExists);
+                Assert.AreEqual(libraryAlbumDir, album.DownloadPath);
+                Assert.AreEqual(0, Directory.GetFiles(outputDir, "*.mp3", SearchOption.AllDirectories).Length);
+            }
+            finally
+            {
+                if (Directory.Exists(sourceRoot)) Directory.Delete(sourceRoot, true);
+                if (Directory.Exists(musicDir)) Directory.Delete(musicDir, true);
+                if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
+            }
+        }
+
         // Regression guard: albums with AlreadyExists should also be cleared (this already works via
         // the else-branch / post-ProcessJob path, but keep it tested).
         [TestMethod]
@@ -1401,7 +2091,7 @@ namespace Tests.EndToEnd
                 await app.RunAsync(CancellationToken.None);
 
                 Assert.IsTrue(aggregateJob.IsUnsuccessfulTerminal);
-                Assert.AreEqual(JobFailureReason.NoSuitableFileFound, aggregateJob.FailureReason);
+                Assert.AreEqual(JobFailureReason.NoSearchResults, aggregateJob.FailureReason);
                 Assert.AreEqual(0, aggregateJob.Albums.Count);
             }
             finally

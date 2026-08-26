@@ -31,6 +31,7 @@ public sealed class EngineStateStore
         engine.Events.JobRegistered += OnJobRegistered;
         engine.Events.JobResultCreated += OnJobResultCreated;
         engine.Events.JobStateChanged += OnJobStateChanged;
+        engine.Events.JobDiscoveryChanged += OnJobDiscoveryChanged;
         engine.Events.JobExecutionCompleted += OnJobExecutionCompleted;
         engine.Events.DownloadStarted += OnNestedSongDownloadStarted;
         engine.Events.DownloadStateChanged += OnDownloadStateChanged;
@@ -41,6 +42,7 @@ public sealed class EngineStateStore
         engine.Events.JobRegistered -= OnJobRegistered;
         engine.Events.JobResultCreated -= OnJobResultCreated;
         engine.Events.JobStateChanged -= OnJobStateChanged;
+        engine.Events.JobDiscoveryChanged -= OnJobDiscoveryChanged;
         engine.Events.JobExecutionCompleted -= OnJobExecutionCompleted;
         engine.Events.DownloadStarted -= OnNestedSongDownloadStarted;
         engine.Events.DownloadStateChanged -= OnDownloadStateChanged;
@@ -265,6 +267,7 @@ public sealed class EngineStateStore
         WorkflowSummaryDto workflowSummary;
         lock (gate)
         {
+            job.EnsureDisplayId();
             jobs[job.Id] = job;
             parentJobIds[job.Id] = parent?.Id;
             summary = UpdateJobRecord(job).Summary;
@@ -283,6 +286,7 @@ public sealed class EngineStateStore
         WorkflowSummaryDto? workflowSummary = null;
         lock (gate)
         {
+            result.EnsureDisplayId();
             resultJobIds[job.Id] = result.Id;
 
             if (jobs.TryGetValue(job.Id, out var extractJob))
@@ -338,6 +342,29 @@ public sealed class EngineStateStore
             return;
 
         PublishJobAndWorkflowUpserts(summaries, workflowSummaries);
+    }
+
+    private void OnJobDiscoveryChanged(Job job)
+    {
+        List<JobSummaryDto> summaries = [];
+        lock (gate)
+        {
+            if (jobs.ContainsKey(job.Id))
+            {
+                summaries.Add(UpdateJobRecord(job).Summary);
+            }
+            else
+            {
+                var containingRecords = UpdateRecordsContainingJob(job.Id);
+                if (containingRecords.Count > 0)
+                    summaries.AddRange(containingRecords.Select(record => record.Summary));
+            }
+        }
+
+        if (summaries.Count == 0)
+            return;
+
+        PublishJobAndWorkflowUpserts(summaries, []);
     }
 
     private void OnJobExecutionCompleted(Job job)
@@ -560,8 +587,7 @@ public sealed class EngineStateStore
     private static bool ContainsNestedJob(Job container, Guid jobId)
         => container switch
         {
-            AlbumJob albumJob => albumJob.Results
-                .SelectMany(folder => folder.Files)
+            AlbumJob albumJob => albumJob.TrackJobs
                 .Any(song => song.Id == jobId),
             AggregateJob aggregateJob => aggregateJob.Songs.Any(song => song.Id == jobId),
             JobList jobList => jobList.Jobs.Any(job => job.Id == jobId || ContainsNestedJob(job, jobId)),
@@ -591,12 +617,13 @@ public sealed class EngineStateStore
             parentJobId,
             resultJobId,
             sourceJobId,
-            job.Discovery?.ResultCount,
+            job.Discovery?.RawResultCount,
             job.Discovery?.LockedFileCount,
             job.Config?.AppliedAutoProfiles?.OrderBy(x => x).ToList() ?? [],
             BuildActions(job),
             job.FailureDetail,
-            ToServerJobCancellationSource(job.CancellationSource));
+            ToServerJobCancellationSource(job.CancellationSource),
+            job.Config?.PrintOption ?? PrintOption.None);
     }
 
     private JobPayloadDto BuildPayload(Job job)
@@ -631,10 +658,10 @@ public sealed class EngineStateStore
                 albumJob.DownloadPath,
                 albumJob.ResolvedTarget?.Username,
                 albumJob.ResolvedTarget?.FolderPath,
-                albumJob.ResolvedTarget?.Files.Count,
-                albumJob.ResolvedTarget?.Files.Count(IsTerminalSong),
-                albumJob.ResolvedTarget?.Files.Count(IsSuccessfulSong),
-                albumJob.ResolvedTarget?.Files.Count(IsFailedOrSkippedSong),
+                albumJob.ResolvedTarget != null ? albumJob.TrackJobs.Count : null,
+                albumJob.ResolvedTarget != null ? albumJob.TrackJobs.Count(IsTerminalSong) : null,
+                albumJob.ResolvedTarget != null ? albumJob.TrackJobs.Count(IsSuccessfulSong) : null,
+                albumJob.ResolvedTarget != null ? albumJob.TrackJobs.Count(IsFailedOrSkippedSong) : null,
                 null,
                 null),
             AggregateJob aggregateJob => new AggregateJobPayloadDto(
@@ -661,7 +688,8 @@ public sealed class EngineStateStore
                 retrieveFolderJob.TargetFolder.Username,
                 retrieveFolderJob.NewFilesFoundCount,
                 ToServerFolderRetrievalOutcome(retrieveFolderJob.RetrievalOutcome),
-                retrieveFolderJob.RetrievalCancelled),
+                retrieveFolderJob.RetrievalCancelled,
+                ToAlbumFolderDto(retrieveFolderJob.TargetFolder, includeFiles: true)),
             _ => new GenericJobPayloadDto(job.ToString(noInfo: true))
         };
 
@@ -786,7 +814,8 @@ public sealed class EngineStateStore
             progressPercent,
             BuildActions(song),
             transferState,
-            ToServerJobCancellationSource(song.CancellationSource));
+            ToServerJobCancellationSource(song.CancellationSource),
+            ToServerSongDownloadSource(song.DownloadSource));
     }
 
     private static SongQueryDto ToSongQueryDto(SongQuery query) => new(
@@ -829,14 +858,13 @@ public sealed class EngineStateStore
             folder.FolderPath,
             new PeerInfoDto(
                 folder.Username,
-                folder.Files.FirstOrDefault()?.ResolvedTarget?.Response.HasFreeUploadSlot,
-                folder.Files.FirstOrDefault()?.ResolvedTarget?.Response.UploadSpeed),
+                folder.Files.FirstOrDefault()?.Candidate.Response.HasFreeUploadSlot,
+                folder.Files.FirstOrDefault()?.Candidate.Response.UploadSpeed),
             folder.SearchFileCount,
             folder.SearchAudioFileCount,
             includeFiles
                 ? folder.Files
-                    .Where(song => song.ResolvedTarget != null)
-                    .Select(song => ToFileCandidateDto(song.ResolvedTarget!))
+                    .Select(file => ToFileCandidateDto(file.Candidate))
                     .ToList()
                 : null,
             folder.IsFullyRetrieved);
@@ -906,6 +934,9 @@ public sealed class EngineStateStore
 
     public static ServerJobTerminalOutcome ToServerJobTerminalOutcome(JobTerminalOutcome outcome)
         => Enum.Parse<ServerJobTerminalOutcome>(outcome.ToString());
+
+    public static ServerSongDownloadSource ToServerSongDownloadSource(SongDownloadSource source)
+        => Enum.Parse<ServerSongDownloadSource>(source.ToString());
 
     public static ServerJobSkipReason ToServerJobSkipReason(JobSkipReason reason)
         => Enum.Parse<ServerJobSkipReason>(reason.ToString());

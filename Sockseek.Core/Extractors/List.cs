@@ -25,7 +25,7 @@ namespace Sockseek.Core.Extractors;
             return !input.IsInternetUrl();
         }
 
-        public Task<Job> GetTracks(string input, ExtractionSettings extraction, ExtractorContext? context = null)
+        public async Task<Job> GetTracks(string input, ExtractionSettings extraction, ExtractorContext? context = null)
         {
             var maxTracks = extraction.MaxTracks;
             var offset    = extraction.Offset;
@@ -36,7 +36,7 @@ namespace Sockseek.Core.Extractors;
             if (!File.Exists(listFilePath))
                 throw new FileNotFoundException($"List file '{listFilePath}' not found");
 
-            var lines = File.ReadAllLines(listFilePath);
+            var lines = await File.ReadAllLinesAsync(listFilePath);
 
             var result = new JobList { ItemName = Path.GetFileNameWithoutExtension(listFilePath), EnablesIndexByDefault = true };
 
@@ -53,18 +53,20 @@ namespace Sockseek.Core.Extractors;
                 if (count++ < offset) continue;
                 if (added >= maxTracks) break;
 
-                bool isAlbum = false;
+                ExtractionMode? requestedModeOverride = null;
 
                 if (line.StartsWith("a:"))
                 {
-                    line    = line[2..];
-                    isAlbum = true;
+                    line = line[2..];
+                    requestedModeOverride = ExtractionMode.Album;
+                }
+                else if (line.StartsWith("s:"))
+                {
+                    line = line[2..];
+                    requestedModeOverride = ExtractionMode.Song;
                 }
 
                 var fields = ParseLine(line);
-
-                if (isAlbum)
-                    fields[0] = "album://" + fields[0];
 
                 FileConditionPatch?      extractorCond         = null;
                 FileConditionPatch?      extractorPrefCond     = null;
@@ -86,6 +88,7 @@ namespace Sockseek.Core.Extractors;
 
                 var ej = new ExtractJob(fields[0])
                 {
+                    RequestedModeOverride = requestedModeOverride,
                     ExtractorCond           = extractorCond,
                     ExtractorPrefCond       = extractorPrefCond,
                     ExtractorFolderCond     = extractorFolderCond,
@@ -100,7 +103,7 @@ namespace Sockseek.Core.Extractors;
                 added++;
             }
 
-            return Task.FromResult<Job>(result);
+            return result;
         }
 
         static List<string> ParseLine(string input)

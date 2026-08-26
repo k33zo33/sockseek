@@ -9,29 +9,38 @@ public class InteractiveModeManager
 {
     private readonly Job      job;
     private readonly JobList queue;
-    private readonly Func<AlbumFolder, Task<int>> retrieveFolderCallback;
+    private readonly Func<AlbumFolder, Task<RetrievedFolder>> retrieveFolderCallback;
 
     private readonly List<(AlbumFolder Folder, int Index)> original;
     private List<(AlbumFolder Folder, int Index)> filterList;
+
+    // Keep the search candidate slots stable while `cd` moves each slot's current
+    // folder through cached snapshots. This prevents folder navigation from making
+    // the original parent/child snapshots disappear.
+    private readonly Dictionary<string, AlbumFolder> folderSnapshots = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, string> currentFolderKeys = new();
 
     private readonly bool            canRetrieve;
     private readonly HashSet<string> retrievedFolders;
     private string?  filterStr;
     private int      savedPos;
 
-    // ── return codes from Run() ───────────────────────────────────────────────
-    // index == -1  → user pressed 's' (skip this album)
-    // index == -2  → user pressed 'q' (quit program)
-    // index >= 0   → accepted folder; folder is the (possibly trimmed) chosen AlbumFolder
-    // exitInteractiveMode == true → engine should disable config.interactiveMode
-    // TODO: Make explicit rather than -1, -2.
+    public enum RunAction
+    {
+        Accept,
+        SkipCurrent,
+        SkipRemainingNewPrompts,
+        ExitInteractiveMode,
+    }
 
     public record RunResult(
+        RunAction   Action,
         int         Index,
         AlbumFolder? Folder,
         bool         RetrieveCurrentFolder,
-        bool         ExitInteractiveMode,
         string?      FilterStr);
+
+    public record RetrievedFolder(AlbumFolder Folder, int NewFilesFoundCount);
 
     public InteractiveModeManager(
         Job job,
@@ -39,7 +48,7 @@ public class InteractiveModeManager
         List<AlbumFolder> folders,
         bool            canRetrieve,
         HashSet<string> retrievedFolders,
-        Func<AlbumFolder, Task<int>> retrieveFolderCallback,
+        Func<AlbumFolder, Task<RetrievedFolder>> retrieveFolderCallback,
         string? filterStr = null)
     {
         this.job                    = job;
@@ -51,10 +60,15 @@ public class InteractiveModeManager
 
         original   = folders.Select((f, i) => (Folder: f, Index: i)).ToList();
         filterList = original;
+        foreach (var (folder, index) in original)
+        {
+            StoreFolderSnapshot(folder);
+            currentFolderKeys[index] = FolderKey(folder);
+        }
 
         if (filterStr != null)
         {
-            filterList = original.Where(e => e.Folder.Files.Any(af => af.ResolvedTarget!.Filename.ContainsIgnoreCase(filterStr))).ToList();
+            filterList = original.Where(e => FolderMatchesFilter(CurrentFolder(e), filterStr)).ToList();
             if (filterList.Count == 0)
             {
                 Console.WriteLine($"No matches for query: {filterStr}");
@@ -74,8 +88,8 @@ public class InteractiveModeManager
             string retrieveAll2 = canRetrieve ? "| Load All Files" : "";
             string? statusLine = null;
             Console.WriteLine();
-        Printing.WriteLine($" [Up/p] | [Down/n] | [Enter] {retrieveAll1} | [s]  | [Esc/q] | [h]", ConsoleColor.Cyan, force: true);
-        Printing.WriteLine($" Prev   | Next     | Accept  {retrieveAll2} | Skip | Quit    | Help", ConsoleColor.Cyan, force: true);
+        Printing.WriteLine($" [Up/p] | [Down/n] | [Enter] {retrieveAll1} | [s/q/Esc] | [Q/S]     | [h]", ConsoleColor.Cyan, force: true);
+        Printing.WriteLine($" Prev   | Next     | Accept  {retrieveAll2} | Skip      | Skip Rest | More Help", ConsoleColor.Cyan, force: true);
 
         Console.WriteLine();
         savedPos = GetCursorTopOrDefault();
@@ -83,8 +97,8 @@ public class InteractiveModeManager
         while (true)
         {
             var entry    = filterList[aidx];
-            var folder   = entry.Folder;
             var index    = entry.Index;
+            var folder   = CurrentFolder(entry);
             var username = folder.Username;
 
             if (filterStr != null)
@@ -107,16 +121,18 @@ public class InteractiveModeManager
 
         Loop:
             string userInputStr = (await InteractiveModeInput()).Trim();
-            string command      = userInputStr.ToLowerInvariant();
+            string commandInput = userInputStr;
+            string command      = commandInput.ToLowerInvariant();
             string options      = "";
             string subfolder    = "";
+            bool navigatingFolder = false;
 
             var commandsWithArgs = new string[] { "d:", "f:", "cd" };
             foreach (var cmd in commandsWithArgs)
             {
                 if (command.StartsWith(cmd))
                 {
-                    options = command[cmd.Length..].Trim();
+                    options = commandInput[cmd.Length..].Trim();
                     command = command[..cmd.Length].TrimEnd(':');
                     break;
                 }
@@ -142,18 +158,26 @@ public class InteractiveModeManager
                     }
                     goto Loop;
 
+                case "s" when commandInput == "S":
+                    Printing.WriteLine($"Skipped all remaining new album prompts.", ConsoleColor.Yellow, force: true);
+                    return new RunResult(RunAction.SkipRemainingNewPrompts, -1, null, false, filterStr);
+
                 case "s":
                     Printing.WriteLine($"Skipped: {job.ToString(noInfo: true)}", ConsoleColor.Yellow, force: true);
-                    return new RunResult(-1, null, false, false, null);
+                    return new RunResult(RunAction.SkipCurrent, -1, null, false, filterStr);
+
+                case "q" when commandInput == "Q":
+                    Printing.WriteLine($"Skipped all remaining new album prompts.", ConsoleColor.Yellow, force: true);
+                    return new RunResult(RunAction.SkipRemainingNewPrompts, -1, null, false, filterStr);
 
                 case "q":
-                    return new RunResult(-2, null, false, false, null);
+                    Printing.WriteLine($"Skipped: {job.ToString(noInfo: true)}", ConsoleColor.Yellow, force: true);
+                    return new RunResult(RunAction.SkipCurrent, -1, null, false, filterStr);
 
                 case "y":
                     Printing.WriteLine($"Downloading: {folder.FolderPath}", ConsoleColor.Green, force: true);
                     Printing.WriteLine("Exiting interactive mode", ConsoleColor.Gray, force: true);
-                    // job.PrintLines(); // Removed as logging is handled centrally now
-                    return new RunResult(index, folder, true, ExitInteractiveMode: true, filterStr);
+                    return new RunResult(RunAction.ExitInteractiveMode, index, folder, true, filterStr);
 
                 case "r":
                     if (!canRetrieve) goto Loop;
@@ -165,35 +189,39 @@ public class InteractiveModeManager
                     if (options == "..")
                     {
                         if (!canRetrieve) goto Loop;
-                        var parentFolder = Utils.GetDirectoryNameSlsk(currentFolder);
+                        var parentFolder = NormalizeRemoteFolderPath(Utils.GetDirectoryNameSlsk(currentFolder));
                         if (string.IsNullOrEmpty(parentFolder))
                         {
                             Console.WriteLine("This is the top directory");
                             goto Loop;
                         }
                         subfolder = parentFolder;
+                        navigatingFolder = true;
                         goto case "complete_folder";
                     }
                     else
                     {
-                        var subdir     = currentFolder + '\\' + options;
-                        var hasMatches = folder.Files.Any(af => af.ResolvedTarget!.Filename.StartsWith(subdir, StringComparison.OrdinalIgnoreCase));
+                        var subdir     = CombineRemoteFolderPath(currentFolder, options);
+                        var childFiles = folder.Files
+                            .Where(af => IsInFolderPath(af.Filename, subdir))
+                            .ToList();
 
-                        if (!hasMatches)
+                        if (childFiles.Count == 0)
                         {
                             Console.WriteLine("No such directory");
                             goto Loop;
                         }
 
                         subfolder = subdir;
-                        folder.Files.RemoveAll(af => !af.ResolvedTarget!.Filename.StartsWith(subdir, StringComparison.OrdinalIgnoreCase));
+                        var childFolder = GetFolderSnapshot(username, subfolder)
+                            ?? new AlbumFolder(username, subfolder, childFiles)
+                            {
+                                IsFullyRetrieved = folder.IsFullyRetrieved,
+                            };
+                        childFolder = SetCurrentFolder(index, childFolder);
 
-                        string folderKey = username + '\\' + currentFolder;
-                        if (retrievedFolders.Remove(folderKey))
-                        {
-                            retrievedFolders.Add(username + '\\' + subdir);
-                        }
-
+                        statusLine = $"Changed folder: {childFolder.FolderPath}";
+                        ClearOutput(savedPos);
                         break;
                     }
 
@@ -201,20 +229,34 @@ public class InteractiveModeManager
                     if (canRetrieve)
                     {
                         string folderKey = username + '\\' + subfolder;
-                        if (!folder.IsFullyRetrieved)
+                        var targetFolder = string.Equals(folder.FolderPath, subfolder, StringComparison.OrdinalIgnoreCase)
+                            ? folder
+                            : GetFolderSnapshot(username, subfolder)
+                            ?? new AlbumFolder(username, subfolder, folder.Files
+                                .Where(af => IsInFolderPath(af.Filename, subfolder))
+                                .ToList());
+
+                        if (!targetFolder.IsFullyRetrieved)
                         {
-                            int newFiles = await retrieveFolderCallback(folder);
+                            var retrieved = await retrieveFolderCallback(targetFolder);
+                            var retrievedFolder = SetCurrentFolder(index, retrieved.Folder);
                             retrievedFolders.Add(folderKey);
-                            statusLine = newFiles == 0
+                            statusLine = navigatingFolder
+                                ? $"Changed folder: {retrievedFolder.FolderPath}"
+                                : retrieved.NewFilesFoundCount == 0
                                 ? "Retrieved folder: no new files found."
-                                : $"Retrieved folder: found {newFiles} more {(newFiles == 1 ? "file" : "files")}.";
+                                : $"Retrieved folder: found {retrieved.NewFilesFoundCount} more {(retrieved.NewFilesFoundCount == 1 ? "file" : "files")}.";
 
                             ClearOutput(savedPos);
                             break;
                         }
                         else
                         {
-                            statusLine = "Already retrieved this folder.";
+                            targetFolder = SetCurrentFolder(index, targetFolder);
+                            retrievedFolders.Add(folderKey);
+                            statusLine = navigatingFolder
+                                ? $"Changed folder: {targetFolder.FolderPath}"
+                                : "Already retrieved this folder.";
                             ClearOutput(savedPos);
                             break;
                         }
@@ -225,12 +267,12 @@ public class InteractiveModeManager
                     if (options.Length == 0)
                     {
                         Printing.WriteLine($"Downloading: {folder.FolderPath}", ConsoleColor.Green, force: true);
-                        return new RunResult(index, folder, true, false, filterStr);
+                        return new RunResult(RunAction.Accept, index, folder, true, filterStr);
                     }
                     if (TryBuildSelectedFolder(folder, options, out var trimmedFolder, out var error))
                     {
                         Printing.WriteLine($"Downloading: {folder.FolderPath} ({trimmedFolder.Files.Count} selected files)", ConsoleColor.Green, force: true);
-                        return new RunResult(index, trimmedFolder, false, false, filterStr);
+                        return new RunResult(RunAction.Accept, index, trimmedFolder, false, filterStr);
                     }
                     Console.WriteLine($"Error: {error}");
                     goto Loop;
@@ -257,7 +299,7 @@ public class InteractiveModeManager
                     }
                     else
                     {
-                        var filtered = original.Where(e => e.Folder.Files.Any(af => af.ResolvedTarget!.Filename.ContainsIgnoreCase(options))).ToList();
+                        var filtered = original.Where(e => FolderMatchesFilter(CurrentFolder(e), options)).ToList();
                         if (filtered.Count == 0)
                         {
                             Console.WriteLine($"No matches for query: {options}");
@@ -282,7 +324,7 @@ public class InteractiveModeManager
 
                 case "":
                     Printing.WriteLine($"Downloading: {folder.FolderPath}", ConsoleColor.Green, force: true);
-                    return new RunResult(index, folder, true, false, filterStr);
+                    return new RunResult(RunAction.Accept, index, folder, true, filterStr);
 
                 default:
                     Console.WriteLine($"Error: Invalid input {userInputStr}");
@@ -294,6 +336,83 @@ public class InteractiveModeManager
         {
             ConsoleInputManager.GlobalCancelEnabled = true;
         }
+    }
+
+    private AlbumFolder CurrentFolder((AlbumFolder Folder, int Index) entry)
+    {
+        if (currentFolderKeys.TryGetValue(entry.Index, out var key)
+            && folderSnapshots.TryGetValue(key, out var folder))
+        {
+            return folder;
+        }
+
+        StoreFolderSnapshot(entry.Folder);
+        currentFolderKeys[entry.Index] = FolderKey(entry.Folder);
+        return entry.Folder;
+    }
+
+    private AlbumFolder? GetFolderSnapshot(string username, string folderPath)
+        => folderSnapshots.TryGetValue(FolderKey(username, folderPath), out var folder)
+            ? folder
+            : null;
+
+    private AlbumFolder SetCurrentFolder(int originalIndex, AlbumFolder folder)
+    {
+        folder = NormalizeFolderSnapshot(folder);
+        StoreFolderSnapshot(folder);
+        currentFolderKeys[originalIndex] = FolderKey(folder);
+        return folder;
+    }
+
+    private void StoreFolderSnapshot(AlbumFolder folder)
+    {
+        folder = NormalizeFolderSnapshot(folder);
+        folderSnapshots[FolderKey(folder)] = folder;
+    }
+
+    private static string FolderKey(AlbumFolder folder)
+        => FolderKey(folder.Username, folder.FolderPath);
+
+    private static string FolderKey(string username, string folderPath)
+        => username + "\\" + NormalizeRemoteFolderPath(folderPath);
+
+    private static bool FolderMatchesFilter(AlbumFolder folder, string filter)
+    {
+        return folder.Files.Any(af => af.Filename.ContainsIgnoreCase(filter));
+    }
+
+    private static bool IsInFolderPath(string filename, string folderPath)
+    {
+        filename = NormalizeRemoteFolderPath(filename);
+        folderPath = NormalizeRemoteFolderPath(folderPath).TrimEnd('\\');
+        return filename.StartsWith(folderPath + "\\", StringComparison.OrdinalIgnoreCase)
+            || filename.Equals(folderPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string CombineRemoteFolderPath(string parent, string child)
+        => NormalizeRemoteFolderPath(parent.TrimEnd('\\') + "\\" + child.Trim('\\', '/'));
+
+    private static string NormalizeRemoteFolderPath(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return path;
+
+        path = path.Replace('/', '\\').TrimEnd('\\').Trim();
+        while (path.Contains(@"\\", StringComparison.Ordinal))
+            path = path.Replace(@"\\", @"\", StringComparison.Ordinal);
+        return path;
+    }
+
+    private static AlbumFolder NormalizeFolderSnapshot(AlbumFolder folder)
+    {
+        var folderPath = NormalizeRemoteFolderPath(folder.FolderPath);
+        if (string.Equals(folderPath, folder.FolderPath, StringComparison.Ordinal))
+            return folder;
+
+        return new AlbumFolder(folder.Username, folderPath, folder.Files)
+        {
+            IsFullyRetrieved = folder.IsFullyRetrieved,
+        };
     }
 
     private async Task<string> InteractiveModeInput()
@@ -310,9 +429,9 @@ public class InteractiveModeManager
             {
                 if (buffer.Length > 0)
                 {
-                    Console.SetCursorPosition(0, Console.CursorTop);
+                    TrySetCursorPosition(0, GetCursorTopOrDefault());
                     Console.Write(new string(' ', buffer.Length + 1));
-                    Console.SetCursorPosition(0, Console.CursorTop);
+                    TrySetCursorPosition(0, GetCursorTopOrDefault());
                 }
                 if (key.Key == ConsoleKey.DownArrow)  return "n";
                 else if (key.Key == ConsoleKey.UpArrow) return "p";
@@ -335,12 +454,12 @@ public class InteractiveModeManager
             else if (key.Key == ConsoleKey.LeftArrow && cursorPos > 0)
             {
                 cursorPos--;
-                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                TrySetCursorPosition(GetCursorLeftOrDefault() - 1, GetCursorTopOrDefault());
             }
             else if (key.Key == ConsoleKey.RightArrow && cursorPos < buffer.Length)
             {
                 cursorPos++;
-                Console.SetCursorPosition(Console.CursorLeft + 1, Console.CursorTop);
+                TrySetCursorPosition(GetCursorLeftOrDefault() + 1, GetCursorTopOrDefault());
             }
             else if (key.Key == ConsoleKey.Backspace && cursorPos > 0)
             {
@@ -348,14 +467,14 @@ public class InteractiveModeManager
                 cursorPos--;
                 var rest = buffer.ToString(cursorPos, buffer.Length - cursorPos);
                 Console.Write("\b" + rest + " ");
-                Console.SetCursorPosition(Console.CursorLeft - (rest.Length + 1), Console.CursorTop);
+                TrySetCursorPosition(GetCursorLeftOrDefault() - (rest.Length + 1), GetCursorTopOrDefault());
             }
             else if (key.Key == ConsoleKey.Delete && cursorPos < buffer.Length)
             {
                 buffer.Remove(cursorPos, 1);
                 var rest = buffer.ToString(cursorPos, buffer.Length - cursorPos);
                 Console.Write(rest + " ");
-                Console.SetCursorPosition(Console.CursorLeft - (rest.Length + 1), Console.CursorTop);
+                TrySetCursorPosition(GetCursorLeftOrDefault() - (rest.Length + 1), GetCursorTopOrDefault());
             }
             else if (!char.IsControl(key.KeyChar))
             {
@@ -363,11 +482,23 @@ public class InteractiveModeManager
                 cursorPos++;
                 var rest = buffer.ToString(cursorPos - 1, buffer.Length - (cursorPos - 1));
                 Console.Write(rest);
-                Console.SetCursorPosition(Console.CursorLeft - (rest.Length - 1), Console.CursorTop);
+                TrySetCursorPosition(GetCursorLeftOrDefault() - (rest.Length - 1), GetCursorTopOrDefault());
             }
 
             firstKey = false;
         }
+    }
+
+    private static int GetCursorLeftOrDefault()
+    {
+        try { return Console.CursorLeft; }
+        catch { return 0; }
+    }
+
+    private static void TrySetCursorPosition(int left, int top)
+    {
+        try { Console.SetCursorPosition(Math.Max(0, left), Math.Max(0, top)); }
+        catch { }
     }
 
     private static string? ReadFilterPrompt()
@@ -396,7 +527,10 @@ public class InteractiveModeManager
             }
 
             var selectedFiles = indices.Select(i => folder.Files[i - 1]).ToList();
-            selectedFolder = new AlbumFolder(folder.Username, folder.FolderPath, selectedFiles);
+            selectedFolder = new AlbumFolder(folder.Username, folder.FolderPath, selectedFiles)
+            {
+                IsFullyRetrieved = folder.IsFullyRetrieved,
+            };
             return true;
         }
         catch

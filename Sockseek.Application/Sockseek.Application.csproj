@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Sockseek.Application</AssemblyName>
+    <RootNamespace>Sockseek.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sockseek.Domain\Sockseek.Domain.csproj" />
+    <ProjectReference Include="..\Sockseek.Integrations.Abstractions\Sockseek.Integrations.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

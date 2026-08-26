@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
-using Spectre.Console;
 using Spectre.Console.Rendering;
-using Sockseek.Core;
+using Spectre.Console;
 
 namespace Sockseek.Cli;
 
@@ -11,6 +10,7 @@ internal enum TerminalLogKind
 {
     JobSucceeded,
     JobFailed,
+    JobPartial,
     JobCancelled,
     JobAlreadyExists,
     SongDownloaded,
@@ -35,19 +35,6 @@ internal sealed record TerminalLogLine(
     string? Source = null,
     string? Highlight = null,
     bool ShowInLive = true);
-
-internal abstract record PrintedLogLine
-{
-    public sealed record Raw(string Text) : PrintedLogLine;
-    public sealed record Structured(TerminalLogLine Line) : PrintedLogLine;
-    public sealed record Process(TerminalProcessLogLine Line) : PrintedLogLine;
-}
-
-internal sealed record TerminalProcessLogLine(
-    LogLevel Level,
-    string CategoryName,
-    string Message,
-    SockseekLog.LogRouting Routing);
 
 internal sealed record JobChildView(
     string Id,
@@ -76,6 +63,7 @@ internal sealed record JobView(
     long? SpeedBytesPerSecond = null,
     int? DoneChildren = null,
     int? TotalChildren = null,
+    int? DiscoveryRawResultCount = null,
     IReadOnlyList<JobChildView>? Children = null,
     TerminalFileMetadata? Metadata = null,
     string? ParentId = null,
@@ -98,10 +86,8 @@ internal sealed class TerminalLiveRenderer : IDisposable
     private readonly ConcurrentDictionary<string, JobView> _jobs = new();
     private readonly Dictionary<string, TerminalJobRecord> _knownJobs = new(StringComparer.Ordinal);
     private int _countQueued, _countActive, _countCompleted, _countFailed;
-    private readonly ConcurrentQueue<TerminalLogLine> _logs = new();
-    private readonly ConcurrentQueue<TerminalProcessLogLine> _processLogs = new();
-    private readonly ConcurrentQueue<string> _rawLogs = new();
-    private readonly List<PrintedLogLine> _printedLogHistory = [];
+    private readonly ConcurrentQueue<CliOutputEvent> _pendingLogs = new();
+    private readonly List<CliOutputEvent> _printedLogHistory = [];
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _renderTask;
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMilliseconds(100);
@@ -116,7 +102,17 @@ internal sealed class TerminalLiveRenderer : IDisposable
     private bool _terminalWasResized;
 
     private sealed record LiveRow(IRenderable Renderable);
-    private sealed record LiveCell(string Text, Style? Style = null);
+    private sealed record LiveCell
+    {
+        public LiveCell(string text, Style? style = null)
+        {
+            Text = SanitizeLiveText(text);
+            Style = style;
+        }
+
+        public string Text { get; init; }
+        public Style? Style { get; init; }
+    }
     private static readonly Style DimIdStyle = new(foreground: Color.Grey);
     private static readonly Style DimStyle = new(foreground: Color.Grey);
     private static readonly Style CyanStyle = new(foreground: Color.Cyan1);
@@ -136,7 +132,6 @@ internal sealed class TerminalLiveRenderer : IDisposable
 
     public TerminalLiveRenderer()
     {
-        Printing.LiveWriteLine = (line, _) => EnqueueRawLog(line);
         _lastTerminalSize = GetTerminalSize();
         _renderTask = Task.Run(RenderLoopAsync);
     }
@@ -147,25 +142,52 @@ internal sealed class TerminalLiveRenderer : IDisposable
         set => _paused = value;
     }
 
-    public void SetStatusMessage(string? message)
+    public void Publish(CliOutputEvent outputEvent)
     {
         if (_disposed) return;
-        _statusMessage = message;
+
+        switch (outputEvent)
+        {
+            case CliOutputEvent.JobLog or CliOutputEvent.ProcessLog or CliOutputEvent.RawLine:
+                _pendingLogs.Enqueue(outputEvent);
+                break;
+            case CliOutputEvent.UpsertJobView upsert:
+                Upsert(upsert.Job);
+                break;
+            case CliOutputEvent.UpsertJobRecord upsert:
+                UpsertJob(upsert.Job);
+                break;
+            case CliOutputEvent.RemoveJob remove:
+                Remove(remove.Id);
+                break;
+            case CliOutputEvent.StatusMessage status:
+                SetStatusMessage(status.Message);
+                break;
+            case CliOutputEvent.RateLimit rateLimit:
+                SetRateLimited(rateLimit.ResetsAt);
+                break;
+        }
     }
 
-    public void SetRateLimited(DateTimeOffset? resetsAt)
+    private void SetStatusMessage(string? message)
+    {
+        if (_disposed) return;
+        _statusMessage = message == null ? null : SanitizeLiveText(message);
+    }
+
+    private void SetRateLimited(DateTimeOffset? resetsAt)
     {
         if (_disposed) return;
         Interlocked.Exchange(ref _rateLimitResetTicks, resetsAt?.UtcTicks ?? 0L);
     }
 
-    public void Upsert(JobView job)
+    private void Upsert(JobView job)
     {
         if (_disposed) return;
         _jobs[job.Id] = job with { UpdatedAt = DateTimeOffset.UtcNow };
     }
 
-    public void UpsertJob(TerminalJobRecord job)
+    private void UpsertJob(TerminalJobRecord job)
     {
         if (_disposed) return;
         lock (_sync)
@@ -202,48 +224,29 @@ internal sealed class TerminalLiveRenderer : IDisposable
         }
     }
 
-    public void Remove(string id)
+    private void Remove(string id)
     {
         if (_disposed) return;
         _jobs.TryRemove(id, out _);
     }
 
-    public void Log(TerminalLogLine line)
-    {
-        if (_disposed) return;
-        _logs.Enqueue(line);
-    }
-
-    public void Log(SockseekLog.StructuredLogEntry entry)
-    {
-        if (_disposed) return;
-        _processLogs.Enqueue(new TerminalProcessLogLine(
-            entry.Level,
-            entry.CategoryName,
-            entry.Message,
-            entry.Routing));
-    }
-
-    public void EnqueueRawLog(string line)
-    {
-        if (_disposed) return;
-        _rawLogs.Enqueue(line);
-    }
-
     public void Dispose()
+        => Dispose(printSummary: true);
+
+    public void Dispose(bool printSummary)
     {
         if (_disposed) return;
         _disposed = true;
         _cts.Cancel();
         try { _renderTask.Wait(TimeSpan.FromSeconds(2)); }
         catch { }
-        Printing.LiveWriteLine = null;
         // When the terminal shrinks, Spectre.Live's repaint can clear the wrong rows and
         // eat into real log scrollback above the live region (see comment in FlushLogs).
         // Replaying the log history at the end recovers those lost lines.
         if (_terminalWasResized)
             ReplayPrintedLogHistory();
-        AnsiConsole.MarkupLine(BuildCountsMarkup(CountKnownJobs()));
+        if (printSummary)
+            AnsiConsole.MarkupLine(BuildCountsMarkup(CountKnownJobs()));
         _cts.Dispose();
     }
 
@@ -317,32 +320,27 @@ internal sealed class TerminalLiveRenderer : IDisposable
         // inside Live avoids real scrollback, which is not an acceptable replacement.
         lock (_sync)
         {
-            while (_rawLogs.TryDequeue(out var rawLine))
+            while (_pendingLogs.TryDequeue(out var line))
             {
-                _printedLogHistory.Add(new PrintedLogLine.Raw(rawLine));
-                WritePlainLogLines(rawLine);
+                _printedLogHistory.Add(line);
+                WriteLogEvent(line);
             }
+        }
+    }
 
-            while (_processLogs.TryDequeue(out var line))
-            {
-                _printedLogHistory.Add(new PrintedLogLine.Process(line));
-                WriteProcessLogLine(line);
-            }
-
-            while (_logs.TryDequeue(out var line))
-            {
-                _printedLogHistory.Add(new PrintedLogLine.Structured(line));
-                var markup = FormatLogMarkup(line);
-                var visualLength = CellCount(Markup.Remove(markup));
-                int width = LogLineWidth();
-                if (markup.Contains('\n') || (!Console.IsOutputRedirected && visualLength >= width))
-                {
-                    WriteMarkupLogLines(line);
-                    continue;
-                }
-
-                AnsiConsole.MarkupLine(markup + PaddingFor(visualLength));
-            }
+    private static void WriteLogEvent(CliOutputEvent outputEvent)
+    {
+        switch (outputEvent)
+        {
+            case CliOutputEvent.RawLine raw:
+                WritePlainLogLines(raw.Text);
+                break;
+            case CliOutputEvent.ProcessLog process:
+                WriteProcessLogLine(process.Line);
+                break;
+            case CliOutputEvent.JobLog jobLog:
+                WriteStructuredLogLine(jobLog.Line);
+                break;
         }
     }
 
@@ -356,13 +354,13 @@ internal sealed class TerminalLiveRenderer : IDisposable
             {
                 switch (line)
                 {
-                    case PrintedLogLine.Raw raw:
+                    case CliOutputEvent.RawLine raw:
                         WritePlainLogLines(raw.Text);
                         break;
-                    case PrintedLogLine.Structured structured:
-                        WriteStructuredLogLine(structured.Line);
+                    case CliOutputEvent.JobLog jobLog:
+                        WriteStructuredLogLine(jobLog.Line);
                         break;
-                    case PrintedLogLine.Process process:
+                    case CliOutputEvent.ProcessLog process:
                         WriteProcessLogLine(process.Line);
                         break;
                 }
@@ -372,7 +370,8 @@ internal sealed class TerminalLiveRenderer : IDisposable
 
     private static void WriteStructuredLogLine(TerminalLogLine line)
     {
-        var markup = FormatLogMarkup(line);
+        line = SanitizeLiveLogLine(line);
+        var markup = CliLogStyle.FormatTerminalLogMarkup(line);
         var visualLength = CellCount(Markup.Remove(markup));
         int width = LogLineWidth();
         if (markup.Contains('\n') || (!Console.IsOutputRedirected && visualLength >= width))
@@ -386,6 +385,7 @@ internal sealed class TerminalLiveRenderer : IDisposable
 
     private static void WritePlainLogLines(string text)
     {
+        text = SanitizeLiveText(text);
         var normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
         foreach (var line in normalized.Split('\n'))
         {
@@ -396,76 +396,55 @@ internal sealed class TerminalLiveRenderer : IDisposable
 
     private static void WriteProcessLogLine(TerminalProcessLogLine line)
     {
+        line = line with
+        {
+            CategoryName = SanitizeLiveText(line.CategoryName),
+            Message = SanitizeLiveText(line.Message),
+        };
         var normalized = line.Message.Replace("\r\n", "\n").Replace('\r', '\n');
         var messageLines = normalized.Split('\n');
-        var prefixText = ProcessLogPrefixText(line);
-        var prefixMarkup = ProcessLogPrefixMarkup(line);
+        var prefixText = CliLogStyle.ProcessLogPrefixText(line);
+        var prefixMarkup = CliLogStyle.ProcessLogPrefixMarkup(line);
 
-        WriteWrappedProcessLogContent(prefixText, prefixMarkup, messageLines[0]);
+        WriteWrappedProcessLogContent(prefixText, prefixMarkup, messageLines[0], continuation: false);
 
         foreach (var messageLine in messageLines.Skip(1))
-            WriteWrappedProcessLogContent("", "", messageLine);
+            WriteWrappedProcessLogContent("", "", messageLine, continuation: true);
     }
-
-    internal static string FormatProcessLogMarkup(TerminalProcessLogLine line)
-        => $"{ProcessLogPrefixMarkup(line)}{Markup.Escape(line.Message)}";
 
     private static void WriteWrappedProcessLogContent(
         string prefixText,
         string prefixMarkup,
-        string content)
+        string content,
+        bool continuation)
     {
         int lineWidth = LogLineWidth() - CellCount(prefixText);
         var chunks = WrapContent(content, lineWidth).ToList();
 
         foreach (var chunk in chunks)
         {
-            var markup = prefixMarkup + Markup.Escape(chunk);
+            var contentMarkup = continuation
+                ? $"[grey]{Markup.Escape(chunk)}[/]"
+                : Markup.Escape(chunk);
+            var markup = prefixMarkup + contentMarkup;
             AnsiConsole.MarkupLine(markup + PaddingFor(CellCount(prefixText) + CellCount(chunk)));
         }
     }
-
-    private static string ProcessLogPrefixText(TerminalProcessLogLine line)
-    {
-        if (line.Routing == SockseekLog.LogRouting.ConsoleOnly)
-            return "";
-
-        var levelPrefix = line.Level == LogLevel.Information ? "" : $"[{ShortLevel(line.Level)}] ";
-        return $"{levelPrefix}[{line.CategoryName}] ";
-    }
-
-    private static string ProcessLogPrefixMarkup(TerminalProcessLogLine line)
-    {
-        if (line.Routing == SockseekLog.LogRouting.ConsoleOnly)
-            return "";
-
-        return $"[grey]{Markup.Escape(ProcessLogPrefixText(line))}[/]";
-    }
-
-    private static string ShortLevel(LogLevel level) => level switch
-    {
-        LogLevel.Trace => "trace",
-        LogLevel.Debug => "debug",
-        LogLevel.Information => "info",
-        LogLevel.Warning => "warn",
-        LogLevel.Error => "error",
-        LogLevel.Critical => "critical",
-        _ => level.ToString().ToLowerInvariant(),
-    };
 
     private static void WriteMarkupLogLines(TerminalLogLine line)
     {
         var normalized = line.Message.Replace("\r\n", "\n").Replace('\r', '\n');
         var messageLines = normalized.Split('\n');
-        var prefixText = $"{FormatDisplayId(line.DisplayId)}{line.JobType}: {SourcePrefixText(line.Source)}";
-        var prefixMarkup = $"[grey]{Markup.Escape(FormatDisplayId(line.DisplayId))}[/]{Markup.Escape(line.JobType)}: {SourcePrefixMarkup(line.Source)}";
-        var continuationPrefix = new string(' ', FormatDisplayId(line.DisplayId).Length);
+        var displayId = CliLogStyle.FormatTerminalDisplayId(line.DisplayId);
+        var prefixText = $"{displayId}{line.JobType}: {CliLogStyle.SourcePrefixText(line.Source)}";
+        var prefixMarkup = $"[grey]{Markup.Escape(displayId)}[/]{Markup.Escape(line.JobType)}: {CliLogStyle.SourcePrefixMarkup(line.Source)}";
+        var continuationPrefix = new string(' ', displayId.Length);
 
         WriteWrappedMarkupContent(
             prefixText,
             prefixMarkup,
             messageLines[0],
-            first: content => FormatMainLogContentMarkup(content, line.Kind, line.Highlight),
+            first: content => CliLogStyle.FormatMainLogContentMarkup(content, line.Kind, line.Highlight),
             continuation: content => Markup.Escape(content));
 
         foreach (var messageLine in messageLines.Skip(1))
@@ -519,6 +498,41 @@ internal sealed class TerminalLiveRenderer : IDisposable
         int arrowLen = trimmed.IndexOf(' ') + 1;
         return new string(' ', leadingSpaces + arrowLen);
     }
+
+    private static TerminalLogLine SanitizeLiveLogLine(TerminalLogLine line)
+        => line with
+        {
+            JobType = SanitizeLiveText(line.JobType),
+            Message = SanitizeLiveText(line.Message),
+            Source = line.Source == null ? null : SanitizeLiveText(line.Source),
+            Highlight = line.Highlight == null ? null : SanitizeLiveText(line.Highlight),
+        };
+
+    internal static string SanitizeLiveText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        StringBuilder? builder = null;
+        for (int i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (IsBidiControl(c))
+            {
+                builder ??= new StringBuilder(text.Length).Append(text, 0, i);
+                continue;
+            }
+
+            builder?.Append(c);
+        }
+
+        return builder?.ToString() ?? text;
+    }
+
+    private static bool IsBidiControl(char c)
+        => c is '\u061C' or '\u200E' or '\u200F'
+            || (c >= '\u202A' && c <= '\u202E')
+            || (c >= '\u2066' && c <= '\u2069');
 
     private static IEnumerable<string> WrapContent(string content, int availableWidth)
     {
@@ -699,7 +713,7 @@ internal sealed class TerminalLiveRenderer : IDisposable
 
     private static LiveRow JobRow(string indent, JobView job, IReadOnlyList<JobChildView> visibleChildren, int hiddenChildren)
     {
-        var prefix = $"{indent}{FormatDisplayId(job.DisplayId)}";
+        var prefix = $"{indent}{CliLogStyle.FormatTerminalDisplayId(job.DisplayId)}";
         var leftCells = JobLeftCells(job, visibleChildren, hiddenChildren, out var childMetadata);
         return new LiveRow(new LiveLineRenderable([new LiveCell(prefix, DimIdStyle), ..leftCells],
             childMetadata ?? job.Metadata));
@@ -853,26 +867,11 @@ internal sealed class TerminalLiveRenderer : IDisposable
         }
     }
 
-    private static string? KindColor(TerminalLogKind kind) => kind switch
-    {
-        TerminalLogKind.SongDownloaded or TerminalLogKind.AlbumTrackDownloaded
-            or TerminalLogKind.JobSucceeded or TerminalLogKind.PlaylistCompleted
-            or TerminalLogKind.AggregateCompleted
-            => "green",
-        TerminalLogKind.SongFailed or TerminalLogKind.AlbumTrackFailed
-            or TerminalLogKind.JobFailed
-            => "red",
-        TerminalLogKind.SongSkipped or TerminalLogKind.AlbumTrackSkipped
-            or TerminalLogKind.JobCancelled or TerminalLogKind.SongAlreadyExists
-            or TerminalLogKind.JobAlreadyExists
-            => "grey",
-        _ => null,
-    };
-
     private static string? StateColor(string state)
     {
         if (string.Equals(state, "downloading", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(state, "downloading tracks", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(state, "downloading tracks", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(state, "partial", StringComparison.OrdinalIgnoreCase))
             return "yellow";
         if (string.Equals(state, "searching", StringComparison.OrdinalIgnoreCase))
             return "cyan";
@@ -903,6 +902,12 @@ internal sealed class TerminalLiveRenderer : IDisposable
             _ => null,
         };
 
+    internal static string SearchingResultAnnotation(string state, int? rawResultCount)
+        => string.Equals(state, "searching", StringComparison.OrdinalIgnoreCase)
+            && rawResultCount.HasValue
+            ? $" ({rawResultCount.Value})"
+            : "";
+
     private static IReadOnlyList<LiveCell> JobLeftCells(JobView job, IReadOnlyList<JobChildView> visibleChildren, int hiddenChildren, out TerminalFileMetadata? outMetadata)
     {
         bool isAlbum = IsAlbumKind(job.Kind);
@@ -932,7 +937,7 @@ internal sealed class TerminalLiveRenderer : IDisposable
         }
         else
         {
-            annotation = "";
+            annotation = SearchingResultAnnotation(job.State, job.DiscoveryRawResultCount);
             stateStyle = StateStyle(job.State);
         }
 
@@ -1287,39 +1292,7 @@ internal sealed class TerminalLiveRenderer : IDisposable
         return $"{bytesPerSecond} B/s";
     }
 
-    internal static string FormatLogMarkup(TerminalLogLine line)
-    {
-        int pathLineIdx = line.Message.IndexOf("\n    ", StringComparison.Ordinal);
-        var mainPart = pathLineIdx >= 0 ? line.Message[..pathLineIdx] : line.Message;
-        var pathPart = pathLineIdx >= 0 ? line.Message[pathLineIdx..] : null;
+    internal static string FormatLogText(TerminalLogLine line)
+        => CliLogStyle.FormatTerminalLogText(line);
 
-        var mainMarkup = SourcePrefixMarkup(line.Source) + FormatMainLogContentMarkup(mainPart, line.Kind, line.Highlight);
-
-        var pathMarkup = pathPart != null ? $"[grey]{Markup.Escape(pathPart)}[/]" : "";
-        return $"[grey]{Markup.Escape(FormatDisplayId(line.DisplayId))}[/]{Markup.Escape(line.JobType)}: {mainMarkup}{pathMarkup}";
-    }
-
-    private static string FormatMainLogContentMarkup(string content, TerminalLogKind kind, string? highlight)
-    {
-        var color = KindColor(kind);
-        if (color == null)
-            return Markup.Escape(content);
-
-        if (!string.IsNullOrEmpty(highlight) && content.StartsWith(highlight, StringComparison.Ordinal))
-            return $"[{color}]{Markup.Escape(highlight)}[/]{Markup.Escape(content[highlight.Length..])}";
-
-        return $"[{color}]{Markup.Escape(content)}[/]";
-    }
-
-    private static string FormatLogText(TerminalLogLine line)
-        => $"{FormatDisplayId(line.DisplayId)}{line.JobType}: {SourcePrefixText(line.Source)}{line.Message}";
-
-    internal static string SourcePrefixText(string? source)
-        => string.IsNullOrWhiteSpace(source) ? "" : $"{source}: ";
-
-    private static string SourcePrefixMarkup(string? source)
-        => Markup.Escape(SourcePrefixText(source));
-
-    private static string FormatDisplayId(int displayId)
-        => $"[{displayId:000}] ";
 }

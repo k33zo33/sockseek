@@ -31,7 +31,7 @@ public class JsonStreamProgressReporter
         };
     }
 
-    public void Attach(EngineEvents events)
+    public void Attach(DownloadEvents events)
     {
         events.TrackListReady     += songs => ReportTrackList(songs);
         events.JobStateChanged    += job =>
@@ -205,7 +205,7 @@ public class JsonStreamProgressReporter
             size            = chosen?.File.Size,
             bitRate         = chosen?.File.BitRate,
             extension       = chosen != null ? GetExtension(chosen.Filename) : null,
-            resultCount     = song.Discovery?.ResultCount,
+            rawResultCount  = song.Discovery?.RawResultCount,
             lockedCount     = song.Discovery?.LockedFileCount,
         });
     }
@@ -227,7 +227,7 @@ public class JsonStreamProgressReporter
             size = song.ChosenCandidate?.Size,
             bitRate = song.ChosenCandidate?.BitRate,
             extension = song.ChosenCandidate != null ? GetExtension(song.ChosenCandidate.Filename) : null,
-            resultCount = song.DiscoveryResultCount,
+            rawResultCount = song.DiscoveryRawResultCount,
             lockedCount = song.DiscoveryLockedFileCount,
         });
     }

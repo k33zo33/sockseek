@@ -71,13 +71,16 @@ public partial class AlbumGroupingBenchmarks
             search,
             userSuccessCounts,
             useInfer: false,
-            useLevenshtein: false,
             albumMode: true);
 
         sorter.AddRange(rawResults.Where(result =>
             search.NecessaryCond.UserSatisfies(result.Response)
             && (!Utils.IsMusicFile(result.File.Filename)
-                || search.NecessaryCond.FileSatisfies(result.File, sortQuery, result.Response))));
+                || ConditionSatisfactionPolicy.SearchFileSatisfies(
+                    search.NecessaryCond,
+                    result.Response,
+                    result.File,
+                    sortQuery))));
 
         return LegacyAlbumFoldersFromOrderedResults(
                 sorter.Snapshot(),
@@ -108,14 +111,17 @@ public partial class AlbumGroupingBenchmarks
             search,
             userSuccessCounts,
             useInfer: false,
-            useLevenshtein: false,
             albumMode: true,
             ignoreStringSortConditions: true);
 
         sorter.AddRange(rawResults.Where(result =>
             search.NecessaryCond.UserSatisfies(result.Response)
             && (!Utils.IsMusicFile(result.File.Filename)
-                || search.NecessaryCond.FileSatisfies(result.File, sortQuery, result.Response))));
+                || ConditionSatisfactionPolicy.SearchFileSatisfies(
+                    search.NecessaryCond,
+                    result.Response,
+                    result.File,
+                    sortQuery))));
 
         var folders = LegacyAlbumFoldersFromOrderedResults(
             sorter.Snapshot(),
@@ -155,14 +161,17 @@ public partial class AlbumGroupingBenchmarks
             .Where(result =>
                 search.NecessaryCond.UserSatisfies(result.Response)
                 && (!Utils.IsMusicFile(result.File.Filename)
-                    || search.NecessaryCond.FileSatisfies(result.File, sortQuery, result.Response)));
+                    || ConditionSatisfactionPolicy.SearchFileSatisfies(
+                        search.NecessaryCond,
+                        result.Response,
+                        result.File,
+                        sortQuery)));
         var orderedResults = ResultSorter.OrderedResults(
             filteredResults.Select(x => (x.Response, x.File)),
             sortQuery,
             search,
             userSuccessCounts,
             useInfer: false,
-            useLevenshtein: false,
             albumMode: true);
 
         int capacity = rawResults.TryGetNonEnumeratedCount(out int resultCount) ? resultCount : 0;
@@ -284,9 +293,9 @@ public partial class AlbumGroupingBenchmarks
     private static string? LegacyRepresentativeAudioFilename(List<LegacyAlbumFolderFile> folderFiles)
         => folderFiles.FirstOrDefault(f => f.IsMusic).File?.Filename;
 
-    private static List<SongJob> LegacyBuildAlbumFiles(List<LegacyAlbumFolderFile> folderFiles, SongQuery inferDefault)
+    private static List<AlbumFile> LegacyBuildAlbumFiles(List<LegacyAlbumFolderFile> folderFiles, SongQuery inferDefault)
     {
-        var files = new List<SongJob>(folderFiles.Count);
+        var files = new List<AlbumFile>(folderFiles.Count);
         var inferredByFilename = new Dictionary<string, SongQuery>();
 
         foreach (var item in folderFiles)
@@ -297,7 +306,7 @@ public partial class AlbumGroupingBenchmarks
                 inferredByFilename.Add(item.File.Filename, info);
             }
 
-            files.Add(new SongJob(info) { ResolvedTarget = new FileCandidate(item.Response, item.File) });
+            files.Add(new AlbumFile(info, new FileCandidate(item.Response, item.File)));
         }
 
         return files;
