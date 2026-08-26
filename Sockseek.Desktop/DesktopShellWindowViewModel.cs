@@ -204,6 +204,10 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public void CloseCommandPalette() => Shell.CloseCommandPalette();
 
+    public void NavigateTo(ShellSection section) => Shell.NavigateTo(section);
+
+    public void SetTheme(DesktopThemePreference preference) => Shell.SetTheme(preference);
+
     public bool TryHandleShortcut(string shortcut) => Shell.TryHandleShortcut(shortcut);
 
     public bool TryExecuteCommandPaletteItem(string itemId) => Shell.TryExecuteCommandPaletteItem(itemId);

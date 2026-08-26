@@ -198,6 +198,26 @@ public sealed class DesktopShellWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task WindowViewModel_NavigateAndThemeWrappers_DelegateToShell()
+    {
+        var store = new InMemoryDesktopThemePreferenceStore(DesktopThemePreference.System);
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake),
+            themePreferenceStore: store);
+        var viewModel = new DesktopShellWindowViewModel(session);
+
+        viewModel.NavigateTo(ShellSection.Settings);
+        viewModel.SetTheme(DesktopThemePreference.Dark);
+
+        Assert.AreEqual(ShellSection.Settings, session.Shell.CurrentSection);
+        Assert.AreEqual(ShellSection.Settings, viewModel.CurrentSection);
+        Assert.AreEqual(DesktopThemePreference.Dark, session.Shell.CurrentTheme);
+        Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
+        Assert.AreEqual(DesktopThemePreference.Dark, store.Load());
+    }
+
+    [TestMethod]
     public async Task Dispose_DetachesWindowFromFurtherShellNotifications()
     {
         await using var session = new DesktopShellSession(
