@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Net.Http.Headers;
@@ -27,7 +28,7 @@ public static class ServerHost
         });
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 
-        builder.WebHost.UseUrls(ResolveListenUrl(url));
+        builder.WebHost.UseUrls(ResolveListenUrl(url, builder.Configuration[WebHostDefaults.ServerUrlsKey]));
 
         if (options != null)
             builder.Services.AddSingleton<IOptions<ServerOptions>>(Options.Create(options));
@@ -138,8 +139,12 @@ public static class ServerHost
         return app;
     }
 
-    public static string ResolveListenUrl(string? url)
-        => string.IsNullOrWhiteSpace(url) ? DefaultListenUrl : url;
+    public static string ResolveListenUrl(string? url, string? configuredUrl = null)
+        => !string.IsNullOrWhiteSpace(url)
+            ? url
+            : !string.IsNullOrWhiteSpace(configuredUrl)
+                ? configuredUrl
+                : DefaultListenUrl;
 
     private static string GetOpenApiVersion()
     {

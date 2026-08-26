@@ -11,7 +11,9 @@ public class DesktopDevelopmentDaemonLaunchRequestFactoryTests
         var request = DesktopDevelopmentDaemonLaunchRequestFactory.Create("/workspace/sockseek");
 
         Assert.AreEqual("dotnet", request.FileName);
-        Assert.AreEqual("run --project Sockseek.Server/Sockseek.Server.csproj --no-launch-profile", request.Arguments);
+        Assert.AreEqual(
+            "run --project Sockseek.Server/Sockseek.Server.csproj --no-launch-profile --urls http://127.0.0.1:0",
+            request.Arguments);
         Assert.AreEqual("/workspace/sockseek", request.WorkingDirectory);
         Assert.AreEqual("1", request.EnvironmentVariables[DesktopDevelopmentDaemonLaunchRequestFactory.HandshakeStdoutEnvironmentVariable]);
     }

@@ -6,11 +6,11 @@ namespace Sockseek.Desktop.Tests;
 public sealed class HeadlessDesktopShellWindowLifetimeTests
 {
     [TestMethod]
-    public void RunAsync_WhenWindowViewModelIsNull_ThrowsArgumentNullException()
+    public async Task RunAsync_WhenWindowViewModelIsNull_ThrowsArgumentNullException()
     {
         var lifetime = new HeadlessDesktopShellWindowLifetime();
 
-        var exception = Assert.ThrowsException<ArgumentNullException>(() => lifetime.RunAsync(null!, CancellationToken.None));
+        var exception = await Assert.ThrowsExceptionAsync<ArgumentNullException>(() => lifetime.RunAsync(null!, CancellationToken.None));
 
         Assert.AreEqual("windowViewModel", exception.ParamName);
     }

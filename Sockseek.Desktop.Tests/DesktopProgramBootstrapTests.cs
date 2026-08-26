@@ -6,14 +6,14 @@ namespace Sockseek.Desktop.Tests;
 public sealed class DesktopProgramBootstrapTests
 {
     [TestMethod]
-    public void RunAsync_WhenArgsAreNull_ThrowsArgumentNullException()
+    public async Task RunAsync_WhenArgsAreNull_ThrowsArgumentNullException()
     {
         var bootstrap = new DesktopProgramBootstrap(
             options => new FakeShellSession(canStartDaemon: true, startResult: true, options),
             () => "/workspace",
             new FakeShellHost());
 
-        var exception = Assert.ThrowsException<ArgumentNullException>(() => bootstrap.RunAsync(null!, CancellationToken.None));
+        var exception = await Assert.ThrowsExceptionAsync<ArgumentNullException>(() => bootstrap.RunAsync(null!, CancellationToken.None));
 
         Assert.AreEqual("args", exception.ParamName);
     }

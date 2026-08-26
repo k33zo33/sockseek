@@ -102,7 +102,7 @@ public sealed class DesktopCompositionTests
     [TestMethod]
     public void CreateProgramFlow_WhenWindowLifetimeIsNull_ThrowsArgumentNullException()
     {
-        var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateProgramFlow(null!));
+        var exception = Assert.ThrowsException<ArgumentNullException>(() => DesktopComposition.CreateProgramFlow((IDesktopShellWindowLifetime)null!));
 
         Assert.AreEqual("windowLifetime", exception.ParamName);
     }
