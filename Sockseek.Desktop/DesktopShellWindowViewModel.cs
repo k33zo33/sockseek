@@ -233,6 +233,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             ? CreateDiagnosticsText()
             : null;
 
+    public async Task<bool> TryCopyDiagnosticsAsync(IDesktopTextClipboard clipboard, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+
+        var diagnosticsText = TryGetCopyDiagnosticsText();
+        if (diagnosticsText is null)
+            return false;
+
+        await clipboard.SetTextAsync(diagnosticsText, cancellationToken);
+        return true;
+    }
+
     public DesktopShellDiagnosticsSnapshot CreateDiagnosticsSnapshot()
         => new(
             WindowTitle,

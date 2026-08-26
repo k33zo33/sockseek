@@ -238,6 +238,42 @@ public sealed class DesktopShellWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task TryCopyDiagnosticsAsync_WhenActionIsUnavailable_ReturnsFalseWithoutWritingClipboard()
+    {
+        await using var session = new DesktopShellSession(
+            supervisor: new DesktopDaemonSupervisor(),
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+        var clipboard = new FakeDesktopTextClipboard();
+
+        var copied = await viewModel.TryCopyDiagnosticsAsync(clipboard);
+
+        Assert.IsFalse(copied);
+        Assert.IsNull(clipboard.CopiedText);
+    }
+
+    [TestMethod]
+    public async Task TryCopyDiagnosticsAsync_WhenActionIsAvailable_WritesSafeDiagnosticsText()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+        var clipboard = new FakeDesktopTextClipboard();
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"secret-token\"}");
+        session.Shell.SetBackendState(BackendConnectionState.Disconnected);
+
+        var copied = await viewModel.TryCopyDiagnosticsAsync(clipboard);
+
+        Assert.IsTrue(copied);
+        Assert.IsNotNull(clipboard.CopiedText);
+        StringAssert.Contains(clipboard.CopiedText, "Backend state: Disconnected");
+        Assert.IsFalse(clipboard.CopiedText.Contains("secret-token", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task TryStartDaemonAsync_WhenStartIsUnavailable_ReturnsFalse()
     {
         await using var session = new DesktopShellSession(
@@ -360,6 +396,17 @@ public sealed class DesktopShellWindowViewModelTests
                 yield return line;
                 await Task.Yield();
             }
+        }
+    }
+
+    private sealed class FakeDesktopTextClipboard : IDesktopTextClipboard
+    {
+        public string? CopiedText { get; private set; }
+
+        public Task SetTextAsync(string text, CancellationToken cancellationToken = default)
+        {
+            CopiedText = text;
+            return Task.CompletedTask;
         }
     }
 

@@ -70,6 +70,14 @@ public partial class DesktopShellMainWindow : Window
         await viewModel.TryStartDaemonAsync();
     }
 
+    private async void HandleCopyDiagnosticsClick(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (viewModel is null)
+            return;
+
+        await viewModel.TryCopyDiagnosticsAsync(new AvaloniaWindowTextClipboard(this));
+    }
+
     private void HandleOpenCommandPaletteClick(object? sender, RoutedEventArgs eventArgs)
         => viewModel?.OpenCommandPalette();
 
@@ -184,6 +192,23 @@ public partial class DesktopShellMainWindow : Window
     {
         if (Application.Current is App app)
             app.ApplyThemePreference(preference);
+    }
+}
+
+internal sealed class AvaloniaWindowTextClipboard(Window owner) : IDesktopTextClipboard
+{
+    private readonly Window owner = owner ?? throw new ArgumentNullException(nameof(owner));
+
+    public async Task SetTextAsync(string text, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var topLevel = TopLevel.GetTopLevel(owner);
+        if (topLevel?.Clipboard is null)
+            return;
+
+        await topLevel.Clipboard.SetTextAsync(text);
     }
 }
 
