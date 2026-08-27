@@ -58,39 +58,8 @@ public partial class DesktopShellMainWindow : Window
 
     private void HandleKeyDown(object? sender, KeyEventArgs eventArgs)
     {
-        if (viewModel is null)
-            return;
-
-        if (eventArgs.Key == Key.Escape && viewModel.IsCommandPaletteOpen)
-        {
-            viewModel.CloseCommandPalette();
+        if (DesktopShellKeyRouting.TryHandleKeyGesture(viewModel, eventArgs.Key, eventArgs.KeyModifiers))
             eventArgs.Handled = true;
-            return;
-        }
-
-        if (!eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
-            return;
-
-        if (TryMapShortcut(eventArgs.Key, out var shortcut) && viewModel.TryHandleShortcut(shortcut))
-            eventArgs.Handled = true;
-    }
-
-    private static bool TryMapShortcut(Key key, out string shortcut)
-    {
-        shortcut = key switch
-        {
-            Key.D1 => "Ctrl+1",
-            Key.L => "Ctrl+L",
-            Key.D2 => "Ctrl+2",
-            Key.D3 => "Ctrl+3",
-            Key.D4 => "Ctrl+4",
-            Key.D5 => "Ctrl+5",
-            Key.OemComma => "Ctrl+,",
-            Key.K => "Ctrl+K",
-            _ => string.Empty,
-        };
-
-        return shortcut.Length > 0;
     }
 
     private static void ApplyTheme(DesktopThemePreference preference)
