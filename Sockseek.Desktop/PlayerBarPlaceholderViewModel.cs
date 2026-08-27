@@ -2,6 +2,8 @@ namespace Sockseek.Desktop;
 
 public sealed class PlayerBarPlaceholderViewModel
 {
+    private static readonly Action NoOpAction = () => { };
+
     public string TitleResourceKey { get; } = "Shell.PlayerBar.Title";
 
     public string Title { get; } = DesktopStringResources.Get("Shell.PlayerBar.Title");
@@ -95,4 +97,66 @@ public sealed class PlayerBarPlaceholderViewModel
     public string ExpandedPlayerIconToken { get; } = DesktopDesignTokens.Icon.PlayerExpanded;
 
     public string PaddingToken { get; } = DesktopDesignTokens.Spacing.PlayerBarPadding;
+
+    public IReadOnlyList<DesktopPlayerBarActionViewModel> TransportActions { get; } =
+    [
+        new(
+            "⏮",
+            DesktopDesignTokens.Icon.PlayerPrevious,
+            DesktopStringResources.Get("Shell.PlayerBar.Previous.IconLabel"),
+            "Shell.PlayerBar.Previous.IconLabel",
+            DesktopStringResources.Get("Shell.PlayerBar.Previous.IconLabel"),
+            "Shell.PlayerBar.Previous.IconLabel",
+            false,
+            NoOpAction),
+        new(
+            "⏯",
+            DesktopDesignTokens.Icon.PlayerPlayPause,
+            DesktopStringResources.Get("Shell.PlayerBar.PlayPause.IconLabel"),
+            "Shell.PlayerBar.PlayPause.IconLabel",
+            DesktopStringResources.Get("Shell.PlayerBar.PlayPause.Hint"),
+            "Shell.PlayerBar.PlayPause.Hint",
+            false,
+            NoOpAction),
+        new(
+            "⏭",
+            DesktopDesignTokens.Icon.PlayerNext,
+            DesktopStringResources.Get("Shell.PlayerBar.Next.IconLabel"),
+            "Shell.PlayerBar.Next.IconLabel",
+            DesktopStringResources.Get("Shell.PlayerBar.Next.IconLabel"),
+            "Shell.PlayerBar.Next.IconLabel",
+            false,
+            NoOpAction),
+    ];
+
+    public IReadOnlyList<DesktopPlayerBarActionViewModel> UtilityActions { get; } =
+    [
+        new(
+            "≡",
+            DesktopDesignTokens.Icon.PlayerQueue,
+            DesktopStringResources.Get("Shell.PlayerBar.Queue.IconLabel"),
+            "Shell.PlayerBar.Queue.IconLabel",
+            DesktopStringResources.Get("Shell.PlayerBar.Queue.Hint"),
+            "Shell.PlayerBar.Queue.Hint",
+            false,
+            NoOpAction),
+        new(
+            "🔊",
+            DesktopDesignTokens.Icon.PlayerVolume,
+            DesktopStringResources.Get("Shell.PlayerBar.Volume.IconLabel"),
+            "Shell.PlayerBar.Volume.IconLabel",
+            DesktopStringResources.Get("Shell.PlayerBar.Volume.Hint"),
+            "Shell.PlayerBar.Volume.Hint",
+            false,
+            NoOpAction),
+        new(
+            "⇱",
+            DesktopDesignTokens.Icon.PlayerExpanded,
+            DesktopStringResources.Get("Shell.PlayerBar.ExpandedPlayer.IconLabel"),
+            "Shell.PlayerBar.ExpandedPlayer.IconLabel",
+            DesktopStringResources.Get("Shell.PlayerBar.ExpandedPlayer.Hint"),
+            "Shell.PlayerBar.ExpandedPlayer.Hint",
+            false,
+            NoOpAction),
+    ];
 }

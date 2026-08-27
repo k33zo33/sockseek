@@ -160,6 +160,14 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerQueue, viewModel.PlayerBar.QueueIconToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerVolume, viewModel.PlayerBar.VolumeIconToken);
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerExpanded, viewModel.PlayerBar.ExpandedPlayerIconToken);
+        Assert.AreEqual(3, viewModel.PlayerBar.TransportActions.Count);
+        CollectionAssert.AreEqual(new[] { "⏮", "⏯", "⏭" }, viewModel.PlayerBar.TransportActions.Select(item => item.IconGlyph).ToArray());
+        CollectionAssert.AreEqual(new[] { DesktopDesignTokens.Icon.PlayerPrevious, DesktopDesignTokens.Icon.PlayerPlayPause, DesktopDesignTokens.Icon.PlayerNext }, viewModel.PlayerBar.TransportActions.Select(item => item.IconToken).ToArray());
+        Assert.IsTrue(viewModel.PlayerBar.TransportActions.All(item => item.IsEnabled is false));
+        Assert.AreEqual(3, viewModel.PlayerBar.UtilityActions.Count);
+        CollectionAssert.AreEqual(new[] { "≡", "🔊", "⇱" }, viewModel.PlayerBar.UtilityActions.Select(item => item.IconGlyph).ToArray());
+        CollectionAssert.AreEqual(new[] { DesktopDesignTokens.Icon.PlayerQueue, DesktopDesignTokens.Icon.PlayerVolume, DesktopDesignTokens.Icon.PlayerExpanded }, viewModel.PlayerBar.UtilityActions.Select(item => item.IconToken).ToArray());
+        Assert.IsTrue(viewModel.PlayerBar.UtilityActions.All(item => item.IsEnabled is false));
     }
 
     [DataTestMethod]
