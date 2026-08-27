@@ -32,9 +32,6 @@ public partial class DesktopShellMainWindow : Window
             viewModel.PropertyChanged += HandleViewModelPropertyChanged;
             ApplyTheme(viewModel.CurrentTheme);
         }
-
-        RebuildNavigationItems();
-        RebuildCommandPaletteItems();
     }
 
     private void HandleClosed(object? sender, EventArgs eventArgs)
@@ -47,27 +44,8 @@ public partial class DesktopShellMainWindow : Window
 
     private void HandleViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        switch (eventArgs.PropertyName)
-        {
-            case nameof(DesktopShellWindowViewModel.CurrentSection):
-                RebuildNavigationItems();
-                break;
-            case nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen):
-                RebuildCommandPaletteItems();
-                break;
-            case nameof(DesktopShellWindowViewModel.CurrentTheme):
-                if (viewModel is not null)
-                    ApplyTheme(viewModel.CurrentTheme);
-                break;
-        }
-    }
-
-    private async void HandleStartDaemonClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        if (viewModel is null)
-            return;
-
-        await viewModel.TryStartDaemonAsync();
+        if (eventArgs.PropertyName == nameof(DesktopShellWindowViewModel.CurrentTheme) && viewModel is not null)
+            ApplyTheme(viewModel.CurrentTheme);
     }
 
     private async void HandleCopyDiagnosticsClick(object? sender, RoutedEventArgs eventArgs)
@@ -76,37 +54,6 @@ public partial class DesktopShellMainWindow : Window
             return;
 
         await viewModel.TryCopyDiagnosticsAsync(new AvaloniaWindowTextClipboard(this));
-    }
-
-    private void HandleOpenCommandPaletteClick(object? sender, RoutedEventArgs eventArgs)
-        => viewModel?.OpenCommandPalette();
-
-    private void HandleCloseCommandPaletteClick(object? sender, RoutedEventArgs eventArgs)
-        => viewModel?.CloseCommandPalette();
-
-    private void HandleSystemThemeClick(object? sender, RoutedEventArgs eventArgs)
-        => viewModel?.SetTheme(DesktopThemePreference.System);
-
-    private void HandleLightThemeClick(object? sender, RoutedEventArgs eventArgs)
-        => viewModel?.SetTheme(DesktopThemePreference.Light);
-
-    private void HandleDarkThemeClick(object? sender, RoutedEventArgs eventArgs)
-        => viewModel?.SetTheme(DesktopThemePreference.Dark);
-
-    private void HandleNavigationClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        if (viewModel is null || sender is not Button { Tag: ShellSection section })
-            return;
-
-        viewModel.NavigateTo(section);
-    }
-
-    private void HandleCommandPaletteItemClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        if (viewModel is null || sender is not Button { Tag: string itemId })
-            return;
-
-        viewModel.TryExecuteCommandPaletteItem(itemId);
     }
 
     private void HandleKeyDown(object? sender, KeyEventArgs eventArgs)
@@ -126,48 +73,6 @@ public partial class DesktopShellMainWindow : Window
 
         if (TryMapShortcut(eventArgs.Key, out var shortcut) && viewModel.TryHandleShortcut(shortcut))
             eventArgs.Handled = true;
-    }
-
-    private void RebuildNavigationItems()
-    {
-        var host = NavigationItemsHost;
-        host.Children.Clear();
-
-        if (viewModel is null)
-            return;
-
-        foreach (var item in viewModel.NavigationItems)
-        {
-            host.Children.Add(new Button
-            {
-                Content = item.Section == viewModel.CurrentSection
-                    ? $"• {item.DisplayName} ({item.Shortcut})"
-                    : $"{item.DisplayName} ({item.Shortcut})",
-                Tag = item.Section,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            }.Also(button => button.Click += HandleNavigationClick));
-        }
-    }
-
-    private void RebuildCommandPaletteItems()
-    {
-        var host = CommandPaletteItemsHost;
-        host.Children.Clear();
-
-        if (viewModel is null)
-            return;
-
-        foreach (var item in viewModel.CommandPalette.Items)
-        {
-            host.Children.Add(new Button
-            {
-                Content = string.IsNullOrWhiteSpace(item.Shortcut)
-                    ? item.Title
-                    : $"{item.Title} ({item.Shortcut})",
-                Tag = item.Id,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            }.Also(button => button.Click += HandleCommandPaletteItemClick));
-        }
     }
 
     private static bool TryMapShortcut(Key key, out string shortcut)
@@ -209,14 +114,5 @@ internal sealed class AvaloniaWindowTextClipboard(Window owner) : IDesktopTextCl
             return;
 
         await topLevel.Clipboard.SetTextAsync(text);
-    }
-}
-
-internal static class ControlFactoryExtensions
-{
-    public static T Also<T>(this T value, Action<T> configure)
-    {
-        configure(value);
-        return value;
     }
 }

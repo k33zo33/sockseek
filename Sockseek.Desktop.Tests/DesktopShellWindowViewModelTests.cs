@@ -20,6 +20,9 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(DesktopDesignTokens.Spacing.ShellChrome, viewModel.ChromeSpacingToken);
         Assert.AreSame(session.Shell, viewModel.Shell);
         CollectionAssert.AreEqual(session.Shell.Items.ToArray(), viewModel.NavigationItems.ToArray());
+        Assert.AreEqual(session.Shell.Items.Count, viewModel.NavigationButtons.Count);
+        Assert.AreEqual("• Home (Ctrl+1)", viewModel.NavigationButtons[0].DisplayLabel);
+        Assert.AreEqual("Search (Ctrl+L)", viewModel.NavigationButtons[1].DisplayLabel);
         Assert.AreSame(session.Shell.PlayerBar, viewModel.PlayerBar);
         Assert.AreEqual("Nothing playing", viewModel.PlayerBarTitle);
         Assert.AreEqual("Shell.PlayerBar.Title", viewModel.PlayerBarTitleResourceKey);
@@ -62,6 +65,8 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(DesktopDesignTokens.Icon.PlayerExpanded, viewModel.ExpandedPlayerIconToken);
         Assert.AreEqual(DesktopDesignTokens.Surface.PlayerBar, viewModel.PlayerBarSurfaceToken);
         Assert.AreSame(session.Shell.CommandPalette, viewModel.CommandPalette);
+        Assert.AreEqual(session.Shell.CommandPalette.Items.Count, viewModel.CommandPaletteButtons.Count);
+        Assert.AreEqual("Go to Home (Ctrl+1)", viewModel.CommandPaletteButtons[0].DisplayLabel);
         Assert.AreSame(session.Shell.StatusBanner, viewModel.StatusBanner);
         Assert.AreEqual("Starting local daemon", viewModel.BackendBannerTitle);
         Assert.AreEqual("Shell.Backend.Starting.Title", viewModel.BackendBannerTitleResourceKey);
@@ -179,7 +184,7 @@ public sealed class DesktopShellWindowViewModelTests
             connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
         var viewModel = new DesktopShellWindowViewModel(session);
 
-        viewModel.OpenCommandPalette();
+        viewModel.OpenCommandPaletteCommand.Execute(null);
         Assert.AreSame(session.Shell.CommandPalette, viewModel.CommandPalette);
         Assert.IsTrue(viewModel.IsCommandPaletteOpen);
 
@@ -188,9 +193,8 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.IsFalse(viewModel.IsCommandPaletteOpen);
 
         viewModel.OpenCommandPalette();
-        var executed = viewModel.TryExecuteCommandPaletteItem("navigate-downloads");
+        viewModel.CommandPaletteButtons.Single(item => item.Item.Id == "navigate-downloads").ExecuteCommand.Execute(null);
 
-        Assert.IsTrue(executed);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentSection);
         Assert.AreEqual(ShellSection.Downloads, viewModel.CurrentPage.Section);
         Assert.IsFalse(viewModel.IsCommandPaletteOpen);
@@ -207,11 +211,13 @@ public sealed class DesktopShellWindowViewModelTests
             themePreferenceStore: store);
         var viewModel = new DesktopShellWindowViewModel(session);
 
-        viewModel.NavigateTo(ShellSection.Settings);
-        viewModel.SetTheme(DesktopThemePreference.Dark);
+        viewModel.NavigationButtons.Single(item => item.Item.Section == ShellSection.Settings).NavigateCommand.Execute(null);
+        viewModel.SetDarkThemeCommand.Execute(null);
 
         Assert.AreEqual(ShellSection.Settings, session.Shell.CurrentSection);
         Assert.AreEqual(ShellSection.Settings, viewModel.CurrentSection);
+        Assert.AreEqual("• Settings (Ctrl+,)", viewModel.NavigationButtons.Single(item => item.Item.Section == ShellSection.Settings).DisplayLabel);
+        Assert.AreEqual("Home (Ctrl+1)", viewModel.NavigationButtons.Single(item => item.Item.Section == ShellSection.Home).DisplayLabel);
         Assert.AreEqual(DesktopThemePreference.Dark, session.Shell.CurrentTheme);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(DesktopThemePreference.Dark, store.Load());

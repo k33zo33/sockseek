@@ -1,13 +1,34 @@
+using System.Windows.Input;
+
 namespace Sockseek.Desktop;
 
 public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 {
+    private readonly IReadOnlyList<DesktopShellNavigationItemViewModel> navigationButtons;
+    private readonly IReadOnlyList<DesktopShellCommandPaletteItemViewModel> commandPaletteButtons;
     private bool isStartingDaemon;
     private bool disposed;
 
     public DesktopShellWindowViewModel(IDesktopShellSession session)
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
+        navigationButtons = Session.Shell.Items
+            .Select(item => new DesktopShellNavigationItemViewModel(
+                item,
+                item.Section == Session.Shell.CurrentSection,
+                () => NavigateTo(item.Section)))
+            .ToArray();
+        commandPaletteButtons = Session.Shell.CommandPalette.Items
+            .Select(item => new DesktopShellCommandPaletteItemViewModel(
+                item,
+                () => TryExecuteCommandPaletteItem(item.Id)))
+            .ToArray();
+        OpenCommandPaletteCommand = new DesktopCommand(OpenCommandPalette);
+        CloseCommandPaletteCommand = new DesktopCommand(CloseCommandPalette);
+        SetSystemThemeCommand = new DesktopCommand(() => SetTheme(DesktopThemePreference.System));
+        SetLightThemeCommand = new DesktopCommand(() => SetTheme(DesktopThemePreference.Light));
+        SetDarkThemeCommand = new DesktopCommand(() => SetTheme(DesktopThemePreference.Dark));
+        StartDaemonCommand = new DesktopAsyncCommand(() => TryStartDaemonAsync());
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
     }
@@ -45,6 +66,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     public string BackendBannerIconAccessibilityLabelResourceKey => StatusBanner.IconAccessibilityLabelResourceKey;
 
     public IReadOnlyList<ShellNavigationItem> NavigationItems => Session.Shell.Items;
+
+    public IReadOnlyList<DesktopShellNavigationItemViewModel> NavigationButtons => navigationButtons;
 
     public PlayerBarPlaceholderViewModel PlayerBar => Session.Shell.PlayerBar;
 
@@ -130,6 +153,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public CommandPaletteViewModel CommandPalette => Session.Shell.CommandPalette;
 
+    public IReadOnlyList<DesktopShellCommandPaletteItemViewModel> CommandPaletteButtons => commandPaletteButtons;
+
     public ShellSection CurrentSection => Session.Shell.CurrentSection;
 
     public ShellPageViewModel CurrentPage => Session.Shell.CurrentPage;
@@ -155,6 +180,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     public string WindowTitle => $"{Title} — {CurrentPage.Title}";
 
     public bool IsCommandPaletteOpen => Shell.CommandPalette.IsOpen;
+
+    public ICommand OpenCommandPaletteCommand { get; }
+
+    public ICommand CloseCommandPaletteCommand { get; }
+
+    public ICommand SetSystemThemeCommand { get; }
+
+    public ICommand SetLightThemeCommand { get; }
+
+    public ICommand SetDarkThemeCommand { get; }
+
+    public ICommand StartDaemonCommand { get; }
 
     public bool CanCopyDiagnostics => StatusBanner.CanCopyDiagnostics;
 
@@ -204,7 +241,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public void CloseCommandPalette() => Shell.CloseCommandPalette();
 
-    public void NavigateTo(ShellSection section) => Shell.NavigateTo(section);
+    public void NavigateTo(ShellSection section)
+    {
+        Shell.NavigateTo(section);
+        UpdateNavigationSelection();
+    }
 
     public void SetTheme(DesktopThemePreference preference) => Shell.SetTheme(preference);
 
@@ -266,6 +307,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         switch (eventArgs.PropertyName)
         {
             case nameof(ShellNavigationViewModel.CurrentSection):
+                UpdateNavigationSelection();
                 OnPropertyChanged(nameof(CurrentSection));
                 break;
             case nameof(ShellNavigationViewModel.CurrentPage):
@@ -320,5 +362,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
         if (eventArgs.PropertyName == nameof(CommandPaletteViewModel.IsOpen))
             OnPropertyChanged(nameof(IsCommandPaletteOpen));
+    }
+
+    private void UpdateNavigationSelection()
+    {
+        foreach (var item in navigationButtons)
+            item.IsCurrent = item.Item.Section == CurrentSection;
     }
 }

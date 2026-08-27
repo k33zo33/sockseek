@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:desktop="using:Sockseek.Desktop"
         x:Class="Sockseek.Desktop.DesktopShellMainWindow"
         Width="1280"
         Height="840"
@@ -31,11 +32,19 @@
                      Text="{Binding CommandPalette.Title}"
                      FontSize="18"
                      FontWeight="SemiBold" />
-          <Button DockPanel.Dock="Right" Content="Close" Click="HandleCloseCommandPaletteClick" />
+          <Button DockPanel.Dock="Right" Content="Close" Command="{Binding CloseCommandPaletteCommand}" />
         </DockPanel>
 
         <TextBlock Text="{Binding CommandPalette.Placeholder}" Opacity="0.75" />
-        <StackPanel x:Name="CommandPaletteItemsHost" Spacing="8" />
+        <ItemsControl ItemsSource="{Binding CommandPaletteButtons}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="desktop:DesktopShellCommandPaletteItemViewModel">
+              <Button HorizontalAlignment="Stretch"
+                      Content="{Binding DisplayLabel}"
+                      Command="{Binding ExecuteCommand}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
       </StackPanel>
     </Border>
 
@@ -74,16 +83,24 @@
             <StackPanel Spacing="8">
               <TextBlock Text="Theme" FontWeight="SemiBold" />
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="System" Click="HandleSystemThemeClick" />
-                <Button Content="Light" Click="HandleLightThemeClick" />
-                <Button Content="Dark" Click="HandleDarkThemeClick" />
+                <Button Content="System" Command="{Binding SetSystemThemeCommand}" />
+                <Button Content="Light" Command="{Binding SetLightThemeCommand}" />
+                <Button Content="Dark" Command="{Binding SetDarkThemeCommand}" />
               </StackPanel>
               <TextBlock Text="{Binding CurrentTheme}" Opacity="0.75" />
             </StackPanel>
 
-            <Button Content="Open command palette (Ctrl+K)" Click="HandleOpenCommandPaletteClick" />
+            <Button Content="Open command palette (Ctrl+K)" Command="{Binding OpenCommandPaletteCommand}" />
 
-            <StackPanel x:Name="NavigationItemsHost" Spacing="8" />
+            <ItemsControl ItemsSource="{Binding NavigationButtons}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="desktop:DesktopShellNavigationItemViewModel">
+                  <Button HorizontalAlignment="Stretch"
+                          Content="{Binding DisplayLabel}"
+                          Command="{Binding NavigateCommand}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
         </ScrollViewer>
       </Border>
@@ -104,7 +121,7 @@
                 <Button HorizontalAlignment="Left"
                         IsEnabled="{Binding CanStartDaemon}"
                         Content="{Binding StartDaemonLabel}"
-                        Click="HandleStartDaemonClick" />
+                        Command="{Binding StartDaemonCommand}" />
                 <Button HorizontalAlignment="Left"
                         IsVisible="{Binding CanCopyDiagnostics}"
                         Content="{Binding CopyDiagnosticsLabel}"
