@@ -70,6 +70,20 @@ public partial class DesktopShellMainWindow : Window
         await viewModel.TryStartDaemonAsync();
     }
 
+    private async void HandleCopyDiagnosticsClick(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (viewModel is null)
+            return;
+
+        var diagnosticsText = viewModel.TryGetCopyDiagnosticsText();
+        if (diagnosticsText is null)
+            return;
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is not null)
+            await topLevel.Clipboard.SetTextAsync(diagnosticsText);
+    }
+
     private void HandleOpenCommandPaletteClick(object? sender, RoutedEventArgs eventArgs)
         => viewModel?.OpenCommandPalette();
 

@@ -6,12 +6,14 @@ public sealed class DesktopProgramBootstrap(
     IDesktopShellHost shellHost) : IDesktopProgramFlow
 {
     public Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
-        => RunCoreAsync(args, cancellationToken);
-
-    private async Task<int> RunCoreAsync(string[] args, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
 
+        return RunCoreAsync(args, cancellationToken);
+    }
+
+    private async Task<int> RunCoreAsync(string[] args, CancellationToken cancellationToken)
+    {
         var options = DesktopProgramOptions.Parse(args, currentDirectoryProvider());
         await using var session = sessionFactory(options);
 

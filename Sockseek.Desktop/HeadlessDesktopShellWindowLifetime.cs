@@ -2,10 +2,15 @@ namespace Sockseek.Desktop;
 
 public sealed class HeadlessDesktopShellWindowLifetime : IDesktopShellWindowLifetime
 {
-    public async Task<int> RunAsync(DesktopShellWindowViewModel windowViewModel, CancellationToken cancellationToken = default)
+    public Task<int> RunAsync(DesktopShellWindowViewModel windowViewModel, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(windowViewModel);
 
+        return RunCoreAsync(cancellationToken);
+    }
+
+    private static async Task<int> RunCoreAsync(CancellationToken cancellationToken)
+    {
         try
         {
             await Task.Delay(Timeout.Infinite, cancellationToken);

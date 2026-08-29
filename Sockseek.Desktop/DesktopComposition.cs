@@ -42,6 +42,7 @@ public static class DesktopComposition
     public static IDesktopApplicationBootstrap CreateHeadlessApplicationBootstrap(IDesktopSingleInstanceGate? singleInstanceGate = null)
         => CreateApplicationBootstrap(singleInstanceGate);
 
+
     private static IDesktopShellSession CreateShellSession(DesktopProgramOptions options)
         => new DesktopShellSession(
             supervisor: new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher()),

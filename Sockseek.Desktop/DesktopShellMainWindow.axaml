@@ -100,10 +100,17 @@
               <TextBlock Text="Daemon status" FontSize="20" FontWeight="SemiBold" />
               <TextBlock Text="{Binding BackendState}" />
               <TextBlock Text="{Binding DiagnosticsText}" TextWrapping="Wrap" FontFamily="Cascadia Mono,Consolas,Monospace" Opacity="0.8" />
-              <Button HorizontalAlignment="Left"
-                      IsEnabled="{Binding CanStartDaemon}"
-                      Content="{Binding StartDaemonLabel}"
-                      Click="HandleStartDaemonClick" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button HorizontalAlignment="Left"
+                        IsEnabled="{Binding CanStartDaemon}"
+                        Content="{Binding StartDaemonLabel}"
+                        Click="HandleStartDaemonClick" />
+                <Button HorizontalAlignment="Left"
+                        IsVisible="{Binding CanCopyDiagnostics}"
+                        IsEnabled="{Binding CanCopyDiagnostics}"
+                        Content="{Binding CopyDiagnosticsLabel}"
+                        Click="HandleCopyDiagnosticsClick" />
+              </StackPanel>
             </StackPanel>
           </Border>
         </StackPanel>
