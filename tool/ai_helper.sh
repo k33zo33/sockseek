@@ -2,21 +2,28 @@
 set -euo pipefail
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage:
-  ./tool/ai_helper.sh review [--helper gemini|claude] [--ref <git-range>]
-  ./tool/ai_helper.sh ask [--helper gemini|claude] "<question>"
+  ./tool/ai_helper.sh review [--helper antigravity|gemini|claude] [--ref <git-range>]
+  ./tool/ai_helper.sh ask [--helper antigravity|gemini|claude] "<question>"
 
 Defaults:
-  helper = gemini
+  helper = antigravity
   review = staged diff, else working tree diff, else HEAD~1..HEAD
 
 Environment overrides:
-  HELPER_DEFAULT   Default helper (gemini|claude)
-  GEMINI_MODEL     Optional Gemini model
-  CLAUDE_MODEL     Optional Claude model
-EOF
+  HELPER_DEFAULT       Default helper (antigravity|gemini|claude)
+  ANTIGRAVITY_MODEL   Optional Antigravity model, default gemini-3.7-flash-high
+  GEMINI_MODEL         Optional Gemini CLI model
+  CLAUDE_MODEL         Optional Claude model
+
+Notes:
+  antigravity uses Google Antigravity CLI: agy
+  gemini is legacy Gemini CLI and may fail for Google AI Pro individual accounts.
+USAGE
 }
+
+export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
 if [[ -z "${repo_root}" ]]; then
@@ -32,17 +39,27 @@ if [[ -z "$mode" ]]; then
 fi
 shift || true
 
-helper="${HELPER_DEFAULT:-gemini}"
+helper="${HELPER_DEFAULT:-antigravity}"
 ref_range=""
 question=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --helper)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --helper." >&2
+        usage
+        exit 1
+      fi
       helper="$2"
       shift 2
       ;;
     --ref)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --ref." >&2
+        usage
+        exit 1
+      fi
       ref_range="$2"
       shift 2
       ;;
@@ -67,12 +84,42 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$helper" in
-  gemini|claude) ;;
+  antigravity|gemini|claude) ;;
   *) echo "Unsupported helper: $helper" >&2; exit 1 ;;
 esac
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "Missing command: $1" >&2; exit 1; }
+}
+
+run_antigravity() {
+  local prompt="$1"
+  local input_file="$2"
+  local model="${ANTIGRAVITY_MODEL:-gemini-3.7-flash-high}"
+  local tmp_prompt
+  local full_prompt
+
+  tmp_prompt=$(mktemp)
+
+  {
+    echo "$prompt"
+    if [[ -n "$input_file" ]]; then
+      echo
+      echo "--- PROVIDED CONTEXT START ---"
+      # Keep prompt size bounded so huge diffs do not break CLI argument limits.
+      head -c "${AI_HELPER_MAX_CONTEXT_BYTES:-100000}" "$input_file"
+      echo
+      echo "--- PROVIDED CONTEXT END ---"
+    fi
+  } > "$tmp_prompt"
+
+  full_prompt="$(cat "$tmp_prompt")"
+  rm -f "$tmp_prompt"
+
+  agy -p "$full_prompt" \
+    --model "$model" \
+    --output-format text \
+    --disable-slash-commands
 }
 
 run_gemini() {
@@ -106,19 +153,28 @@ run_claude() {
 run_helper() {
   local prompt="$1"
   local input_file="$2"
-  if [[ "$helper" == "gemini" ]]; then
-    need_cmd gemini
-    run_gemini "$prompt" "$input_file"
-  else
-    need_cmd claude
-    run_claude "$prompt" "$input_file"
-  fi
+
+  case "$helper" in
+    antigravity)
+      need_cmd agy
+      run_antigravity "$prompt" "$input_file"
+      ;;
+    gemini)
+      need_cmd gemini
+      echo "Warning: helper 'gemini' uses legacy Gemini CLI and may fail with UNSUPPORTED_CLIENT." >&2
+      run_gemini "$prompt" "$input_file"
+      ;;
+    claude)
+      need_cmd claude
+      run_claude "$prompt" "$input_file"
+      ;;
+  esac
 }
 
 review_mode() {
-  local tmp diff_target diff_mode
+  local tmp diff_mode
   tmp=$(mktemp)
-  trap 'rm -f "$tmp"' EXIT
+  trap "rm -f '$tmp'" EXIT
 
   if [[ -n "$ref_range" ]]; then
     diff_mode="range:$ref_range"
@@ -145,15 +201,21 @@ review_mode() {
     exit 1
   fi
 
-  cat >> "$tmp" <<EOF
+  cat >> "$tmp" <<EOF2
 
 --- REPO STATUS ---
 $(git status --short --branch)
-EOF
+EOF2
 
   local prompt
-  prompt=$(cat <<EOF
+  prompt=$(cat <<EOF2
 You are performing a read-only code review for the Sockseek repository.
+
+Review ONLY the provided diff and status.
+Do not use tools.
+Do not read files.
+Do not run commands.
+Do not edit files.
 
 Focus on:
 - correctness and regressions
@@ -169,7 +231,7 @@ Use the provided diff and status only. Do not propose broad rewrites. Return:
 4. Verdict (approve / approve with follow-ups / block)
 
 Review target: $diff_mode
-EOF
+EOF2
 )
 
   run_helper "$prompt" "$tmp"
@@ -183,14 +245,19 @@ ask_mode() {
   fi
 
   local prompt
-  prompt=$(cat <<EOF
+  prompt=$(cat <<EOF2
 You are a read-only engineering helper for the Sockseek repository at $repo_root.
+
+Do not use tools.
+Do not read files.
+Do not run commands.
+Do not edit files.
 
 Answer concisely and concretely. Prefer actionable guidance over theory. Respect current repository state and avoid suggesting provider playback or other changes that conflict with the repo's AGENTS.md/product docs.
 
 Question:
 $question
-EOF
+EOF2
 )
 
   run_helper "$prompt" ""
