@@ -100,11 +100,13 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Shell.Home.Summary.Description", viewModel.HomeSummaryDescriptionResourceKey);
         Assert.AreEqual("LIVE", viewModel.HomeLiveDataBadge);
         Assert.AreEqual("Shell.Home.LiveDataBadge", viewModel.HomeLiveDataBadgeResourceKey);
-        Assert.AreEqual(4, viewModel.HomeSummaryFacts.Count);
+        Assert.AreEqual(5, viewModel.HomeSummaryFacts.Count);
         Assert.AreEqual("Backend state", viewModel.HomeSummaryFacts[0].Label);
         Assert.AreEqual("Starting", viewModel.HomeSummaryFacts[0].Value);
-        Assert.AreEqual("Secure session", viewModel.HomeSummaryFacts[1].Label);
-        Assert.AreEqual("Waiting for handshake", viewModel.HomeSummaryFacts[1].Value);
+        Assert.AreEqual("Live events", viewModel.HomeSummaryFacts[1].Label);
+        Assert.AreEqual("Disconnected", viewModel.HomeSummaryFacts[1].Value);
+        Assert.AreEqual("Secure session", viewModel.HomeSummaryFacts[2].Label);
+        Assert.AreEqual("Waiting for handshake", viewModel.HomeSummaryFacts[2].Value);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
         Assert.IsFalse(viewModel.HasCurrentHandshake);
@@ -153,9 +155,10 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Queue and transfer health", viewModel.CurrentPageHighlights[0].Title);
         Assert.IsFalse(viewModel.IsHomeSectionActive);
         Assert.AreEqual("Connected", viewModel.HomeSummaryFacts[0].Value);
-        Assert.AreEqual("Available", viewModel.HomeSummaryFacts[1].Value);
-        Assert.AreEqual("http://127.0.0.1:5030", viewModel.HomeSummaryFacts[2].Value);
-        Assert.AreEqual("No launch path configured", viewModel.HomeSummaryFacts[3].Value);
+        Assert.AreEqual("Disconnected", viewModel.HomeSummaryFacts[1].Value);
+        Assert.AreEqual("Available", viewModel.HomeSummaryFacts[2].Value);
+        Assert.AreEqual("http://127.0.0.1:5030", viewModel.HomeSummaryFacts[3].Value);
+        Assert.AreEqual("No launch path configured", viewModel.HomeSummaryFacts[4].Value);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Disconnected, viewModel.BackendState);
         Assert.AreEqual("Backend disconnected", viewModel.BackendBannerTitle);
@@ -204,9 +207,29 @@ public sealed class DesktopShellWindowViewModelTests
 
         Assert.IsTrue(session.CanStartDaemon);
         Assert.IsTrue(viewModel.CanStartDaemon);
-        Assert.AreEqual("Ready to launch from this shell", viewModel.HomeSummaryFacts[3].Value);
+        Assert.AreEqual("Ready to launch from this shell", viewModel.HomeSummaryFacts[4].Value);
         Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
         Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
+    }
+
+    [TestMethod]
+    public async Task WindowViewModel_WhenRecoveryCoordinatorEventsStateChanges_RefreshesHomeSummary()
+    {
+        var connection = new ControlledDesktopEventHubConnection();
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: _ => connection);
+        var viewModel = new DesktopShellWindowViewModel(session);
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token\"}");
+        await session.RecoveryCoordinator.WhenIdleAsync();
+
+        Assert.AreEqual("Connected", viewModel.HomeSummaryFacts[1].Value);
+
+        await connection.RaiseReconnectingAsync();
+
+        Assert.AreEqual("Reconnecting", viewModel.HomeSummaryFacts[1].Value);
     }
 
     [TestMethod]
@@ -447,6 +470,37 @@ public sealed class DesktopShellWindowViewModelTests
             CopiedText = text;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ControlledDesktopEventHubConnection : IDesktopEventHubConnection
+    {
+        public event Func<Exception?, Task>? Reconnecting;
+        public event Func<string?, Task>? Reconnected;
+        public event Func<Exception?, Task>? Closed;
+
+        public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
+            => _ = handler;
+
+        public void OnWorkflowUpdateBatch(Func<Sockseek.Api.WorkflowUpdateBatchDto, Task> handler)
+            => _ = handler;
+
+        public Task StartAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SubscribeAllAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SubscribeWorkflowAsync(Guid workflowId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public ValueTask DisposeAsync()
+            => ValueTask.CompletedTask;
+
+        public Task RaiseReconnectingAsync()
+            => Reconnecting?.Invoke(null) ?? Task.CompletedTask;
     }
 
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection

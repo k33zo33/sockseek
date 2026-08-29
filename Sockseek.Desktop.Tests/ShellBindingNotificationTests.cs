@@ -90,6 +90,25 @@ public sealed class ShellBindingNotificationTests
     }
 
     [TestMethod]
+    public async Task DesktopShellWindowViewModel_ReflectsRecoveryCoordinatorEventsStateChanges()
+    {
+        var connection = new ControlledDesktopEventHubConnection();
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: _ => connection);
+        var viewModel = new DesktopShellWindowViewModel(session);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"window-shell-token\"}");
+        await session.RecoveryCoordinator.WhenIdleAsync();
+        await connection.RaiseReconnectingAsync();
+
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HomeSummaryFacts));
+    }
+
+    [TestMethod]
     public async Task DesktopShellWindowViewModel_Dispose_StopsForwardingShellNotifications()
     {
         await using var session = new DesktopShellSession(
@@ -208,5 +227,45 @@ public sealed class ShellBindingNotificationTests
 
         public ValueTask DisposeAsync()
             => ValueTask.CompletedTask;
+    }
+
+    private sealed class ControlledDesktopEventHubConnection : IDesktopEventHubConnection
+    {
+        public event Func<Exception?, Task>? Reconnecting;
+        public event Func<string?, Task>? Reconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public event Func<Exception?, Task>? Closed
+        {
+            add { }
+            remove { }
+        }
+
+        public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
+            => _ = handler;
+
+        public void OnWorkflowUpdateBatch(Func<Sockseek.Api.WorkflowUpdateBatchDto, Task> handler)
+            => _ = handler;
+
+        public Task StartAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SubscribeAllAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SubscribeWorkflowAsync(Guid workflowId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public ValueTask DisposeAsync()
+            => ValueTask.CompletedTask;
+
+        public Task RaiseReconnectingAsync()
+            => Reconnecting?.Invoke(null) ?? Task.CompletedTask;
     }
 }

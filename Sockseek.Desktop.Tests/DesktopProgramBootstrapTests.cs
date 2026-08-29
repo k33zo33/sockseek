@@ -141,6 +141,10 @@ public sealed class DesktopProgramBootstrapTests
 
         public ShellNavigationViewModel Shell { get; } = new();
 
+        public DesktopBackendEventsConnectionState EventsState => DesktopBackendEventsConnectionState.Disconnected;
+
+        public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged;
+
         public bool StartCalled { get; private set; }
 
         public bool Disposed { get; private set; }

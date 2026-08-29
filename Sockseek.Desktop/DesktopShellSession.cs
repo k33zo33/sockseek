@@ -26,6 +26,14 @@ public sealed class DesktopShellSession : IDesktopShellSession
 
     public ShellNavigationViewModel Shell { get; }
 
+    public DesktopBackendEventsConnectionState EventsState => RecoveryCoordinator.EventsState;
+
+    public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged
+    {
+        add => RecoveryCoordinator.EventsStateChanged += value;
+        remove => RecoveryCoordinator.EventsStateChanged -= value;
+    }
+
     public bool CanStartDaemon => Supervisor.CanLaunch && workspaceRoot is not null;
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)

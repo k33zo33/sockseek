@@ -182,6 +182,10 @@ public sealed class DesktopCompositionTests
 
         public ShellNavigationViewModel Shell { get; } = new();
 
+        public DesktopBackendEventsConnectionState EventsState => DesktopBackendEventsConnectionState.Disconnected;
+
+        public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged;
+
         public bool CanStartDaemon => true;
 
         public bool StartCalled { get; private set; }

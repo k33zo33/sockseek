@@ -33,6 +33,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         UpdateHomeSummaryFacts();
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
+        Session.EventsStateChanged += HandleEventsStateChanged;
     }
 
     public IDesktopShellSession Session { get; }
@@ -269,6 +270,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         disposed = true;
         Session.Shell.PropertyChanged -= HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged -= HandleCommandPalettePropertyChanged;
+        Session.EventsStateChanged -= HandleEventsStateChanged;
     }
 
     public void OpenCommandPalette() => Shell.OpenCommandPalette();
@@ -411,6 +413,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(IsCommandPaletteOpen));
     }
 
+    private void HandleEventsStateChanged(object? sender, DesktopBackendEventsConnectionState state)
+    {
+        _ = sender;
+        _ = state;
+
+        if (disposed)
+            return;
+
+        UpdateHomeSummaryFacts();
+        OnPropertyChanged(nameof(HomeSummaryFacts));
+    }
+
     private void UpdateNavigationSelection()
     {
         foreach (var item in navigationButtons)
@@ -424,6 +438,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         =>
         [
             CreateHomeSummaryFact("Shell.Home.Summary.BackendState.Label", GetBackendStateSummary()),
+            CreateHomeSummaryFact("Shell.Home.Summary.EventsState.Label", GetEventsStateSummary()),
             CreateHomeSummaryFact("Shell.Home.Summary.Handshake.Label", HasCurrentHandshake
                 ? DesktopStringResources.Get("Shell.Home.Summary.Handshake.Available")
                 : DesktopStringResources.Get("Shell.Home.Summary.Handshake.Waiting")),
@@ -448,5 +463,15 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             BackendConnectionState.Disconnected => DesktopStringResources.Get("Shell.Home.Summary.State.Disconnected"),
             BackendConnectionState.Unauthorized => DesktopStringResources.Get("Shell.Home.Summary.State.Unauthorized"),
             _ => DesktopStringResources.Get("Shell.Home.Summary.State.Unknown"),
+        };
+
+    private string GetEventsStateSummary()
+        => Session.EventsState switch
+        {
+            DesktopBackendEventsConnectionState.Disconnected => DesktopStringResources.Get("Shell.Home.Summary.Events.Disconnected"),
+            DesktopBackendEventsConnectionState.Connecting => DesktopStringResources.Get("Shell.Home.Summary.Events.Connecting"),
+            DesktopBackendEventsConnectionState.Connected => DesktopStringResources.Get("Shell.Home.Summary.Events.Connected"),
+            DesktopBackendEventsConnectionState.Reconnecting => DesktopStringResources.Get("Shell.Home.Summary.Events.Reconnecting"),
+            _ => DesktopStringResources.Get("Shell.Home.Summary.Events.Disconnected"),
         };
 }

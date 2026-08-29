@@ -50,6 +50,10 @@ public sealed class HeadlessDesktopShellWindowLifetimeTests
     {
         public ShellNavigationViewModel Shell { get; } = new();
 
+        public DesktopBackendEventsConnectionState EventsState => DesktopBackendEventsConnectionState.Disconnected;
+
+        public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged;
+
         public bool CanStartDaemon => false;
 
         public Task<bool> StartAsync(CancellationToken cancellationToken = default)
