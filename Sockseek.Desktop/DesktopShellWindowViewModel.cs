@@ -169,6 +169,22 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public string CurrentPageIconToken => CurrentPage.IconToken;
 
+    public string CurrentPageBadgeLabel => CurrentPage.BadgeLabel;
+
+    public string CurrentPageEmptyStateTitle => CurrentPage.EmptyStateTitle;
+
+    public string CurrentPageEmptyStateTitleResourceKey => CurrentPage.EmptyStateTitleResourceKey;
+
+    public string CurrentPageEmptyStateDescription => CurrentPage.EmptyStateDescription;
+
+    public string CurrentPageEmptyStateDescriptionResourceKey => CurrentPage.EmptyStateDescriptionResourceKey;
+
+    public IReadOnlyList<ShellPageDetailItemViewModel> CurrentPageHighlights => CurrentPage.Highlights;
+
+    public string PageHighlightsHeading => DesktopStringResources.Get("Shell.Page.Highlights.Title");
+
+    public string PageHighlightsHeadingResourceKey { get; } = "Shell.Page.Highlights.Title";
+
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
 
     public BackendConnectionState BackendState => Shell.BackendState;
@@ -317,6 +333,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CurrentPageDescription));
                 OnPropertyChanged(nameof(CurrentPageDescriptionResourceKey));
                 OnPropertyChanged(nameof(CurrentPageIconToken));
+                OnPropertyChanged(nameof(CurrentPageBadgeLabel));
+                OnPropertyChanged(nameof(CurrentPageEmptyStateTitle));
+                OnPropertyChanged(nameof(CurrentPageEmptyStateTitleResourceKey));
+                OnPropertyChanged(nameof(CurrentPageEmptyStateDescription));
+                OnPropertyChanged(nameof(CurrentPageEmptyStateDescriptionResourceKey));
+                OnPropertyChanged(nameof(CurrentPageHighlights));
                 OnPropertyChanged(nameof(WindowTitle));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;

@@ -62,6 +62,12 @@ public sealed class ShellBindingNotificationTests
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageDescription));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageDescriptionResourceKey));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageIconToken));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageBadgeLabel));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateTitle));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateTitleResourceKey));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescription));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescriptionResourceKey));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageHighlights));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.WindowTitle));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentTheme));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));

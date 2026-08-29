@@ -8,7 +8,13 @@ public sealed class ShellPageViewModel
         string description,
         string titleResourceKey,
         string descriptionResourceKey,
-        string iconToken)
+        string iconToken,
+        string badgeLabel,
+        string emptyStateTitle,
+        string emptyStateDescription,
+        string emptyStateTitleResourceKey,
+        string emptyStateDescriptionResourceKey,
+        IReadOnlyList<ShellPageDetailItemViewModel> highlights)
     {
         Section = section;
         Title = title;
@@ -16,6 +22,12 @@ public sealed class ShellPageViewModel
         TitleResourceKey = titleResourceKey;
         DescriptionResourceKey = descriptionResourceKey;
         IconToken = iconToken;
+        BadgeLabel = badgeLabel;
+        EmptyStateTitle = emptyStateTitle;
+        EmptyStateDescription = emptyStateDescription;
+        EmptyStateTitleResourceKey = emptyStateTitleResourceKey;
+        EmptyStateDescriptionResourceKey = emptyStateDescriptionResourceKey;
+        Highlights = highlights ?? throw new ArgumentNullException(nameof(highlights));
     }
 
     public ShellSection Section { get; }
@@ -29,6 +41,18 @@ public sealed class ShellPageViewModel
     public string DescriptionResourceKey { get; }
 
     public string IconToken { get; }
+
+    public string BadgeLabel { get; }
+
+    public string EmptyStateTitle { get; }
+
+    public string EmptyStateDescription { get; }
+
+    public string EmptyStateTitleResourceKey { get; }
+
+    public string EmptyStateDescriptionResourceKey { get; }
+
+    public IReadOnlyList<ShellPageDetailItemViewModel> Highlights { get; }
 
     public string SurfaceToken { get; } = DesktopDesignTokens.Surface.Page;
 

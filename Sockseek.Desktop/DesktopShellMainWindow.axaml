@@ -7,12 +7,12 @@
         MinWidth="960"
         MinHeight="640"
         Title="{Binding WindowTitle}">
-  <DockPanel Background="#11151C" LastChildFill="True">
+  <DockPanel Background="{DynamicResource ShellBackgroundBrush}" LastChildFill="True">
     <Border DockPanel.Dock="Top"
             IsVisible="{Binding IsBackendBannerVisible}"
-            Background="#1D2633"
+            Background="{DynamicResource ShellBannerHostBrush}"
             Padding="16"
-            BorderBrush="#2C3B52"
+            BorderBrush="{DynamicResource ShellBorderBrush}"
             BorderThickness="0,0,0,1">
       <StackPanel Spacing="4">
         <TextBlock Text="{Binding BackendBannerTitle}" FontSize="18" FontWeight="SemiBold" />
@@ -22,9 +22,9 @@
 
     <Border DockPanel.Dock="Top"
             IsVisible="{Binding IsCommandPaletteOpen}"
-            Background="#151B25"
+            Background="{DynamicResource ShellCommandPaletteBrush}"
             Padding="16"
-            BorderBrush="#2C3B52"
+            BorderBrush="{DynamicResource ShellBorderBrush}"
             BorderThickness="0,0,0,1">
       <StackPanel Spacing="12">
         <DockPanel>
@@ -49,12 +49,12 @@
     </Border>
 
     <Border DockPanel.Dock="Bottom"
-            Background="#151B25"
+            Background="{DynamicResource ShellPlayerBarBrush}"
             Padding="16"
-            BorderBrush="#2C3B52"
+            BorderBrush="{DynamicResource ShellBorderBrush}"
             BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
-        <Border Grid.Column="0" Width="56" Height="56" CornerRadius="10" Background="#253246">
+        <Border Grid.Column="0" Width="56" Height="56" CornerRadius="10" Background="{DynamicResource ShellBadgeBrush}">
           <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="♪" FontSize="24" />
         </Border>
 
@@ -106,7 +106,7 @@
     </Border>
 
     <Grid ColumnDefinitions="260,*">
-      <Border Grid.Column="0" Background="#161D28" BorderBrush="#2C3B52" BorderThickness="0,0,1,0">
+      <Border Grid.Column="0" Background="{DynamicResource ShellSidebarBrush}" BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,1,0">
         <ScrollViewer>
           <StackPanel Margin="16" Spacing="16">
             <StackPanel Spacing="4">
@@ -141,12 +141,57 @@
 
       <ScrollViewer Grid.Column="1">
         <StackPanel Margin="24" Spacing="20">
-          <StackPanel Spacing="8">
-            <TextBlock Text="{Binding CurrentPageTitle}" FontSize="32" FontWeight="Bold" />
-            <TextBlock Text="{Binding CurrentPageDescription}" TextWrapping="Wrap" FontSize="16" Opacity="0.85" />
-          </StackPanel>
+          <Border Background="{DynamicResource ShellCardBrush}" CornerRadius="18" Padding="24">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
+              <Border Grid.Column="0"
+                      Width="72"
+                      Height="72"
+                      CornerRadius="18"
+                      Background="{DynamicResource ShellBadgeBrush}"
+                      VerticalAlignment="Top">
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Text="{Binding CurrentPageBadgeLabel}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                            FontSize="14"
+                           FontWeight="SemiBold"
+                           Opacity="0.72"
+                           Margin="10" />
+              </Border>
 
-          <Border Background="#182130" CornerRadius="14" Padding="20">
+              <StackPanel Grid.Column="1" Spacing="8">
+                <TextBlock Text="{Binding CurrentPageTitle}" FontSize="32" FontWeight="Bold" />
+                <TextBlock Text="{Binding CurrentPageDescription}" TextWrapping="Wrap" FontSize="16" Opacity="0.85" />
+                <Border Background="{DynamicResource ShellCardAltBrush}" CornerRadius="12" Padding="14" Margin="0,8,0,0">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding CurrentPageEmptyStateTitle}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding CurrentPageEmptyStateDescription}" TextWrapping="Wrap" Opacity="0.82" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}" CornerRadius="14" Padding="20">
+            <StackPanel Spacing="14">
+              <TextBlock Text="{Binding PageHighlightsHeading}" FontSize="20" FontWeight="SemiBold" />
+              <ItemsControl ItemsSource="{Binding CurrentPageHighlights}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:ShellPageDetailItemViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" CornerRadius="12" Padding="16" Margin="0,0,0,10">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.8" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}" CornerRadius="14" Padding="20">
             <StackPanel Spacing="10">
               <TextBlock Text="Daemon status" FontSize="20" FontWeight="SemiBold" />
               <TextBlock Text="{Binding BackendState}" />

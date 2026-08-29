@@ -25,13 +25,13 @@ public sealed class ShellNavigationViewModel : ObservableObject
     private static readonly IReadOnlyDictionary<ShellSection, ShellPageViewModel> Pages =
         new Dictionary<ShellSection, ShellPageViewModel>
         {
-            [ShellSection.Home] = CreatePage(ShellSection.Home, "Shell.Home.Title", "Shell.Home.Description", DesktopDesignTokens.Icon.Home),
-            [ShellSection.Search] = CreatePage(ShellSection.Search, "Shell.Search.Title", "Shell.Search.Description", DesktopDesignTokens.Icon.Search),
-            [ShellSection.Playlists] = CreatePage(ShellSection.Playlists, "Shell.Playlists.Title", "Shell.Playlists.Description", DesktopDesignTokens.Icon.Playlists),
-            [ShellSection.Library] = CreatePage(ShellSection.Library, "Shell.Library.Title", "Shell.Library.Description", DesktopDesignTokens.Icon.Library),
-            [ShellSection.Downloads] = CreatePage(ShellSection.Downloads, "Shell.Downloads.Title", "Shell.Downloads.Description", DesktopDesignTokens.Icon.Downloads),
-            [ShellSection.Accounts] = CreatePage(ShellSection.Accounts, "Shell.Accounts.Title", "Shell.Accounts.Description", DesktopDesignTokens.Icon.Accounts),
-            [ShellSection.Settings] = CreatePage(ShellSection.Settings, "Shell.Settings.Title", "Shell.Settings.Description", DesktopDesignTokens.Icon.Settings),
+            [ShellSection.Home] = CreatePage(ShellSection.Home, "Shell.Home", DesktopDesignTokens.Icon.Home),
+            [ShellSection.Search] = CreatePage(ShellSection.Search, "Shell.Search", DesktopDesignTokens.Icon.Search),
+            [ShellSection.Playlists] = CreatePage(ShellSection.Playlists, "Shell.Playlists", DesktopDesignTokens.Icon.Playlists),
+            [ShellSection.Library] = CreatePage(ShellSection.Library, "Shell.Library", DesktopDesignTokens.Icon.Library),
+            [ShellSection.Downloads] = CreatePage(ShellSection.Downloads, "Shell.Downloads", DesktopDesignTokens.Icon.Downloads),
+            [ShellSection.Accounts] = CreatePage(ShellSection.Accounts, "Shell.Accounts", DesktopDesignTokens.Icon.Accounts),
+            [ShellSection.Settings] = CreatePage(ShellSection.Settings, "Shell.Settings", DesktopDesignTokens.Icon.Settings),
         };
 
     private static readonly IReadOnlyList<CommandPaletteItemViewModel> CommandPaletteItems =
@@ -199,16 +199,49 @@ public sealed class ShellNavigationViewModel : ObservableObject
 
     private static ShellPageViewModel CreatePage(
         ShellSection section,
-        string titleResourceKey,
-        string descriptionResourceKey,
+        string resourcePrefix,
         string iconToken)
         => new(
             section,
-            DesktopStringResources.Get(titleResourceKey),
-            DesktopStringResources.Get(descriptionResourceKey),
-            titleResourceKey,
-            descriptionResourceKey,
-            iconToken);
+            DesktopStringResources.Get($"{resourcePrefix}.Title"),
+            DesktopStringResources.Get($"{resourcePrefix}.Description"),
+            $"{resourcePrefix}.Title",
+            $"{resourcePrefix}.Description",
+            iconToken,
+            GetBadgeLabel(section),
+            DesktopStringResources.Get($"{resourcePrefix}.EmptyState.Title"),
+            DesktopStringResources.Get($"{resourcePrefix}.EmptyState.Description"),
+            $"{resourcePrefix}.EmptyState.Title",
+            $"{resourcePrefix}.EmptyState.Description",
+            CreateHighlights(resourcePrefix));
+
+    private static IReadOnlyList<ShellPageDetailItemViewModel> CreateHighlights(string resourcePrefix)
+        =>
+        [
+            CreateDetailItem(resourcePrefix, 1),
+            CreateDetailItem(resourcePrefix, 2),
+            CreateDetailItem(resourcePrefix, 3),
+        ];
+
+    private static ShellPageDetailItemViewModel CreateDetailItem(string resourcePrefix, int index)
+        => new(
+            DesktopStringResources.Get($"{resourcePrefix}.Highlight{index}.Title"),
+            DesktopStringResources.Get($"{resourcePrefix}.Highlight{index}.Description"),
+            $"{resourcePrefix}.Highlight{index}.Title",
+            $"{resourcePrefix}.Highlight{index}.Description");
+
+    private static string GetBadgeLabel(ShellSection section)
+        => section switch
+        {
+            ShellSection.Home => "HM",
+            ShellSection.Search => "SR",
+            ShellSection.Playlists => "PL",
+            ShellSection.Library => "LB",
+            ShellSection.Downloads => "DL",
+            ShellSection.Accounts => "AC",
+            ShellSection.Settings => "ST",
+            _ => section.ToString()[..Math.Min(2, section.ToString().Length)].ToUpperInvariant(),
+        };
 
     private static CommandPaletteItemViewModel CreateCommandPaletteItem(
         string id,

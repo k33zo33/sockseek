@@ -2,6 +2,34 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:fluent="clr-namespace:Avalonia.Themes.Fluent;assembly=Avalonia.Themes.Fluent"
              x:Class="Sockseek.Desktop.App">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="ShellBackgroundBrush">#F3F6FA</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellSidebarBrush">#E6EDF6</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellCardBrush">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellCardAltBrush">#EEF3F9</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellBorderBrush">#C7D4E4</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellBadgeBrush">#D7E3F1</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellBannerHostBrush">#EAF1F8</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellCommandPaletteBrush">#F1F5FA</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellPlayerBarBrush">#F1F5FA</SolidColorBrush>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="ShellBackgroundBrush">#11151C</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellSidebarBrush">#161D28</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellCardBrush">#182130</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellCardAltBrush">#223044</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellBorderBrush">#2C3B52</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellBadgeBrush">#253246</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellBannerHostBrush">#1D2633</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellCommandPaletteBrush">#151B25</SolidColorBrush>
+          <SolidColorBrush x:Key="ShellPlayerBarBrush">#151B25</SolidColorBrush>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
   <Application.Styles>
     <fluent:FluentTheme />
   </Application.Styles>

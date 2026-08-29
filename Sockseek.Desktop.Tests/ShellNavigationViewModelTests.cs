@@ -15,6 +15,11 @@ public class ShellNavigationViewModelTests
         Assert.AreEqual("Home", viewModel.CurrentPage.Title);
         Assert.AreEqual("Shell.Home.Title", viewModel.CurrentPage.TitleResourceKey);
         Assert.AreEqual(DesktopDesignTokens.Icon.Home, viewModel.CurrentPage.IconToken);
+        Assert.AreEqual("HM", viewModel.CurrentPage.BadgeLabel);
+        Assert.AreEqual("Daemon, library, and account readiness will anchor this home view.", viewModel.CurrentPage.EmptyStateTitle);
+        Assert.AreEqual("Shell.Home.EmptyState.Title", viewModel.CurrentPage.EmptyStateTitleResourceKey);
+        Assert.AreEqual(3, viewModel.CurrentPage.Highlights.Count);
+        Assert.AreEqual("Daemon health and handshake", viewModel.CurrentPage.Highlights[0].Title);
         Assert.AreEqual(DesktopDesignTokens.Surface.Page, viewModel.CurrentPage.SurfaceToken);
         Assert.AreEqual(DesktopThemePreference.System, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
@@ -171,14 +176,14 @@ public class ShellNavigationViewModelTests
     }
 
     [DataTestMethod]
-    [DataRow(ShellSection.Home, "Backend status, recent activity, and onboarding live here.")]
-    [DataRow(ShellSection.Search, "Track and album search UI will appear here.")]
-    [DataRow(ShellSection.Playlists, "Imported playlists and resolution progress will appear here.")]
-    [DataRow(ShellSection.Library, "Local library browsing and scans will appear here.")]
-    [DataRow(ShellSection.Downloads, "Active and completed download workflows will appear here.")]
-    [DataRow(ShellSection.Accounts, "Provider connections and authorization status will appear here.")]
-    [DataRow(ShellSection.Settings, "Theme, daemon, and library preferences will appear here.")]
-    public void NavigateTo_AllPrimarySections_ExposesExpectedPlaceholderPage(ShellSection section, string expectedDescription)
+    [DataRow(ShellSection.Home, "Backend status, recent activity, and onboarding live here.", "Daemon, library, and account readiness will anchor this home view.", "Daemon health and handshake")]
+    [DataRow(ShellSection.Search, "Track and album search UI will appear here.", "No search session is active yet.", "Search composer")]
+    [DataRow(ShellSection.Playlists, "Imported playlists and resolution progress will appear here.", "Imported playlists have not been staged yet.", "Import and sync overview")]
+    [DataRow(ShellSection.Library, "Local library browsing and scans will appear here.", "Library roots still need indexing.", "Roots and scan status")]
+    [DataRow(ShellSection.Downloads, "Active and completed download workflows will appear here.", "No download workflows are running right now.", "Queue and transfer health")]
+    [DataRow(ShellSection.Accounts, "Provider connections and authorization status will appear here.", "No provider or Soulseek account is connected yet.", "Connection cards")]
+    [DataRow(ShellSection.Settings, "Theme, daemon, and library preferences will appear here.", "Desktop preferences are not configurable here yet.", "Appearance and shortcuts")]
+    public void NavigateTo_AllPrimarySections_ExposesExpectedPlaceholderPage(ShellSection section, string expectedDescription, string expectedEmptyStateTitle, string expectedFirstHighlightTitle)
     {
         var viewModel = new ShellNavigationViewModel();
 
@@ -186,6 +191,10 @@ public class ShellNavigationViewModelTests
 
         Assert.AreEqual(section, viewModel.CurrentPage.Section);
         Assert.AreEqual(expectedDescription, viewModel.CurrentPage.Description);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(viewModel.CurrentPage.BadgeLabel));
+        Assert.AreEqual(expectedEmptyStateTitle, viewModel.CurrentPage.EmptyStateTitle);
+        Assert.AreEqual(expectedFirstHighlightTitle, viewModel.CurrentPage.Highlights[0].Title);
+        Assert.AreEqual(3, viewModel.CurrentPage.Highlights.Count);
         Assert.AreEqual(GetExpectedIconToken(section), viewModel.CurrentPage.IconToken);
         var navigationItem = viewModel.Items.Single(item => item.Section == section);
         Assert.AreEqual(GetExpectedTitleResourceKey(section), navigationItem.DisplayNameResourceKey);

@@ -84,6 +84,15 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Backend status, recent activity, and onboarding live here.", viewModel.CurrentPageDescription);
         Assert.AreEqual("Shell.Home.Description", viewModel.CurrentPageDescriptionResourceKey);
         Assert.AreEqual(DesktopDesignTokens.Icon.Home, viewModel.CurrentPageIconToken);
+        Assert.AreEqual("HM", viewModel.CurrentPageBadgeLabel);
+        Assert.AreEqual("Daemon, library, and account readiness will anchor this home view.", viewModel.CurrentPageEmptyStateTitle);
+        Assert.AreEqual("Shell.Home.EmptyState.Title", viewModel.CurrentPageEmptyStateTitleResourceKey);
+        Assert.AreEqual("Use this page to confirm the local backend is healthy, see recent workflows, and pick up any unfinished setup before deeper navigation.", viewModel.CurrentPageEmptyStateDescription);
+        Assert.AreEqual("Shell.Home.EmptyState.Description", viewModel.CurrentPageEmptyStateDescriptionResourceKey);
+        Assert.AreEqual(3, viewModel.CurrentPageHighlights.Count);
+        Assert.AreEqual("Daemon health and handshake", viewModel.CurrentPageHighlights[0].Title);
+        Assert.AreEqual("What This Section Will Do", viewModel.PageHighlightsHeading);
+        Assert.AreEqual("Shell.Page.Highlights.Title", viewModel.PageHighlightsHeadingResourceKey);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
         Assert.IsFalse(viewModel.HasCurrentHandshake);
@@ -124,6 +133,12 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Active and completed download workflows will appear here.", viewModel.CurrentPageDescription);
         Assert.AreEqual("Shell.Downloads.Description", viewModel.CurrentPageDescriptionResourceKey);
         Assert.AreEqual(DesktopDesignTokens.Icon.Downloads, viewModel.CurrentPageIconToken);
+        Assert.AreEqual("DL", viewModel.CurrentPageBadgeLabel);
+        Assert.AreEqual("No download workflows are running right now.", viewModel.CurrentPageEmptyStateTitle);
+        Assert.AreEqual("Shell.Downloads.EmptyState.Title", viewModel.CurrentPageEmptyStateTitleResourceKey);
+        Assert.AreEqual("Queued, active, failed, and completed transfers will eventually share one recovery-friendly timeline in this section.", viewModel.CurrentPageEmptyStateDescription);
+        Assert.AreEqual("Shell.Downloads.EmptyState.Description", viewModel.CurrentPageEmptyStateDescriptionResourceKey);
+        Assert.AreEqual("Queue and transfer health", viewModel.CurrentPageHighlights[0].Title);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Disconnected, viewModel.BackendState);
         Assert.AreEqual("Backend disconnected", viewModel.BackendBannerTitle);
