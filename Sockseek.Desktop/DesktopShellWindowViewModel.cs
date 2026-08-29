@@ -6,6 +6,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 {
     private readonly IReadOnlyList<DesktopShellNavigationItemViewModel> navigationButtons;
     private readonly IReadOnlyList<DesktopShellCommandPaletteItemViewModel> commandPaletteButtons;
+    private IReadOnlyList<HomeSummaryFactViewModel> homeSummaryFacts = [];
     private bool isStartingDaemon;
     private bool disposed;
 
@@ -29,6 +30,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         SetLightThemeCommand = new DesktopCommand(() => SetTheme(DesktopThemePreference.Light));
         SetDarkThemeCommand = new DesktopCommand(() => SetTheme(DesktopThemePreference.Dark));
         StartDaemonCommand = new DesktopAsyncCommand(() => TryStartDaemonAsync());
+        UpdateHomeSummaryFacts();
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
     }
@@ -185,6 +187,22 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public string PageHighlightsHeadingResourceKey { get; } = "Shell.Page.Highlights.Title";
 
+    public bool IsHomeSectionActive => CurrentSection == ShellSection.Home;
+
+    public string HomeSummaryTitle => DesktopStringResources.Get("Shell.Home.Summary.Title");
+
+    public string HomeSummaryTitleResourceKey { get; } = "Shell.Home.Summary.Title";
+
+    public string HomeSummaryDescription => DesktopStringResources.Get("Shell.Home.Summary.Description");
+
+    public string HomeSummaryDescriptionResourceKey { get; } = "Shell.Home.Summary.Description";
+
+    public string HomeLiveDataBadge => DesktopStringResources.Get("Shell.Home.LiveDataBadge");
+
+    public string HomeLiveDataBadgeResourceKey { get; } = "Shell.Home.LiveDataBadge";
+
+    public IReadOnlyList<HomeSummaryFactViewModel> HomeSummaryFacts => homeSummaryFacts;
+
     public DesktopThemePreference CurrentTheme => Session.Shell.CurrentTheme;
 
     public BackendConnectionState BackendState => Shell.BackendState;
@@ -339,6 +357,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CurrentPageEmptyStateDescription));
                 OnPropertyChanged(nameof(CurrentPageEmptyStateDescriptionResourceKey));
                 OnPropertyChanged(nameof(CurrentPageHighlights));
+                OnPropertyChanged(nameof(IsHomeSectionActive));
                 OnPropertyChanged(nameof(WindowTitle));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -347,6 +366,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.StatusBanner):
+                UpdateHomeSummaryFacts();
                 OnPropertyChanged(nameof(StatusBanner));
                 OnPropertyChanged(nameof(BackendBannerTitle));
                 OnPropertyChanged(nameof(BackendBannerTitleResourceKey));
@@ -362,16 +382,21 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CopyDiagnosticsLabelResourceKey));
                 OnPropertyChanged(nameof(CopyDiagnosticsHint));
                 OnPropertyChanged(nameof(CopyDiagnosticsHintResourceKey));
+                OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.BackendState):
+                UpdateHomeSummaryFacts();
                 OnPropertyChanged(nameof(BackendState));
                 OnPropertyChanged(nameof(CanStartDaemon));
+                OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
+                UpdateHomeSummaryFacts();
                 OnPropertyChanged(nameof(CurrentHandshake));
                 OnPropertyChanged(nameof(HasCurrentHandshake));
+                OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
         }
@@ -391,4 +416,37 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         foreach (var item in navigationButtons)
             item.IsCurrent = item.Item.Section == CurrentSection;
     }
+
+    private void UpdateHomeSummaryFacts()
+        => homeSummaryFacts = CreateHomeSummaryFacts();
+
+    private IReadOnlyList<HomeSummaryFactViewModel> CreateHomeSummaryFacts()
+        =>
+        [
+            CreateHomeSummaryFact("Shell.Home.Summary.BackendState.Label", GetBackendStateSummary()),
+            CreateHomeSummaryFact("Shell.Home.Summary.Handshake.Label", HasCurrentHandshake
+                ? DesktopStringResources.Get("Shell.Home.Summary.Handshake.Available")
+                : DesktopStringResources.Get("Shell.Home.Summary.Handshake.Waiting")),
+            CreateHomeSummaryFact("Shell.Home.Summary.BackendUrl.Label", CurrentHandshake?.BaseUrl ?? DesktopStringResources.Get("Shell.Home.Summary.BackendUrl.Unavailable")),
+            CreateHomeSummaryFact("Shell.Home.Summary.StartCapability.Label", CanStartDaemon
+                ? DesktopStringResources.Get("Shell.Home.Summary.StartCapability.Ready")
+                : DesktopStringResources.Get("Shell.Home.Summary.StartCapability.Unavailable")),
+        ];
+
+    private static HomeSummaryFactViewModel CreateHomeSummaryFact(string labelResourceKey, string value)
+        => new(
+            DesktopStringResources.Get(labelResourceKey),
+            value,
+            labelResourceKey);
+
+    private string GetBackendStateSummary()
+        => BackendState switch
+        {
+            BackendConnectionState.Starting => DesktopStringResources.Get("Shell.Home.Summary.State.Starting"),
+            BackendConnectionState.Connected => DesktopStringResources.Get("Shell.Home.Summary.State.Connected"),
+            BackendConnectionState.Restarting => DesktopStringResources.Get("Shell.Home.Summary.State.Restarting"),
+            BackendConnectionState.Disconnected => DesktopStringResources.Get("Shell.Home.Summary.State.Disconnected"),
+            BackendConnectionState.Unauthorized => DesktopStringResources.Get("Shell.Home.Summary.State.Unauthorized"),
+            _ => DesktopStringResources.Get("Shell.Home.Summary.State.Unknown"),
+        };
 }

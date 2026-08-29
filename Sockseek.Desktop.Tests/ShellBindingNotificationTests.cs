@@ -68,6 +68,7 @@ public sealed class ShellBindingNotificationTests
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescription));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescriptionResourceKey));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageHighlights));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsHomeSectionActive));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.WindowTitle));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentTheme));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));
@@ -85,6 +86,7 @@ public sealed class ShellBindingNotificationTests
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentHandshake));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HasCurrentHandshake));
         CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CanStartDaemon));
+        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HomeSummaryFacts));
     }
 
     [TestMethod]

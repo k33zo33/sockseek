@@ -191,6 +191,44 @@
             </StackPanel>
           </Border>
 
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
+                  IsVisible="{Binding IsHomeSectionActive}">
+            <StackPanel Spacing="14">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding HomeSummaryTitle}"
+                           FontSize="20"
+                           FontWeight="SemiBold" />
+                <Border DockPanel.Dock="Right"
+                        Background="{DynamicResource ShellBadgeBrush}"
+                        CornerRadius="999"
+                        Padding="10,4">
+                  <TextBlock Text="{Binding HomeLiveDataBadge}" FontSize="12" FontWeight="Bold" />
+                </Border>
+              </DockPanel>
+              <TextBlock Text="{Binding HomeSummaryDescription}" TextWrapping="Wrap" Opacity="0.8" />
+              <ItemsControl ItemsSource="{Binding HomeSummaryFacts}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:HomeSummaryFactViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" CornerRadius="12" Padding="16" Margin="0,0,10,10">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="SemiBold" Opacity="0.75" />
+                        <TextBlock Text="{Binding Value}" TextWrapping="Wrap" FontSize="16" FontWeight="SemiBold" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
           <Border Background="{DynamicResource ShellCardBrush}" CornerRadius="14" Padding="20">
             <StackPanel Spacing="10">
               <TextBlock Text="Daemon status" FontSize="20" FontWeight="SemiBold" />

@@ -93,6 +93,18 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Daemon health and handshake", viewModel.CurrentPageHighlights[0].Title);
         Assert.AreEqual("What This Section Will Do", viewModel.PageHighlightsHeading);
         Assert.AreEqual("Shell.Page.Highlights.Title", viewModel.PageHighlightsHeadingResourceKey);
+        Assert.IsTrue(viewModel.IsHomeSectionActive);
+        Assert.AreEqual("Live shell summary", viewModel.HomeSummaryTitle);
+        Assert.AreEqual("Shell.Home.Summary.Title", viewModel.HomeSummaryTitleResourceKey);
+        Assert.AreEqual("This card already reflects the desktop shell's real daemon/session state while the rest of Home stays placeholder-only.", viewModel.HomeSummaryDescription);
+        Assert.AreEqual("Shell.Home.Summary.Description", viewModel.HomeSummaryDescriptionResourceKey);
+        Assert.AreEqual("LIVE", viewModel.HomeLiveDataBadge);
+        Assert.AreEqual("Shell.Home.LiveDataBadge", viewModel.HomeLiveDataBadgeResourceKey);
+        Assert.AreEqual(4, viewModel.HomeSummaryFacts.Count);
+        Assert.AreEqual("Backend state", viewModel.HomeSummaryFacts[0].Label);
+        Assert.AreEqual("Starting", viewModel.HomeSummaryFacts[0].Value);
+        Assert.AreEqual("Secure session", viewModel.HomeSummaryFacts[1].Label);
+        Assert.AreEqual("Waiting for handshake", viewModel.HomeSummaryFacts[1].Value);
         Assert.AreEqual(BackendConnectionState.Starting, viewModel.BackendState);
         Assert.IsNull(viewModel.CurrentHandshake);
         Assert.IsFalse(viewModel.HasCurrentHandshake);
@@ -139,6 +151,11 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Queued, active, failed, and completed transfers will eventually share one recovery-friendly timeline in this section.", viewModel.CurrentPageEmptyStateDescription);
         Assert.AreEqual("Shell.Downloads.EmptyState.Description", viewModel.CurrentPageEmptyStateDescriptionResourceKey);
         Assert.AreEqual("Queue and transfer health", viewModel.CurrentPageHighlights[0].Title);
+        Assert.IsFalse(viewModel.IsHomeSectionActive);
+        Assert.AreEqual("Connected", viewModel.HomeSummaryFacts[0].Value);
+        Assert.AreEqual("Available", viewModel.HomeSummaryFacts[1].Value);
+        Assert.AreEqual("http://127.0.0.1:5030", viewModel.HomeSummaryFacts[2].Value);
+        Assert.AreEqual("No launch path configured", viewModel.HomeSummaryFacts[3].Value);
         Assert.AreEqual(DesktopThemePreference.Dark, viewModel.CurrentTheme);
         Assert.AreEqual(BackendConnectionState.Disconnected, viewModel.BackendState);
         Assert.AreEqual("Backend disconnected", viewModel.BackendBannerTitle);
@@ -187,6 +204,7 @@ public sealed class DesktopShellWindowViewModelTests
 
         Assert.IsTrue(session.CanStartDaemon);
         Assert.IsTrue(viewModel.CanStartDaemon);
+        Assert.AreEqual("Ready to launch from this shell", viewModel.HomeSummaryFacts[3].Value);
         Assert.AreEqual("Start local daemon", viewModel.StartDaemonLabel);
         Assert.AreEqual("Try starting the local daemon again", viewModel.StartDaemonHint);
     }
