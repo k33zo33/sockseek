@@ -112,6 +112,72 @@ public class LocalLibraryQueryStoreTests
             store.SearchAsync(new LocalLibrarySearchRequest(Limit: 501)));
     }
 
+    [TestMethod]
+    public async Task GetDuplicateGroupsAsync_ReturnsTracksWithMultipleAvailableFiles()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            var store = new CanonicalTrackStore(context);
+            await store.UpsertAsync(new CanonicalTrackRecord(
+                "Artist",
+                "Duplicate Song",
+                180000,
+                null,
+                null,
+                [],
+                [
+                    CreateFile("C:/Music/Artist/Duplicate Song.mp3", LocalMediaAvailability.Available, bitrate: 320),
+                    CreateFile("C:/Music/Artist/Duplicate Song.flac", LocalMediaAvailability.Available, bitrate: 900),
+                ]));
+            await store.UpsertAsync(CreateTrack("Artist", "Single Song", LocalMediaAvailability.Available, "C:/Music/single.mp3"));
+        }
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            var groups = await new LocalLibraryQueryStore(context).GetDuplicateGroupsAsync();
+
+            Assert.AreEqual(1, groups.Count);
+            Assert.AreEqual("Duplicate Song", groups[0].Title);
+            Assert.AreEqual(2, groups[0].FileCount);
+            CollectionAssert.AreEqual(
+                new[] { "C:/Music/Artist/Duplicate Song.flac", "C:/Music/Artist/Duplicate Song.mp3" },
+                groups[0].Files.Select(file => file.Path).ToArray());
+        }
+    }
+
+    [TestMethod]
+    public async Task GetDuplicateGroupsAsync_IncludeMissingControlsMissingFiles()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            await new CanonicalTrackStore(context).UpsertAsync(new CanonicalTrackRecord(
+                "Artist",
+                "Half Missing",
+                180000,
+                null,
+                null,
+                [],
+                [
+                    CreateFile("C:/Music/Artist/Half Missing.mp3", LocalMediaAvailability.Available, bitrate: 320),
+                    CreateFile("C:/Music/Artist/Half Missing.old.mp3", LocalMediaAvailability.Missing, bitrate: 320),
+                ]));
+        }
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            var store = new LocalLibraryQueryStore(context);
+
+            Assert.AreEqual(0, (await store.GetDuplicateGroupsAsync(includeMissing: false)).Count);
+            var withMissing = await store.GetDuplicateGroupsAsync(includeMissing: true);
+            Assert.AreEqual(1, withMissing.Count);
+            Assert.AreEqual(2, withMissing[0].FileCount);
+        }
+    }
+
     private static CanonicalTrackRecord CreateTrack(
         string artist,
         string title,
@@ -134,6 +200,21 @@ public class LocalLibraryQueryStoreTests
                 44100,
                 16,
                 availability)]);
+
+    private static LocalMediaFileRecord CreateFile(
+        string path,
+        LocalMediaAvailability availability,
+        int bitrate)
+        => new(
+            path,
+            1234,
+            new DateTimeOffset(2026, 9, 17, 20, 1, 0, TimeSpan.Zero),
+            180000,
+            Path.GetExtension(path).TrimStart('.'),
+            bitrate,
+            44100,
+            16,
+            availability);
 
     private static string NormalizeForMatch(string value)
     {

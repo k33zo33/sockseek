@@ -47,6 +47,27 @@ public sealed class LocalLibraryQueryStore(SockseekDbContext dbContext)
         return new LocalLibrarySearchResult(totalCount, tracks.Select(ToRecord).ToList());
     }
 
+    public async Task<IReadOnlyList<LocalLibraryDuplicateGroupRecord>> GetDuplicateGroupsAsync(
+        int limit = 100,
+        bool includeMissing = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 500)
+            throw new ArgumentOutOfRangeException(nameof(limit), "Limit must be between 1 and 500.");
+
+        var tracks = await dbContext.CanonicalTracks
+            .AsNoTracking()
+            .Where(track => track.LocalMediaFiles.Count(file =>
+                includeMissing || file.Availability == (int)LocalMediaAvailability.Available) > 1)
+            .OrderBy(track => track.NormalizedArtist)
+            .ThenBy(track => track.NormalizedTitle)
+            .Take(limit)
+            .Include(track => track.LocalMediaFiles)
+            .ToListAsync(cancellationToken);
+
+        return tracks.Select(track => ToDuplicateGroup(track, includeMissing)).ToList();
+    }
+
     private static LocalLibraryTrackRecord ToRecord(CanonicalTrackEntity track)
     {
         var availableFiles = track.LocalMediaFiles
@@ -73,6 +94,32 @@ public sealed class LocalLibraryQueryStore(SockseekDbContext dbContext)
             best?.Bitrate,
             best?.SampleRate,
             best?.BitDepth);
+    }
+
+    private static LocalLibraryDuplicateGroupRecord ToDuplicateGroup(CanonicalTrackEntity track, bool includeMissing)
+    {
+        var files = track.LocalMediaFiles
+            .Where(file => includeMissing || file.Availability == (int)LocalMediaAvailability.Available)
+            .OrderByDescending(file => file.Bitrate ?? 0)
+            .ThenBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(file => new LocalLibraryDuplicateFileRecord(
+                file.Path,
+                file.Size,
+                file.DurationMs,
+                file.Codec,
+                file.Bitrate,
+                file.SampleRate,
+                file.BitDepth,
+                (LocalMediaAvailability)file.Availability))
+            .ToList();
+
+        return new LocalLibraryDuplicateGroupRecord(
+            track.Id,
+            track.Artist,
+            track.Title,
+            track.DurationMs,
+            files.Count,
+            files);
     }
 
     private static string NormalizeForSearch(string? value)
