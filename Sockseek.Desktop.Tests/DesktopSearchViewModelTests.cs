@@ -134,6 +134,21 @@ public sealed class DesktopSearchViewModelTests
         StringAssert.Contains(handler.RequestBody, "folder/song.flac");
     }
 
+    [TestMethod]
+    public async Task JobActions_DelegateCancelAndNextCandidateToDaemon()
+    {
+        var handler = new RecordingHandler(_ => new JobSummaryDto());
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient));
+        var jobId = Guid.NewGuid();
+
+        Assert.IsTrue(await viewModel.CancelJobAsync(jobId));
+        Assert.AreEqual("api/jobs/" + jobId + "/cancel", handler.RequestUri);
+
+        Assert.IsTrue(await viewModel.TryNextCandidateAsync(jobId));
+        Assert.AreEqual("api/jobs/" + jobId + "/next-candidate", handler.RequestUri);
+    }
+
     private sealed class RecordingHandler(Func<HttpRequestMessage, object> responseFactory) : HttpMessageHandler
     {
         public string? RequestUri { get; private set; }

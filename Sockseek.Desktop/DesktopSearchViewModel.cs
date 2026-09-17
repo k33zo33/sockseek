@@ -237,6 +237,16 @@ public sealed class DesktopSearchViewModel : ObservableObject
         }
     }
 
+    public async Task<bool> CancelJobAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => await ExecuteJobActionAsync(
+            () => apiClient.CancelJobAsync(jobId, cancellationToken),
+            "The job is no longer available.");
+
+    public async Task<bool> TryNextCandidateAsync(Guid jobId, CancellationToken cancellationToken = default)
+        => await ExecuteJobActionAsync(
+            () => apiClient.TryNextCandidateAsync(jobId, cancellationToken),
+            "No next candidate is available.");
+
     private bool HasQuery()
         => Mode == DesktopSearchMode.Track
             ? !string.IsNullOrWhiteSpace(Artist) || !string.IsNullOrWhiteSpace(Title)
@@ -251,5 +261,28 @@ public sealed class DesktopSearchViewModel : ObservableObject
         FolderCandidates = [];
         ResultsRevision = 0;
         IsResultsComplete = false;
+    }
+
+    private async Task<bool> ExecuteJobActionAsync(Func<Task<bool>> action, string notAvailableMessage)
+    {
+        ErrorMessage = null;
+        IsBusy = true;
+        try
+        {
+            var succeeded = await action();
+            if (!succeeded)
+                ErrorMessage = notAvailableMessage;
+
+            return succeeded;
+        }
+        catch (SockseekApiRequestException exception)
+        {
+            ErrorMessage = exception.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

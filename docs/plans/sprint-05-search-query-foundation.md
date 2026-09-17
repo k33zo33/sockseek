@@ -18,6 +18,7 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 - Expose the returned job summary and a user-visible request error.
 - Refresh typed result snapshots and expose candidates, revision and completion state.
 - Submit an explicit file-candidate download action using the stable candidate reference.
+- Delegate cancel and next-candidate actions to the existing daemon job endpoints.
 
 ## Out of scope
 
@@ -43,7 +44,8 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 2. Validate and submit track/album requests.
 3. Add result snapshot refresh and candidate state.
 4. Add explicit file-candidate download action.
-5. Add HTTP contract tests for payload, validation, result and download behavior.
+5. Add cancel and next-candidate job actions.
+6. Add HTTP contract tests for payload, validation, result and job actions.
 
 ## Testing strategy
 
@@ -72,3 +74,4 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 - Establishes the query-submission foundation for “korisnik može pretražiti” without CLI usage.
 - Keeps the request path non-blocking and cancellation-aware.
 - Establishes the explicit single-file download request path for the first vertical flow.
+- Establishes the cancel and next-candidate paths required for user-controlled recovery.
