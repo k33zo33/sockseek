@@ -15,14 +15,22 @@ public sealed class DesktopDownloadQueueViewModelTests
 
         viewModel.ApplyWorkflowUpdate(new WorkflowUpdateBatchDto(
             1,
+            DateTimeOffset.UtcNow,
+            Guid.Empty,
+            null,
             [],
             [],
-            [new DownloadProgressEventDto(jobId, Guid.NewGuid(), 10, 100)]));
+            [new DownloadProgressEventDto(jobId, Guid.NewGuid(), 10, 100)],
+            []));
         viewModel.ApplyWorkflowUpdate(new WorkflowUpdateBatchDto(
             2,
+            DateTimeOffset.UtcNow,
+            Guid.Empty,
+            null,
             [],
             [],
-            [new DownloadProgressEventDto(jobId, Guid.NewGuid(), 75, 100)]));
+            [new DownloadProgressEventDto(jobId, Guid.NewGuid(), 75, 100)],
+            []));
 
         Assert.AreEqual(1, viewModel.Progress.Count);
         Assert.AreEqual(75, viewModel.Progress[0].BytesTransferred);
