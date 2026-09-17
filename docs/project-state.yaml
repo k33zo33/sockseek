@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 4
-  slug: avalonia-desktop-shell
-  file: docs/sprints/sprint-04-avalonia-desktop-shell.md
+  id: 5
+  slug: soulseek-search-download-ui
+  file: docs/sprints/sprint-05-soulseek-search-download-ui.md
   status: in_progress
 
 completed_sprints:
@@ -22,6 +22,7 @@ completed_sprints:
   - 1
   - 2
   - 3
+  - 4
 blocked_by: []
 
 locked_decisions:
