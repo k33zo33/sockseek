@@ -15,6 +15,7 @@ public sealed class DesktopSearchViewModel : ObservableObject
     private string? errorMessage;
     private IReadOnlyList<FileCandidateDto> fileCandidates = [];
     private IReadOnlyList<AlbumFolderDto> folderCandidates = [];
+    private IReadOnlyList<JobSummaryDto> lastDownloadJobs = [];
     private int resultsRevision;
     private bool isResultsComplete;
 
@@ -93,10 +94,17 @@ public sealed class DesktopSearchViewModel : ObservableObject
         private set => SetProperty(ref isResultsComplete, value);
     }
 
+    public IReadOnlyList<JobSummaryDto> LastDownloadJobs
+    {
+        get => lastDownloadJobs;
+        private set => SetProperty(ref lastDownloadJobs, value);
+    }
+
     public async Task<JobSummaryDto?> SearchAsync(CancellationToken cancellationToken = default)
     {
         ErrorMessage = null;
         ClearResults();
+        LastDownloadJobs = [];
         if (!HasQuery())
         {
             ErrorMessage = Mode == DesktopSearchMode.Track
@@ -179,6 +187,43 @@ public sealed class DesktopSearchViewModel : ObservableObject
                 IsResultsComplete = snapshot.IsComplete;
             }
 
+            return true;
+        }
+        catch (SockseekApiRequestException exception)
+        {
+            ErrorMessage = exception.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<bool> DownloadFileAsync(FileCandidateDto candidate, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ErrorMessage = null;
+        if (LastJob is null)
+        {
+            ErrorMessage = "Start a search before downloading a candidate.";
+            return false;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var jobs = await apiClient.StartFileDownloadsAsync(
+                LastJob.JobId,
+                new StartFileDownloadsRequestDto([candidate.Ref]),
+                cancellationToken);
+            if (jobs is null)
+            {
+                ErrorMessage = "The candidate is no longer available.";
+                return false;
+            }
+
+            LastDownloadJobs = jobs;
             return true;
         }
         catch (SockseekApiRequestException exception)

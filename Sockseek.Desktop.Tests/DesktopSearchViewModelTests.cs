@@ -100,6 +100,40 @@ public sealed class DesktopSearchViewModelTests
         Assert.AreEqual("api/jobs/" + jobId + "/results/files", handler.RequestUri);
     }
 
+    [TestMethod]
+    public async Task DownloadFileAsync_SubmitsOnlyExplicitCandidateReference()
+    {
+        var searchJobId = Guid.NewGuid();
+        var downloadJobId = Guid.NewGuid();
+        var candidate = new FileCandidateDto(
+            new FileCandidateRefDto("user", "folder/song.flac"),
+            "user",
+            "folder/song.flac",
+            new PeerInfoDto("user"),
+            123,
+            null,
+            null,
+            null);
+        var handler = new RecordingHandler(request => request.RequestUri?.AbsolutePath.EndsWith("/downloads/files") == true
+            ? new List<JobSummaryDto> { new() { JobId = downloadJobId } }
+            : new JobSummaryDto { JobId = searchJobId });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
+        {
+            Title = "Song"
+        };
+
+        var searchJob = await viewModel.SearchAsync();
+        Assert.IsNotNull(searchJob);
+
+        var downloaded = await viewModel.DownloadFileAsync(candidate);
+
+        Assert.IsTrue(downloaded);
+        Assert.AreEqual(downloadJobId, viewModel.LastDownloadJobs[0].JobId);
+        Assert.AreEqual("api/jobs/" + searchJobId + "/downloads/files", handler.RequestUri);
+        StringAssert.Contains(handler.RequestBody, "folder/song.flac");
+    }
+
     private sealed class RecordingHandler(Func<HttpRequestMessage, object> responseFactory) : HttpMessageHandler
     {
         public string? RequestUri { get; private set; }

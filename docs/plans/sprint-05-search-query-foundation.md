@@ -17,10 +17,11 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 - Submit typed search requests through the existing API client.
 - Expose the returned job summary and a user-visible request error.
 - Refresh typed result snapshots and expose candidates, revision and completion state.
+- Submit an explicit file-candidate download action using the stable candidate reference.
 
 ## Out of scope
 
-- Result projection, candidate rendering and download actions.
+- Album-folder download actions and full candidate rendering.
 - Progress subscriptions and workflow tree rendering.
 - Avalonia layout changes.
 
@@ -41,7 +42,8 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 1. Add typed search mode and query state.
 2. Validate and submit track/album requests.
 3. Add result snapshot refresh and candidate state.
-4. Add HTTP contract tests for payload, validation and result behavior.
+4. Add explicit file-candidate download action.
+5. Add HTTP contract tests for payload, validation, result and download behavior.
 
 ## Testing strategy
 
@@ -69,3 +71,4 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 
 - Establishes the query-submission foundation for “korisnik može pretražiti” without CLI usage.
 - Keeps the request path non-blocking and cancellation-aware.
+- Establishes the explicit single-file download request path for the first vertical flow.
