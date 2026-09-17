@@ -15,9 +15,15 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
     {
         this.apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         RefreshCommand = new DesktopAsyncCommand(() => RefreshAsync());
+        CancelCommand = new DesktopAsyncParameterCommand<Guid>(jobId => CancelAsync(jobId));
+        NextCandidateCommand = new DesktopAsyncParameterCommand<Guid>(jobId => NextCandidateAsync(jobId));
     }
 
     public ICommand RefreshCommand { get; }
+
+    public ICommand CancelCommand { get; }
+
+    public ICommand NextCandidateCommand { get; }
 
     public IReadOnlyList<JobSummaryDto> Jobs
     {

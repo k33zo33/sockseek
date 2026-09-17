@@ -269,12 +269,14 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
                         <StackPanel>
                           <TextBlock Text="{Binding ItemName}" FontWeight="SemiBold" />
                           <TextBlock Text="{Binding LifecycleState}" Opacity="0.75" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding ActivityPhase}" Opacity="0.75" />
+                        <Button Grid.Column="2" Content="Next candidate" Command="{Binding DataContext.Downloads.NextCandidateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        <Button Grid.Column="3" Content="Cancel" Command="{Binding DataContext.Downloads.CancelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
                       </Grid>
                     </Border>
                   </DataTemplate>

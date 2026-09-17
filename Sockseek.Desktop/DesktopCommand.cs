@@ -31,3 +31,22 @@ internal sealed class DesktopAsyncCommand(Func<Task> executeAsync) : ICommand
 
     public async void Execute(object? parameter) => await executeAsync();
 }
+
+internal sealed class DesktopAsyncParameterCommand<T>(Func<T, Task> executeAsync) : ICommand
+{
+    private readonly Func<T, Task> executeAsync = executeAsync ?? throw new ArgumentNullException(nameof(executeAsync));
+
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool CanExecute(object? parameter) => parameter is T;
+
+    public async void Execute(object? parameter)
+    {
+        if (parameter is T typedParameter)
+            await executeAsync(typedParameter);
+    }
+}
