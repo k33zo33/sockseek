@@ -16,6 +16,7 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 - Validate the minimum query fields before sending a request.
 - Submit typed search requests through the existing API client.
 - Expose the returned job summary and a user-visible request error.
+- Refresh typed result snapshots and expose candidates, revision and completion state.
 
 ## Out of scope
 
@@ -39,7 +40,8 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 
 1. Add typed search mode and query state.
 2. Validate and submit track/album requests.
-3. Add HTTP contract tests for payload and validation behavior.
+3. Add result snapshot refresh and candidate state.
+4. Add HTTP contract tests for payload, validation and result behavior.
 
 ## Testing strategy
 

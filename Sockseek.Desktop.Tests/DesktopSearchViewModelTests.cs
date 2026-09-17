@@ -65,7 +65,42 @@ public sealed class DesktopSearchViewModelTests
         Assert.IsNull(handler.RequestUri);
     }
 
-    private sealed class RecordingHandler(Func<HttpRequestMessage, JobSummaryDto> responseFactory) : HttpMessageHandler
+    [TestMethod]
+    public async Task RefreshResultsAsync_TrackMode_ExposesFileCandidatesAndRevision()
+    {
+        var jobId = Guid.NewGuid();
+        var handler = new RecordingHandler(request => request.RequestUri?.AbsolutePath.EndsWith("/results/files") == true
+            ? new SearchResultSnapshotDto<FileCandidateDto>(
+                3,
+                true,
+                [new FileCandidateDto(
+                    new FileCandidateRefDto("user", "folder/song.flac"),
+                    "user",
+                    "folder/song.flac",
+                    new PeerInfoDto("user", true, 1000),
+                    123,
+                    320,
+                    44100,
+                    210)])
+            : new JobSummaryDto { JobId = jobId });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
+        {
+            Title = "Song"
+        };
+
+        await viewModel.SearchAsync();
+        var refreshed = await viewModel.RefreshResultsAsync();
+
+        Assert.IsTrue(refreshed);
+        Assert.AreEqual(3, viewModel.ResultsRevision);
+        Assert.IsTrue(viewModel.IsResultsComplete);
+        Assert.AreEqual(1, viewModel.FileCandidates.Count);
+        Assert.AreEqual("folder/song.flac", viewModel.FileCandidates[0].Filename);
+        Assert.AreEqual("api/jobs/" + jobId + "/results/files", handler.RequestUri);
+    }
+
+    private sealed class RecordingHandler(Func<HttpRequestMessage, object> responseFactory) : HttpMessageHandler
     {
         public string? RequestUri { get; private set; }
         public string RequestBody { get; private set; } = string.Empty;
@@ -76,10 +111,7 @@ public sealed class DesktopSearchViewModelTests
             RequestBody = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(responseFactory(request))
-            };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(responseFactory(request)) };
         }
     }
 }
