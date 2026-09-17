@@ -9,6 +9,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private IReadOnlyList<HomeSummaryFactViewModel> homeSummaryFacts = [];
     private BackendConnectionState? lastKnownBackendStateSummary;
     private DesktopDaemonHandshake? lastKnownHandshake;
+    private DesktopSearchViewModel? search;
+    private DesktopDaemonHandshake? searchHandshake;
     private bool isStartingDaemon;
     private bool disposed;
 
@@ -36,6 +38,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
         Session.EventsStateChanged += HandleEventsStateChanged;
+        UpdateSearchViewModel();
     }
 
     public IDesktopShellSession Session { get; }
@@ -211,6 +214,10 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     public BackendConnectionState BackendState => Shell.BackendState;
 
     public DesktopDaemonHandshake? CurrentHandshake => Shell.CurrentHandshake;
+
+    public DesktopSearchViewModel? Search => search;
+
+    public bool IsSearchReady => Search is not null;
 
     public bool HasCurrentHandshake => CurrentHandshake is not null;
 
@@ -397,9 +404,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
+                UpdateSearchViewModel();
                 UpdateHomeSummaryFacts();
                 OnPropertyChanged(nameof(CurrentHandshake));
                 OnPropertyChanged(nameof(HasCurrentHandshake));
+                OnPropertyChanged(nameof(Search));
+                OnPropertyChanged(nameof(IsSearchReady));
                 OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -425,6 +435,22 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
         UpdateHomeSummaryFacts();
         OnPropertyChanged(nameof(HomeSummaryFacts));
+    }
+
+    private void UpdateSearchViewModel()
+    {
+        if (CurrentHandshake is null)
+        {
+            search = null;
+            searchHandshake = null;
+            return;
+        }
+
+        if (search is null || !Equals(searchHandshake, CurrentHandshake))
+        {
+            search = new DesktopSearchViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+            searchHandshake = CurrentHandshake;
+        }
     }
 
     private void UpdateNavigationSelection()

@@ -1,4 +1,5 @@
 using Sockseek.Api;
+using System.Windows.Input;
 
 namespace Sockseek.Desktop;
 
@@ -20,12 +21,47 @@ public sealed class DesktopSearchViewModel : ObservableObject
     private bool isResultsComplete;
 
     public DesktopSearchViewModel(SockseekApiClient apiClient)
-        => this.apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+    {
+        this.apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+        SearchCommand = new DesktopAsyncCommand(() => SearchAsync());
+        RefreshResultsCommand = new DesktopAsyncCommand(() => RefreshResultsAsync());
+    }
+
+    public ICommand SearchCommand { get; }
+
+    public ICommand RefreshResultsCommand { get; }
 
     public DesktopSearchMode Mode
     {
         get => mode;
-        set => SetProperty(ref mode, value);
+        set
+        {
+            if (!SetProperty(ref mode, value))
+                return;
+
+            OnPropertyChanged(nameof(IsTrackMode));
+            OnPropertyChanged(nameof(IsAlbumMode));
+        }
+    }
+
+    public bool IsTrackMode
+    {
+        get => Mode == DesktopSearchMode.Track;
+        set
+        {
+            if (value)
+                Mode = DesktopSearchMode.Track;
+        }
+    }
+
+    public bool IsAlbumMode
+    {
+        get => Mode == DesktopSearchMode.Album;
+        set
+        {
+            if (value)
+                Mode = DesktopSearchMode.Album;
+        }
     }
 
     public string Artist

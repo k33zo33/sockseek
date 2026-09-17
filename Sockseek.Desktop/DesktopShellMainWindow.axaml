@@ -194,6 +194,42 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
+                  IsVisible="{Binding IsSearchReady}">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Search workspace" FontSize="20" FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <RadioButton Content="Track" IsChecked="{Binding Search.IsTrackMode}" GroupName="SearchMode" />
+                <RadioButton Content="Album" IsChecked="{Binding Search.IsAlbumMode}" GroupName="SearchMode" />
+              </StackPanel>
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <TextBox Grid.Column="0" Watermark="Artist" Text="{Binding Search.Artist}" />
+                <TextBox Grid.Column="1" Watermark="Title or album" Text="{Binding Search.Title}" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="Search" Command="{Binding Search.SearchCommand}" />
+                <Button Content="Refresh results" Command="{Binding Search.RefreshResultsCommand}" />
+                <TextBlock VerticalAlignment="Center" Text="{Binding Search.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Text="{Binding Search.ResultsRevision, StringFormat='Revision {0}'}" Opacity="0.7" />
+              <ItemsControl ItemsSource="{Binding Search.FileCandidates}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                        <TextBlock Text="{Binding Filename}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="1" Text="{Binding Peer.Username}" Opacity="0.75" />
+                        <TextBlock Grid.Column="2" Text="{Binding BitRate, StringFormat='{}{0} kbps'}" Opacity="0.75" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
                   IsVisible="{Binding IsHomeSectionActive}">
             <StackPanel Spacing="14">
               <DockPanel>
