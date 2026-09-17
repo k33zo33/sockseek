@@ -185,6 +185,7 @@ public sealed class DesktopCompositionTests
         public DesktopBackendEventsConnectionState EventsState => DesktopBackendEventsConnectionState.Disconnected;
 
         public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged;
+        public event EventHandler<Sockseek.Api.WorkflowUpdateBatchDto>? WorkflowUpdateBatchReceived;
 
         public bool CanStartDaemon => true;
 

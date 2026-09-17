@@ -40,6 +40,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
         Session.EventsStateChanged += HandleEventsStateChanged;
+        Session.WorkflowUpdateBatchReceived += HandleWorkflowUpdateBatchReceived;
         UpdateSearchViewModel();
     }
 
@@ -310,6 +311,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         Session.Shell.PropertyChanged -= HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged -= HandleCommandPalettePropertyChanged;
         Session.EventsStateChanged -= HandleEventsStateChanged;
+        Session.WorkflowUpdateBatchReceived -= HandleWorkflowUpdateBatchReceived;
     }
 
     public void OpenCommandPalette() => Shell.OpenCommandPalette();
@@ -468,6 +470,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         UpdateHomeSummaryFacts();
         OnPropertyChanged(nameof(HomeSummaryFacts));
     }
+
+    private void HandleWorkflowUpdateBatchReceived(object? sender, Sockseek.Api.WorkflowUpdateBatchDto batch)
+        => Downloads?.ApplyWorkflowUpdate(batch);
 
     private void UpdateSearchViewModel()
     {

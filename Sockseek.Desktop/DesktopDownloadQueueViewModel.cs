@@ -9,6 +9,7 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
     private IReadOnlyList<JobSummaryDto> jobs = [];
     private bool isBusy;
     private string? errorMessage;
+    private IReadOnlyList<DownloadProgressEventDto> progress = [];
 
     public DesktopDownloadQueueViewModel(SockseekApiClient apiClient)
     {
@@ -34,6 +35,21 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
     {
         get => errorMessage;
         private set => SetProperty(ref errorMessage, value);
+    }
+
+    public IReadOnlyList<DownloadProgressEventDto> Progress
+    {
+        get => progress;
+        private set => SetProperty(ref progress, value);
+    }
+
+    public void ApplyWorkflowUpdate(WorkflowUpdateBatchDto batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        var updates = Progress.ToDictionary(item => item.JobId);
+        foreach (var update in batch.Progress)
+            updates[update.JobId] = update;
+        Progress = updates.Values.ToArray();
     }
 
     public async Task<bool> RefreshAsync(CancellationToken cancellationToken = default)
