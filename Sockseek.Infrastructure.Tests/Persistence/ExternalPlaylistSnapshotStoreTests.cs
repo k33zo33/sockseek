@@ -98,14 +98,17 @@ public class ExternalPlaylistSnapshotStoreTests
                 .UseSqlite($"Data Source={dbPath}")
                 .Options;
 
-            await using var context = new SockseekDbContext(options);
-            await context.Database.MigrateAsync();
+            await using (var context = new SockseekDbContext(options))
+            {
+                await context.Database.MigrateAsync();
 
-            Assert.IsTrue(await context.Database.CanConnectAsync());
-            Assert.IsTrue(await context.ExternalPlaylists.AnyAsync() == false);
+                Assert.IsTrue(await context.Database.CanConnectAsync());
+                Assert.IsTrue(await context.ExternalPlaylists.AnyAsync() == false);
+            }
         }
         finally
         {
+            SqliteConnection.ClearAllPools();
             if (File.Exists(dbPath))
                 File.Delete(dbPath);
         }

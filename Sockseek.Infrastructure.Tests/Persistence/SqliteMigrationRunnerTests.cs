@@ -45,6 +45,7 @@ public class SqliteMigrationRunnerTests
         }
         finally
         {
+            SqliteConnection.ClearAllPools();
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, recursive: true);
         }
@@ -61,7 +62,9 @@ public class SqliteMigrationRunnerTests
         try
         {
             await using (var initialContext = CreateContext(databasePath))
+            {
                 await initialContext.Database.MigrateAsync();
+            }
 
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory);
@@ -72,6 +75,7 @@ public class SqliteMigrationRunnerTests
         }
         finally
         {
+            SqliteConnection.ClearAllPools();
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, recursive: true);
         }
