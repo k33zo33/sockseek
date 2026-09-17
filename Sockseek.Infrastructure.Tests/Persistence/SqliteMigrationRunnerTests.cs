@@ -29,7 +29,7 @@ public class SqliteMigrationRunnerTests
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory);
 
-            Assert.AreEqual(2, result.AppliedMigrations.Count);
+            Assert.AreEqual(3, result.AppliedMigrations.Count);
             Assert.IsNotNull(result.BackupPath);
             Assert.IsTrue(File.Exists(result.BackupPath));
 
@@ -41,6 +41,7 @@ public class SqliteMigrationRunnerTests
             await using var migratedConnection = new SqliteConnection($"Data Source={databasePath}");
             await migratedConnection.OpenAsync();
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "ExternalAccounts");
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "LibraryRoots");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "LegacyMarker");
         }
         finally

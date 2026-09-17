@@ -26,6 +26,7 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
     public DbSet<CanonicalTrackEntity> CanonicalTracks => Set<CanonicalTrackEntity>();
     public DbSet<TrackSourceEntity> TrackSources => Set<TrackSourceEntity>();
     public DbSet<LocalMediaFileEntity> LocalMediaFiles => Set<LocalMediaFileEntity>();
+    public DbSet<LibraryRootEntity> LibraryRoots => Set<LibraryRootEntity>();
     public DbSet<ResolutionAttemptEntity> ResolutionAttempts => Set<ResolutionAttemptEntity>();
     public DbSet<DownloadWorkflowEntity> DownloadWorkflows => Set<DownloadWorkflowEntity>();
     public DbSet<ProviderSyncStateEntity> ProviderSyncStates => Set<ProviderSyncStateEntity>();
@@ -126,6 +127,14 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
                 .WithMany(x => x.LocalMediaFiles)
                 .HasForeignKey(x => x.CanonicalTrackId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<LibraryRootEntity>(entity =>
+        {
+            entity.ToTable("LibraryRoots");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Path).IsRequired();
+            entity.HasIndex(x => x.Path).IsUnique();
         });
 
         modelBuilder.Entity<ResolutionAttemptEntity>(entity =>

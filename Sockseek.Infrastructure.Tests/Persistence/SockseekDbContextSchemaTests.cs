@@ -32,6 +32,7 @@ public class SockseekDbContextSchemaTests
                 "CanonicalTracks",
                 "TrackSources",
                 "LocalMediaFiles",
+                "LibraryRoots",
                 "ResolutionAttempts",
                 "DownloadWorkflows",
                 "ProviderSyncStates",
@@ -46,6 +47,7 @@ public class SockseekDbContextSchemaTests
         CollectionAssert.Contains(indexColumns["PlaylistItems"], "PlaylistId,ProviderItemId");
         CollectionAssert.Contains(indexColumns["TrackSources"], "Provider,ExternalId");
         CollectionAssert.Contains(indexColumns["LocalMediaFiles"], "Path");
+        CollectionAssert.Contains(indexColumns["LibraryRoots"], "Path");
         CollectionAssert.Contains(indexColumns["ProviderSyncStates"], "Provider,AccountId,ResourceId");
         CollectionAssert.Contains(indexColumns["DownloadWorkflows"], "WorkflowId");
     }

@@ -276,7 +276,8 @@
           "Microsoft.EntityFrameworkCore": "[10.0.9, )",
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.9, )",
           "Sockseek.Application": "[3.0.5, )",
-          "Sockseek.Domain": "[3.0.5, )"
+          "Sockseek.Domain": "[3.0.5, )",
+          "TagLibSharp": "[2.3.0, )"
         }
       },
       "sockseek.integrations.abstractions": {
@@ -304,6 +305,12 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.9",
           "Microsoft.Extensions.Options": "10.0.9"
         }
+      },
+      "TagLibSharp": {
+        "type": "CentralTransitive",
+        "requested": "[2.3.0, )",
+        "resolved": "2.3.0",
+        "contentHash": "Qo4z6ZjnIfbR3Us1Za5M2vQ97OWZPmODvVmepxZ8XW0UIVLGdO2T63/N3b23kCcyiwuIe0TQvMEQG8wUCCD1mA=="
       }
     }
   }
