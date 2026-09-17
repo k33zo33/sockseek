@@ -273,6 +273,43 @@ public sealed class DesktopSearchViewModel : ObservableObject
         }
     }
 
+    public async Task<bool> DownloadFolderAsync(AlbumFolderDto folder, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        ErrorMessage = null;
+        if (LastJob is null)
+        {
+            ErrorMessage = "Start a search before downloading a folder.";
+            return false;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var job = await apiClient.StartFolderDownloadAsync(
+                LastJob.JobId,
+                new StartFolderDownloadRequestDto(folder.Ref, AlbumQuery: new AlbumQueryDto(Artist, Album)),
+                cancellationToken);
+            if (job is null)
+            {
+                ErrorMessage = "The album folder is no longer available.";
+                return false;
+            }
+
+            LastDownloadJobs = [job];
+            return true;
+        }
+        catch (SockseekApiRequestException exception)
+        {
+            ErrorMessage = exception.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task<bool> CancelJobAsync(Guid jobId, CancellationToken cancellationToken = default)
         => await ExecuteJobActionAsync(
             () => apiClient.CancelJobAsync(jobId, cancellationToken),
