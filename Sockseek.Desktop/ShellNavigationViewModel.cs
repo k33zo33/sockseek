@@ -171,9 +171,15 @@ public sealed class ShellNavigationViewModel : ObservableObject
 
     private void ApplySupervisorSnapshot(DesktopDaemonSupervisorSnapshot snapshot)
     {
-        CurrentHandshake = snapshot.Handshake;
+        if (snapshot.State == BackendConnectionState.Connected && snapshot.Handshake is not null)
+        {
+            CurrentHandshake = snapshot.Handshake;
+            SetBackendState(snapshot.State);
+            return;
+        }
+
+        CurrentHandshake = null;
         SetBackendState(snapshot.State);
-        CurrentHandshake = snapshot.Handshake;
     }
 
     private static string GetDisplayName(ShellSection section)

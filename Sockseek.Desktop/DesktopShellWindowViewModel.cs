@@ -7,6 +7,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private readonly IReadOnlyList<DesktopShellNavigationItemViewModel> navigationButtons;
     private readonly IReadOnlyList<DesktopShellCommandPaletteItemViewModel> commandPaletteButtons;
     private IReadOnlyList<HomeSummaryFactViewModel> homeSummaryFacts = [];
+    private BackendConnectionState? lastKnownBackendStateSummary;
+    private DesktopDaemonHandshake? lastKnownHandshake;
     private bool isStartingDaemon;
     private bool disposed;
 
@@ -432,17 +434,25 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     }
 
     private void UpdateHomeSummaryFacts()
-        => homeSummaryFacts = CreateHomeSummaryFacts();
+    {
+        if (CurrentHandshake is not null)
+            lastKnownHandshake = CurrentHandshake;
+
+        if (BackendState == BackendConnectionState.Connected || HasCurrentHandshake || lastKnownHandshake is not null)
+            lastKnownBackendStateSummary = BackendConnectionState.Connected;
+        else if (BackendState is BackendConnectionState.Starting or BackendConnectionState.Restarting or BackendConnectionState.Unauthorized)
+            lastKnownBackendStateSummary = BackendState;
+
+        homeSummaryFacts = CreateHomeSummaryFacts();
+    }
 
     private IReadOnlyList<HomeSummaryFactViewModel> CreateHomeSummaryFacts()
         =>
         [
             CreateHomeSummaryFact("Shell.Home.Summary.BackendState.Label", GetBackendStateSummary()),
             CreateHomeSummaryFact("Shell.Home.Summary.EventsState.Label", GetEventsStateSummary()),
-            CreateHomeSummaryFact("Shell.Home.Summary.Handshake.Label", HasCurrentHandshake
-                ? DesktopStringResources.Get("Shell.Home.Summary.Handshake.Available")
-                : DesktopStringResources.Get("Shell.Home.Summary.Handshake.Waiting")),
-            CreateHomeSummaryFact("Shell.Home.Summary.BackendUrl.Label", CurrentHandshake?.BaseUrl ?? DesktopStringResources.Get("Shell.Home.Summary.BackendUrl.Unavailable")),
+            CreateHomeSummaryFact("Shell.Home.Summary.Handshake.Label", GetHandshakeSummary()),
+            CreateHomeSummaryFact("Shell.Home.Summary.BackendUrl.Label", GetBackendUrlSummary()),
             CreateHomeSummaryFact("Shell.Home.Summary.StartCapability.Label", CanStartDaemon
                 ? DesktopStringResources.Get("Shell.Home.Summary.StartCapability.Ready")
                 : DesktopStringResources.Get("Shell.Home.Summary.StartCapability.Unavailable")),
@@ -454,8 +464,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             value,
             labelResourceKey);
 
+    private string GetBackendUrlSummary()
+        => CurrentHandshake?.BaseUrl ?? lastKnownHandshake?.BaseUrl ?? DesktopStringResources.Get("Shell.Home.Summary.BackendUrl.Unavailable");
+
+    private string GetHandshakeSummary()
+        => CurrentHandshake is not null || lastKnownHandshake is not null
+            ? DesktopStringResources.Get("Shell.Home.Summary.Handshake.Available")
+            : DesktopStringResources.Get("Shell.Home.Summary.Handshake.Waiting");
+
     private string GetBackendStateSummary()
-        => BackendState switch
+    {
+        var summaryState = lastKnownBackendStateSummary ?? BackendState;
+        return summaryState switch
         {
             BackendConnectionState.Starting => DesktopStringResources.Get("Shell.Home.Summary.State.Starting"),
             BackendConnectionState.Connected => DesktopStringResources.Get("Shell.Home.Summary.State.Connected"),
@@ -464,6 +484,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             BackendConnectionState.Unauthorized => DesktopStringResources.Get("Shell.Home.Summary.State.Unauthorized"),
             _ => DesktopStringResources.Get("Shell.Home.Summary.State.Unknown"),
         };
+    }
 
     private string GetEventsStateSummary()
         => Session.EventsState switch
