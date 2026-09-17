@@ -10,16 +10,8 @@ public sealed class SystemDesktopProcessLauncher : IDesktopProcessLauncher
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = request.FileName,
-            Arguments = request.Arguments,
-            WorkingDirectory = request.WorkingDirectory,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-        };
+        var workingDirectory = NormalizeWorkingDirectory(request.WorkingDirectory);
+        var startInfo = CreateProcessStartInfo(request, workingDirectory);
 
         foreach (var pair in request.EnvironmentVariables)
         {
@@ -34,6 +26,73 @@ public sealed class SystemDesktopProcessLauncher : IDesktopProcessLauncher
             throw new InvalidOperationException($"Failed to launch desktop daemon process '{request.FileName}'.");
 
         return Task.FromResult<IDesktopProcessSession>(new SystemDesktopProcessSession(process));
+    }
+
+    private static ProcessStartInfo CreateProcessStartInfo(DesktopDaemonLaunchRequest request, string workingDirectory)
+    {
+        var fileName = request.FileName;
+        var arguments = request.Arguments;
+
+        if (OperatingSystem.IsWindows() && string.Equals(fileName, "bash", StringComparison.OrdinalIgnoreCase))
+        {
+            var command = ExtractBashCommand(arguments);
+            if (!string.IsNullOrWhiteSpace(command))
+            {
+                fileName = "cmd.exe";
+                arguments = "/C \"" + ConvertBashCommandToWindows(command) + "\"";
+            }
+        }
+
+        return new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+    }
+
+    private static string ExtractBashCommand(string arguments)
+    {
+        var trimmed = arguments.Trim();
+        if (trimmed.Length == 0)
+            return string.Empty;
+
+        var flagIndex = trimmed.IndexOfAny([' ', '\t']);
+        if (flagIndex < 0)
+            return string.Empty;
+
+        var flag = trimmed[..flagIndex];
+        if (!string.Equals(flag, "-lc", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(flag, "-c", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        var script = trimmed[(flagIndex + 1)..].Trim();
+        script = script.Trim('"');
+        return script;
+    }
+
+    private static string ConvertBashCommandToWindows(string command)
+        => command
+            .Replace(";", " & ")
+            .Replace("&&", " & ")
+            .Replace("||", " | ");
+
+    private static string NormalizeWorkingDirectory(string workingDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return Environment.CurrentDirectory;
+
+        if (!OperatingSystem.IsWindows())
+            return workingDirectory;
+
+        if (workingDirectory.StartsWith('/') || workingDirectory.StartsWith('\\'))
+            return Path.GetTempPath();
+
+        return workingDirectory;
     }
 
     private sealed class SystemDesktopProcessSession : IDesktopProcessSession
@@ -119,7 +178,7 @@ public sealed class SystemDesktopProcessLauncher : IDesktopProcessLauncher
                 if (line is null)
                     break;
 
-                await writer.WriteAsync(line);
+                await writer.WriteAsync(line.Trim());
             }
         }
     }
