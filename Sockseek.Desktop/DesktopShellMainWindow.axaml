@@ -203,7 +203,8 @@
               </StackPanel>
               <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                 <TextBox Grid.Column="0" Watermark="Artist" Text="{Binding Search.Artist}" />
-                <TextBox Grid.Column="1" Watermark="Title or album" Text="{Binding Search.Title}" />
+                <TextBox Grid.Column="1" IsVisible="{Binding Search.IsTrackMode}" Watermark="Title" Text="{Binding Search.Title}" />
+                <TextBox Grid.Column="1" IsVisible="{Binding Search.IsAlbumMode}" Watermark="Album" Text="{Binding Search.Album}" />
               </Grid>
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Content="Search" Command="{Binding Search.SearchCommand}" />
