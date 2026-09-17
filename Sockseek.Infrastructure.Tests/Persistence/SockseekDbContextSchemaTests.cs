@@ -50,6 +50,10 @@ public class SockseekDbContextSchemaTests
         CollectionAssert.Contains(indexColumns["LibraryRoots"], "Path");
         CollectionAssert.Contains(indexColumns["ProviderSyncStates"], "Provider,AccountId,ResourceId");
         CollectionAssert.Contains(indexColumns["DownloadWorkflows"], "WorkflowId");
+
+        var allIndexColumns = await IndexColumnsByTableAsync(connection);
+        CollectionAssert.Contains(allIndexColumns["LocalMediaFiles"], "Availability,CanonicalTrackId");
+        CollectionAssert.Contains(allIndexColumns["CanonicalTracks"], "NormalizedArtist,NormalizedTitle");
     }
 
     [TestMethod]
@@ -86,6 +90,11 @@ public class SockseekDbContextSchemaTests
     }
 
     private static async Task<Dictionary<string, List<string>>> UniqueIndexColumnsByTableAsync(SqliteConnection connection)
+        => await IndexColumnsByTableAsync(connection, uniqueOnly: true);
+
+    private static async Task<Dictionary<string, List<string>>> IndexColumnsByTableAsync(
+        SqliteConnection connection,
+        bool uniqueOnly = false)
     {
         var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var table in await TableNamesAsync(connection))
@@ -98,7 +107,7 @@ public class SockseekDbContextSchemaTests
             while (await indexReader.ReadAsync())
             {
                 bool unique = indexReader.GetInt64(2) != 0;
-                if (unique)
+                if (!uniqueOnly || unique)
                     indexes.Add(indexReader.GetString(1));
             }
 

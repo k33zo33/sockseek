@@ -103,6 +103,7 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
             entity.Property(x => x.Title).IsRequired();
             entity.Property(x => x.NormalizedArtist).IsRequired();
             entity.Property(x => x.NormalizedTitle).IsRequired();
+            entity.HasIndex(x => new { x.NormalizedArtist, x.NormalizedTitle });
         });
 
         modelBuilder.Entity<TrackSourceEntity>(entity =>
@@ -123,6 +124,7 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Path).IsRequired();
             entity.HasIndex(x => x.Path).IsUnique();
+            entity.HasIndex(x => new { x.Availability, x.CanonicalTrackId });
             entity.HasOne(x => x.CanonicalTrack)
                 .WithMany(x => x.LocalMediaFiles)
                 .HasForeignKey(x => x.CanonicalTrackId)
