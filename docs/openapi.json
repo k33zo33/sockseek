@@ -1098,6 +1098,33 @@
         }
       }
     },
+    "/api/jobs/{jobId}/retry": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Retries a terminal job using its prepared execution context.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/workflows/{workflowId}/jobs/display/{displayId}/next-candidate": {
       "post": {
         "tags": [
@@ -4672,7 +4699,8 @@
       },
       "ServerResourceActionKind": {
         "enum": [
-          "cancel"
+          "cancel",
+          "retry"
         ]
       },
       "ServerSongDownloadSource": {

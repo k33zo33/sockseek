@@ -207,38 +207,57 @@
                 <TextBox Grid.Column="1" IsVisible="{Binding Search.IsAlbumMode}" Watermark="Album" Text="{Binding Search.Album}" />
               </Grid>
               <TextBox IsVisible="{Binding Search.IsAlbumMode}" Watermark="Track hint (optional)" Text="{Binding Search.SearchHint}" />
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <TextBox Grid.Column="0" Watermark="Profile names" Text="{Binding Search.ProfileNames}" />
+                <TextBox Grid.Column="1" Watermark="Minimum bitrate" Text="{Binding Search.MinBitrate}" />
+                <TextBox Grid.Column="2" Watermark="Formats" Text="{Binding Search.Formats}" />
+              </Grid>
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Content="Search" Command="{Binding Search.SearchCommand}" />
                 <Button Content="Refresh results" Command="{Binding Search.RefreshResultsCommand}" />
                 <TextBlock VerticalAlignment="Center" Text="{Binding Search.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
               </StackPanel>
               <TextBlock Text="{Binding Search.ResultsRevision, StringFormat='Revision {0}'}" Opacity="0.7" />
-              <ItemsControl ItemsSource="{Binding Search.FileCandidates}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
+              <ListBox ItemsSource="{Binding Search.FileCandidates}"
+                       MaxHeight="420"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopFileCandidateViewModel">
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-                        <TextBlock Text="{Binding Filename}" TextWrapping="Wrap" />
-                        <TextBlock Grid.Column="1" Text="{Binding Peer.Username}" Opacity="0.75" />
-                        <TextBlock Grid.Column="2" Text="{Binding BitRate, StringFormat='{}{0} kbps'}" Opacity="0.75" />
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                          <TextBlock Text="{Binding Filename}" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Username, StringFormat='user {0}'}" Opacity="0.75" />
+                          <TextBlock Text="{Binding MetadataSummary}" TextWrapping="Wrap" Opacity="0.75" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Download" Command="{Binding DataContext.Search.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                       </Grid>
                     </Border>
                   </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <ItemsControl ItemsSource="{Binding Search.FolderCandidates}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <ListBox ItemsSource="{Binding Search.FolderCandidates}"
+                       MaxHeight="420"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopAlbumFolderViewModel">
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-                        <TextBlock Text="{Binding FolderPath}" TextWrapping="Wrap" />
-                        <TextBlock Grid.Column="1" Text="{Binding Peer.Username}" Opacity="0.75" />
-                        <TextBlock Grid.Column="2" Text="{Binding AudioFileCount, StringFormat='{}{0} audio files'}" Opacity="0.75" />
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                          <TextBlock Text="{Binding FolderPath}" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Username, StringFormat='user {0}'}" Opacity="0.75" />
+                          <TextBlock Text="{Binding MetadataSummary}" TextWrapping="Wrap" Opacity="0.75" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Download" Command="{Binding DataContext.Search.DownloadFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
                       </Grid>
                     </Border>
                   </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
+                </ListBox.ItemTemplate>
+              </ListBox>
             </StackPanel>
           </Border>
 
@@ -252,6 +271,18 @@
                 <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Downloads.RefreshCommand}" />
               </DockPanel>
               <TextBlock Text="{Binding Downloads.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding Downloads.Notifications}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopNotificationViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.75" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <ItemsControl ItemsSource="{Binding Downloads.Progress}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
@@ -269,19 +300,36 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
+                      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12">
                         <StackPanel>
                           <TextBlock Text="{Binding ItemName}" FontWeight="SemiBold" />
                           <TextBlock Text="{Binding LifecycleState}" Opacity="0.75" />
                         </StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding ActivityPhase}" Opacity="0.75" />
                         <Button Grid.Column="2" Content="Next candidate" Command="{Binding DataContext.Downloads.NextCandidateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
-                        <Button Grid.Column="3" Content="Cancel" Command="{Binding DataContext.Downloads.CancelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        <Button Grid.Column="3" Content="Retry" Command="{Binding DataContext.Downloads.RetryCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        <Button Grid.Column="4" Content="Details" Command="{Binding DataContext.Downloads.LoadWorkflowTreeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                        <Button Grid.Column="5" Content="Open file" Command="{Binding DataContext.Downloads.OpenFileCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        <Button Grid.Column="6" Content="Open folder" Command="{Binding DataContext.Downloads.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        <Button Grid.Column="7" Content="Cancel" Command="{Binding DataContext.Downloads.CancelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
                       </Grid>
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <StackPanel Spacing="8" IsVisible="{Binding Downloads.IsWorkflowTreeVisible}">
+                <TextBlock Text="{Binding Downloads.SelectedWorkflowTitle}" FontSize="18" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding Downloads.SelectedWorkflowNodes}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="desktop:DesktopWorkflowTreeNodeViewModel">
+                      <StackPanel Spacing="2" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding DisplayLabel}" FontFamily="Consolas, Cascadia Mono, monospace" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding FailureMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
             </StackPanel>
           </Border>
 

@@ -52,6 +52,69 @@ public sealed class DesktopSearchViewModelTests
     }
 
     [TestMethod]
+    public async Task SearchAsync_SubmitsProfileAndBasicQualityFilters()
+    {
+        var handler = new RecordingHandler(_ => new JobSummaryDto { DisplayId = 44 });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
+        {
+            Title = "Song",
+            ProfileNames = "lossless, desktop",
+            MinBitrate = "320",
+            Formats = "flac; mp3"
+        };
+
+        var job = await viewModel.SearchAsync();
+
+        Assert.IsNotNull(job);
+        StringAssert.Contains(handler.RequestBody, "ProfileNames");
+        StringAssert.Contains(handler.RequestBody, "lossless");
+        StringAssert.Contains(handler.RequestBody, "desktop");
+        StringAssert.Contains(handler.RequestBody, "MinBitrate");
+        StringAssert.Contains(handler.RequestBody, "320");
+        StringAssert.Contains(handler.RequestBody, "Formats");
+        StringAssert.Contains(handler.RequestBody, "flac");
+        StringAssert.Contains(handler.RequestBody, "mp3");
+    }
+
+    [TestMethod]
+    public async Task SearchAsync_WithInvalidMinimumBitrate_ReturnsValidationErrorWithoutRequest()
+    {
+        var handler = new RecordingHandler(_ => new JobSummaryDto());
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
+        {
+            Title = "Song",
+            MinBitrate = "abc"
+        };
+
+        var job = await viewModel.SearchAsync();
+
+        Assert.IsNull(job);
+        StringAssert.Contains(viewModel.ErrorMessage, "Minimum bitrate");
+        Assert.IsNull(handler.RequestUri);
+    }
+
+    [TestMethod]
+    public async Task SearchAsync_ServerAppError_ExposesCorrelationId()
+    {
+        var handler = new RecordingHandler(
+            _ => new AppErrorDto("request_invalid", "Search failed.", "search-correlation"),
+            HttpStatusCode.BadRequest);
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
+        {
+            Title = "Song"
+        };
+
+        var job = await viewModel.SearchAsync();
+
+        Assert.IsNull(job);
+        StringAssert.Contains(viewModel.ErrorMessage, "Search failed.");
+        StringAssert.Contains(viewModel.ErrorMessage, "search-correlation");
+    }
+
+    [TestMethod]
     public async Task SearchAsync_WithoutRequiredQuery_ReturnsValidationErrorWithoutRequest()
     {
         var handler = new RecordingHandler(_ => new JobSummaryDto());
@@ -81,7 +144,9 @@ public sealed class DesktopSearchViewModelTests
                     123,
                     320,
                     44100,
-                    210)])
+                    210,
+                    "flac",
+                    [new FileAttributeDto("BitDepth", 16)])])
             : new JobSummaryDto { JobId = jobId });
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
         var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
@@ -97,6 +162,7 @@ public sealed class DesktopSearchViewModelTests
         Assert.IsTrue(viewModel.IsResultsComplete);
         Assert.AreEqual(1, viewModel.FileCandidates.Count);
         Assert.AreEqual("folder/song.flac", viewModel.FileCandidates[0].Filename);
+        Assert.AreEqual("slot free | speed 1000 B/s | format flac | 320 kbps | 44100 Hz | 16 bit | 3:30", viewModel.FileCandidates[0].MetadataSummary);
         Assert.AreEqual("api/jobs/" + jobId + "/results/files", handler.RequestUri);
     }
 
@@ -132,6 +198,53 @@ public sealed class DesktopSearchViewModelTests
         Assert.AreEqual(downloadJobId, viewModel.LastDownloadJobs[0].JobId);
         Assert.AreEqual("api/jobs/" + searchJobId + "/downloads/files", handler.RequestUri);
         StringAssert.Contains(handler.RequestBody, "folder/song.flac");
+    }
+
+    [TestMethod]
+    public void DownloadCommands_AcceptDesktopCandidateParameters()
+    {
+        var handler = new RecordingHandler(_ => new JobSummaryDto());
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient));
+        var candidate = new DesktopFileCandidateViewModel(new FileCandidateDto(
+            new FileCandidateRefDto("user", "folder/song.flac"),
+            "user",
+            "folder/song.flac",
+            new PeerInfoDto("user"),
+            123,
+            null,
+            null,
+            null));
+        var folder = new DesktopAlbumFolderViewModel(new AlbumFolderDto(
+            new AlbumFolderRefDto("user", "Artist\\Album"),
+            "user",
+            "Artist\\Album",
+            new PeerInfoDto("user"),
+            10,
+            8));
+
+        Assert.IsTrue(viewModel.DownloadFileCommand.CanExecute(candidate));
+        Assert.IsFalse(viewModel.DownloadFileCommand.CanExecute(folder));
+        Assert.IsTrue(viewModel.DownloadFolderCommand.CanExecute(folder));
+        Assert.IsFalse(viewModel.DownloadFolderCommand.CanExecute(candidate));
+    }
+
+    [TestMethod]
+    public void LargeResultLists_UseBoundedListBoxes()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "Sockseek.Desktop",
+            "DesktopShellMainWindow.axaml"));
+        var xaml = File.ReadAllText(xamlPath);
+
+        StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Search.FileCandidates}\"");
+        StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Search.FolderCandidates}\"");
+        StringAssert.Contains(xaml, "MaxHeight=\"420\"");
     }
 
     [TestMethod]
@@ -180,7 +293,9 @@ public sealed class DesktopSearchViewModelTests
         StringAssert.Contains(handler.RequestBody, "Artist\\\\Album");
     }
 
-    private sealed class RecordingHandler(Func<HttpRequestMessage, object> responseFactory) : HttpMessageHandler
+    private sealed class RecordingHandler(
+        Func<HttpRequestMessage, object> responseFactory,
+        HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
         public string? RequestUri { get; private set; }
         public string RequestBody { get; private set; } = string.Empty;
@@ -191,7 +306,7 @@ public sealed class DesktopSearchViewModelTests
             RequestBody = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(responseFactory(request)) };
+            return new HttpResponseMessage(statusCode) { Content = JsonContent.Create(responseFactory(request)) };
         }
     }
 }

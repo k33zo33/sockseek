@@ -195,6 +195,10 @@ public enum ServerResourceActionKind
     /// <summary>Resource can be cancelled through the supplied HTTP method and URL.</summary>
     [JsonStringEnumMemberName(ServerProtocol.ResourceActionKinds.Cancel)]
     Cancel,
+
+    /// <summary>Resource can be retried through the supplied HTTP method and URL.</summary>
+    [JsonStringEnumMemberName(ServerProtocol.ResourceActionKinds.Retry)]
+    Retry,
 }
 
 /// <summary>
@@ -281,6 +285,9 @@ public static class ServerProtocol
     {
         /// <summary>Resource can be cancelled through the supplied HTTP method and URL.</summary>
         public const string Cancel = "cancel";
+
+        /// <summary>Resource can be retried through the supplied HTTP method and URL.</summary>
+        public const string Retry = "retry";
     }
 }
 

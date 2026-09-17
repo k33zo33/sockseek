@@ -3,7 +3,7 @@
 > [!WARNING]
 > This document describes the **current Sockseek daemon HTTP/SignalR API and client integration surface**.
 >
-> For the planned future **application API** used by Sockseek UI, see [`API.md`](API.md). The two files intentionally coexist during the baseline/planning phase.
+> For the planned future **application API** used by Sockseek UI, see [`application-api.md`](application-api.md).
 >
 > The API is experimental and has not yet been tested much. Expect bugs and breaking changes.
 

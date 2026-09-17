@@ -9,7 +9,7 @@ Completed
 Always read `/AGENTS.md` and `/docs/project-state.yaml`, then:
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
-- [API.md](../API.md)
+- [application-api.md](../application-api.md)
 - [SECURITY.md](../SECURITY.md)
 
 ## Scope rule

@@ -495,6 +495,17 @@ public static class ServerHost
             .Produces(StatusCodes.Status202Accepted)
             .Produces(StatusCodes.Status404NotFound);
 
+        app.MapPost("/api/jobs/{jobId:guid}/retry", (Guid jobId, EngineSupervisor supervisor) =>
+        {
+            return supervisor.RetryJob(jobId)
+                ? Results.Accepted($"/api/jobs/{jobId}")
+                : Results.NotFound();
+        })
+            .WithTags("Jobs")
+            .WithSummary("Retries a terminal job using its prepared execution context.")
+            .Produces(StatusCodes.Status202Accepted)
+            .Produces(StatusCodes.Status404NotFound);
+
         app.MapPost("/api/workflows/{workflowId:guid}/jobs/display/{displayId:int}/next-candidate", (Guid workflowId, int displayId, EngineSupervisor supervisor) =>
         {
             return supervisor.TryNextCandidateByDisplayId(workflowId, displayId)

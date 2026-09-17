@@ -69,9 +69,19 @@ public sealed class SockseekApiClient
     public async Task<JobSummaryDto> SubmitTrackSearchJobAsync(SubmitTrackSearchJobRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/search/tracks", request, ct);
 
+    public async Task<JobSummaryDto> SubmitTrackSearchJobAsync(SongQueryDto songQuery, SearchSubmissionOptionsDto? options, CancellationToken ct = default)
+        => await SubmitTrackSearchJobAsync(
+            new SubmitTrackSearchJobRequestDto(songQuery, Options: ToSubmissionOptions(options)),
+            ct);
+
     /// <summary>Submits a typed album search job. The default folder result endpoint can infer its projection from the stored album query.</summary>
     public async Task<JobSummaryDto> SubmitAlbumSearchJobAsync(SubmitAlbumSearchJobRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/search/albums", request, ct);
+
+    public async Task<JobSummaryDto> SubmitAlbumSearchJobAsync(AlbumQueryDto albumQuery, SearchSubmissionOptionsDto? options, CancellationToken ct = default)
+        => await SubmitAlbumSearchJobAsync(
+            new SubmitAlbumSearchJobRequestDto(albumQuery, Options: ToSubmissionOptions(options)),
+            ct);
 
     public async Task<JobSummaryDto> SubmitSongJobAsync(SubmitSongJobRequestDto request, CancellationToken ct = default)
         => await PostJobAsync("api/jobs/downloads/song", request, ct);
@@ -161,6 +171,15 @@ public sealed class SockseekApiClient
             return null;
         await EnsureSuccessAsync(response, ct);
         return await ReadRequiredAsync<WorkflowDetailDto>(response, ct);
+    }
+
+    public async Task<WorkflowTreeDto?> GetWorkflowTreeAsync(Guid workflowId, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/workflows/{workflowId}/tree", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<WorkflowTreeDto>(response, ct);
     }
 
     public async Task<SearchResultSnapshotDto<FileCandidateDto>?> GetFileResultsAsync(Guid jobId, CancellationToken ct = default)
@@ -323,6 +342,15 @@ public sealed class SockseekApiClient
         return true;
     }
 
+    public async Task<bool> RetryJobAsync(Guid jobId, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/jobs/{jobId}/retry", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(response, ct);
+        return true;
+    }
+
     public async Task<bool> TryNextCandidateByDisplayIdAsync(int displayId, Guid? workflowId = null, CancellationToken ct = default)
     {
         if (workflowId is Guid id)
@@ -396,6 +424,36 @@ public sealed class SockseekApiClient
 
     private static string QueryPart(string name, string? value)
         => string.IsNullOrWhiteSpace(value) ? "" : $"&{Uri.EscapeDataString(name)}={Uri.EscapeDataString(value)}";
+
+    private static SubmissionOptionsDto? ToSubmissionOptions(SearchSubmissionOptionsDto? options)
+    {
+        if (options is null)
+            return null;
+
+        var formatList = options.Formats?
+            .Where(format => !string.IsNullOrWhiteSpace(format))
+            .ToArray();
+        var profileNames = options.ProfileNames?
+            .Where(profile => !string.IsNullOrWhiteSpace(profile))
+            .ToArray();
+        var necessaryConditions = options.MinBitrate is null && (formatList is null || formatList.Length == 0)
+            ? null
+            : new FileConditionsPatchDto(
+                MinBitrate: options.MinBitrate,
+                Formats: formatList is null || formatList.Length == 0
+                    ? null
+                    : new CollectionPatchDto<string>(Replace: formatList));
+        var downloadSettings = necessaryConditions is null
+            ? null
+            : new DownloadSettingsPatchDto(Search: new SearchSettingsPatchDto(NecessaryCond: necessaryConditions));
+
+        if ((profileNames is null || profileNames.Length == 0) && downloadSettings is null)
+            return null;
+
+        return new SubmissionOptionsDto(
+            ProfileNames: profileNames is null || profileNames.Length == 0 ? null : profileNames,
+            DownloadSettings: downloadSettings);
+    }
 
     private static bool IsActiveLifecycle(ServerJobLifecycleState state)
         => state != ServerJobLifecycleState.Terminal;

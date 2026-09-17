@@ -175,6 +175,25 @@ public class DownloadEngine : IDisposable, IAsyncDisposable
     public bool CancelJobByDisplayId(int displayId, Guid? workflowId = null)
         => CancelCommandTarget(_commandTargets.ResolveDisplayId(displayId, workflowId), JobCancellationSource.UserRequestedJob);
 
+    public bool RetryJob(Guid jobId)
+    {
+        var job = _commandTargets.Resolve(jobId);
+        if (job is null || !IsRetryableTerminal(job) || !_contexts.ContainsKey(job.Id))
+            return false;
+
+        job.ResetToPending();
+        Resume(job);
+        return true;
+    }
+
+    private static bool IsRetryableTerminal(Job job)
+        => job.LifecycleState == JobLifecycleState.Terminal
+        && (job.TerminalOutcome is JobTerminalOutcome.Failed
+                or JobTerminalOutcome.Cancelled
+                or JobTerminalOutcome.PartialSuccess
+            || job.TerminalOutcome == JobTerminalOutcome.Skipped
+                && job.SkipReason is not JobSkipReason.AlreadyExists and not JobSkipReason.Manual);
+
     private static bool CancelCommandTarget(Job? job, JobCancellationSource source)
     {
         if (job == null)

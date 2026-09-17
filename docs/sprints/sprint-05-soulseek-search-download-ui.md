@@ -2,13 +2,13 @@
 
 ## Status
 
-Planned
+Completed
 
 ## Required context
 
 Always read `/AGENTS.md` and `/docs/project-state.yaml`, then:
 
-- [API.md](../API.md)
+- [application-api.md](../application-api.md)
 - [UI_UX.md](../UI_UX.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
 
@@ -73,3 +73,45 @@ Ovisnosti: Sprintovi 2 i 4.
 ## Completion report
 
 Report changed files, validation commands and results, migrations, security/license impact, known risks and every unmet acceptance criterion.
+
+Completed in the current working tree.
+
+Changed areas:
+
+- Soulseek retry support across `DownloadEngine`, `EngineSupervisor`, server routes, API client, OpenAPI, and Desktop download queue.
+- Desktop search/download UI for explicit candidate downloads, candidate metadata, profile/basic quality filters, bounded result lists, workflow details, notifications, and open file/folder actions.
+- Tests for retry, explicit candidate actions, metadata display, quality filter mapping, UI error correlation IDs, bounded result lists, workflow detail loading, notifications, and file/folder open handoff.
+- Documentation cleanup for the previous `docs/API.md` / `docs/api.md` case-collision, now split into `docs/application-api.md` and `docs/current-api.md`.
+
+Validation:
+
+- `dotnet build -c Release --no-restore` passed.
+- `dotnet test -c Release --no-build` passed:
+  - Architecture: 5
+  - Application: 3
+  - Domain: 26
+  - Infrastructure: 15
+  - Server: 100
+  - CLI: 254
+  - Core: 578
+  - Desktop: 179
+- `git diff --check` passed.
+
+Migrations:
+
+- None.
+
+Security/license impact:
+
+- No provider audio capability was introduced.
+- Local file/folder opening uses OS shell handoff and validates local path availability.
+- Existing AGPL-3.0 and local-first decisions remain unchanged.
+
+Known risks:
+
+- Large-result UI coverage is structural/VM-level, not a rendered performance trace.
+- Build still reports pre-existing package advisory warnings for `AngleSharp` and `SQLitePCLRaw.lib.e_sqlite3`, plus existing fake-event CS0067 warnings in Desktop tests.
+
+Unmet acceptance criteria:
+
+- None identified for Sprint 5.

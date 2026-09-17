@@ -13,12 +13,14 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? searchHandshake;
     private DesktopDownloadQueueViewModel? downloads;
     private DesktopDaemonHandshake? downloadsHandshake;
+    private readonly IDesktopFileOpener fileOpener;
     private bool isStartingDaemon;
     private bool disposed;
 
-    public DesktopShellWindowViewModel(IDesktopShellSession session)
+    public DesktopShellWindowViewModel(IDesktopShellSession session, IDesktopFileOpener? fileOpener = null)
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
+        this.fileOpener = fileOpener ?? new SystemDesktopFileOpener();
         navigationButtons = Session.Shell.Items
             .Select(item => new DesktopShellNavigationItemViewModel(
                 item,
@@ -240,7 +242,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             if (downloads is null && CurrentHandshake is not null)
             {
-                downloads = new DesktopDownloadQueueViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                downloads = new DesktopDownloadQueueViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake), fileOpener);
                 downloadsHandshake = CurrentHandshake;
             }
 

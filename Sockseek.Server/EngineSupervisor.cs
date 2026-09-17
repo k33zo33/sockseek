@@ -337,6 +337,15 @@ public sealed class EngineSupervisor
         return engine?.TryNextCandidateByDisplayId(displayId, workflowId) ?? false;
     }
 
+    public bool RetryJob(Guid jobId)
+    {
+        DownloadEngine? engine;
+        lock (engineGate)
+            engine = currentEngine;
+
+        return engine?.RetryJob(jobId) ?? false;
+    }
+
     public JobDetailDto? GetJobDetailByDisplayId(Guid workflowId, int displayId)
     {
         DownloadEngine? engine;

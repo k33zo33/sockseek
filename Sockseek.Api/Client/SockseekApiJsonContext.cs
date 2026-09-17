@@ -53,6 +53,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(AggregateTrackProjectionRequestDto))]
 [JsonSerializable(typeof(AggregateAlbumProjectionRequestDto))]
 [JsonSerializable(typeof(SubmissionOptionsDto))]
+[JsonSerializable(typeof(SearchSubmissionOptionsDto))]
 [JsonSerializable(typeof(DownloadBehaviorPolicyDto))]
 [JsonSerializable(typeof(Sockseek.Core.DownloadBehavior))]
 

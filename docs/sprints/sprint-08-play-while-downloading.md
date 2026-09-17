@@ -9,7 +9,7 @@ Planned
 Always read `/AGENTS.md` and `/docs/project-state.yaml`, then:
 
 - [PLAYER.md](../PLAYER.md)
-- [API.md](../API.md)
+- [application-api.md](../application-api.md)
 
 ## Scope rule
 

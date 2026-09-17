@@ -5,6 +5,7 @@ using Sockseek.Core.Settings;
 using Sockseek.Api;
 using Sockseek.Server;
 using System.Collections.Concurrent;
+using Tests.ClientTests;
 
 namespace Tests.Server;
 
@@ -87,6 +88,68 @@ public class EngineSupervisorTests
             var downloaded = Directory.GetFiles(outputDir, "*.mp3", SearchOption.AllDirectories);
             Assert.AreEqual(1, downloaded.Length);
             Assert.IsTrue(downloaded[0].EndsWith("01. Artist - Track One.mp3", StringComparison.OrdinalIgnoreCase));
+
+            cts.Cancel();
+            await runTask;
+        }
+        finally
+        {
+            cts.Cancel();
+            await runTask;
+            if (Directory.Exists(musicRoot))
+                Directory.Delete(musicRoot, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task RetryJob_RequeuesFailedTerminalJob_AndRejectsSucceededJob()
+    {
+        string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-server-test-" + Guid.NewGuid());
+        string outputDir = Path.Combine(musicRoot, "out");
+        Directory.CreateDirectory(musicRoot);
+        Directory.CreateDirectory(outputDir);
+
+        using var cts = new CancellationTokenSource();
+        Task runTask = Task.CompletedTask;
+
+        try
+        {
+            var client = new MockSoulseekClient(
+                [
+                    SearchResponse("failuser", @"Music\Artist\Album\01. Artist - Retry Me.mp3"),
+                ],
+                failingUsers: ["failuser"]);
+            var supervisor = CreateSupervisor(musicRoot, outputDir, clientFactory: _ => client);
+            runTask = supervisor.RunAsync(cts.Token);
+
+            var search = await supervisor.SubmitTrackSearchJobAsync(
+                new SubmitTrackSearchJobRequestDto(
+                    new SongQueryDto("Artist", "Retry Me", "", "", -1, false)),
+                CancellationToken.None);
+            await WaitForJobStateAsync(supervisor, search.JobId, ExpectedJobStatus.Succeeded);
+            Assert.IsFalse(supervisor.RetryJob(search.JobId), "Successful search jobs should not be retryable.");
+
+            var files = supervisor.GetFileResults(search.JobId);
+            Assert.IsNotNull(files);
+            Assert.AreEqual(1, files.Items.Count);
+
+            var downloads = await supervisor.StartFileDownloadsAsync(
+                search.JobId,
+                new StartFileDownloadsRequestDto([files.Items[0].Ref]),
+                CancellationToken.None);
+            Assert.IsNotNull(downloads);
+            var failed = downloads.Single();
+            await WaitForJobStateAsync(supervisor, failed.JobId, ExpectedJobStatus.Failed);
+
+            var failedDetail = supervisor.StateStore.GetJobDetail(failed.JobId);
+            Assert.IsNotNull(failedDetail);
+            CollectionAssert.Contains(
+                failedDetail.Summary.AvailableActions.Select(action => action.Kind).ToList(),
+                ServerResourceActionKind.Retry);
+
+            Assert.IsTrue(supervisor.RetryJob(failed.JobId));
+            await WaitForJobStateAsync(supervisor, failed.JobId, ExpectedJobStatus.Failed);
+            Assert.IsFalse(supervisor.RetryJob(Guid.NewGuid()));
 
             cts.Cancel();
             await runTask;
@@ -1104,7 +1167,8 @@ public class EngineSupervisorTests
         Action<DownloadSettings>? configureDownload = null,
         Action<EngineSettings>? configureEngine = null,
         ProfileCatalog? profiles = null,
-        DownloadSettingsPatchDto? launchDownloadSettings = null)
+        DownloadSettingsPatchDto? launchDownloadSettings = null,
+        Func<EngineSettings, Soulseek.ISoulseekClient>? clientFactory = null)
     {
         var engineSettings = new EngineSettings
         {
@@ -1129,10 +1193,31 @@ public class EngineSupervisorTests
             DefaultDownload = defaultDownload,
             LaunchDownloadSettings = launchDownloadSettings,
             Profiles = profiles ?? ProfileCatalog.Empty,
+            ClientFactory = clientFactory,
         });
 
         return new EngineSupervisor(options);
     }
+
+    private static Soulseek.SearchResponse SearchResponse(string username, string filename)
+        => new(
+            username,
+            token: 1,
+            hasFreeUploadSlot: true,
+            uploadSpeed: 100,
+            queueLength: 0,
+            fileList:
+            [
+                new Soulseek.File(
+                    1,
+                    filename,
+                    100,
+                    Path.GetExtension(filename),
+                    attributeList:
+                    [
+                        new Soulseek.FileAttribute(Soulseek.FileAttributeType.Length, 60),
+                    ]),
+            ]);
 
     private static SettingsProfile CreateProfile(string name, Action<DownloadSettings> applyDownload)
     {

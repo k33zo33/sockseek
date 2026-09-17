@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 5
-  slug: soulseek-search-download-ui
-  file: docs/sprints/sprint-05-soulseek-search-download-ui.md
+  id: 6
+  slug: local-library
+  file: docs/sprints/sprint-06-local-library.md
   status: in_progress
 
 completed_sprints:
@@ -23,6 +23,7 @@ completed_sprints:
   - 2
   - 3
   - 4
+  - 5
 blocked_by: []
 
 locked_decisions:

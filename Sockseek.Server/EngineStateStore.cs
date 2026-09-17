@@ -773,12 +773,28 @@ public sealed class EngineStateStore
         => new(policy.Default, policy.Song, policy.Album, policy.Aggregate, policy.AlbumAggregate);
 
     private static IReadOnlyList<ResourceActionDto> BuildActions(Job job)
-        => job.LifecycleState != JobLifecycleState.Terminal && job.Cts != null && !job.Cts.IsCancellationRequested
-            ? [CancelAction(job.Id)]
+    {
+        if (job.LifecycleState != JobLifecycleState.Terminal && job.Cts != null && !job.Cts.IsCancellationRequested)
+            return [CancelAction(job.Id)];
+
+        return IsRetryableTerminal(job)
+            ? [RetryAction(job.Id)]
             : [];
+    }
 
     private static ResourceActionDto CancelAction(Guid jobId)
         => new(ServerResourceActionKind.Cancel, "POST", $"/api/jobs/{jobId}/cancel");
+
+    private static ResourceActionDto RetryAction(Guid jobId)
+        => new(ServerResourceActionKind.Retry, "POST", $"/api/jobs/{jobId}/retry");
+
+    private static bool IsRetryableTerminal(Job job)
+        => job.LifecycleState == JobLifecycleState.Terminal
+        && (job.TerminalOutcome is JobTerminalOutcome.Failed
+                or JobTerminalOutcome.Cancelled
+                or JobTerminalOutcome.PartialSuccess
+            || job.TerminalOutcome == JobTerminalOutcome.Skipped
+                && job.SkipReason is not JobSkipReason.AlreadyExists and not JobSkipReason.Manual);
 
     private static SongJobPayloadDto ToSongJobPayloadDto(SongJob song, string? transferState = null)
     {

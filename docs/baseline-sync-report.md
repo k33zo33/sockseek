@@ -61,7 +61,7 @@ Revalidation on current `codex/sprint-00-baseline-sync` HEAD repeated the same r
 - `THIRD-PARTY-NOTICES` now exists as a tracked baseline artifact, but public releases still need a release-specific review of the exact resolved dependency graph and bundled notice texts.
 - NuGet vulnerability warning: `AngleSharp` `1.4.0` reports advisory `GHSA-pgww-w46g-26qg` during restore/build.
 - Docker `dotnet publish` for the trimmed self-contained CLI image still emits linker/trim-analysis warnings (for example ASP.NET Core MVC/SignalR reflection paths, JSON serialization, `EmbedIO`, `Soulseek`, `SpotifyAPI.Web`, and related dependencies). The image builds and the packaged CLI help command works, but public packaging should treat these as review items rather than silently assuming trim safety.
-- `docs/api.md` (current daemon/client integration) and `docs/API.md` (planned application API) intentionally coexist; this is valid on Linux but may still be awkward on case-insensitive filesystems/tooling.
+- `docs/current-api.md` (current daemon/client integration) and `docs/application-api.md` (planned application API) replace the previous case-only `docs/api.md` vs `docs/API.md` split so Windows and other case-insensitive tooling can work reliably.
 - Docker remains a secondary headless packaging path; it is not the primary desktop distribution mechanism.
 - Live compose review confirmed that the default container starts cron support but does not auto-start `sockseek daemon` or expose the daemon API port `5030`; the published `127.0.0.1:48721` port is for provider login callbacks such as Spotify PKCE.
 - Read-only helper wrapper is present, but local helper authentication currently needs attention:
@@ -72,6 +72,6 @@ Revalidation on current `codex/sprint-00-baseline-sync` HEAD repeated the same r
 
 - expand `THIRD-PARTY-NOTICES` from baseline inventory into a release-specific bundled notices artifact when public packaging begins
 - keep `docs/release-checklist.md`, `docs/INDEX.md`, baseline/specification docs, and daemon-facing README guidance aligned with the concrete repo artifacts and safe default release posture
-- keep the current `docs/api.md` vs `docs/API.md` split documented until a future doc reorganization removes the case-sensitive filename distinction
+- keep current and planned API documentation on case-stable filenames
 - decide whether a future daemon-first compose profile should be added, or whether Docker remains explicitly CLI/cron-oriented
 - refresh helper authentication if Gemini/Claude reviews are expected in regular workflow, while keeping helper use optional rather than a hard gate for local Sprint 0 validation

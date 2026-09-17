@@ -11,7 +11,7 @@ Establish a reproducible Sprint 0 baseline for the `k33zo33/sockseek` fork, sync
 - `upstream/master` is ahead of the baseline and fast-forwardable.
 - Local host runtime does not expose `dotnet`, but Docker is available.
 - The Codex documentation package was initially nested under `docs/Sockseek_Codex_Documentation_Package/` and needed normalization.
-- The repo currently has both `docs/api.md` and `docs/API.md`, which may be awkward across case-insensitive tooling.
+- The repo previously had both `docs/api.md` and `docs/API.md`, which was awkward across case-insensitive tooling; the case-stable names are `docs/current-api.md` and `docs/application-api.md`.
 
 ## In scope
 

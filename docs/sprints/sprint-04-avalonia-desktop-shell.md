@@ -10,7 +10,7 @@ Always read `/AGENTS.md` and `/docs/project-state.yaml`, then:
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
 - [UI_UX.md](../UI_UX.md)
-- [API.md](../API.md)
+- [application-api.md](../application-api.md)
 
 ## Scope rule
 

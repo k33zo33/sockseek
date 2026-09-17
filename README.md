@@ -323,7 +323,7 @@ specific interface explicitly and review the security implications first:
 sockseek daemon --server-ip 0.0.0.0 --server-port 5030
 ```
 
-For the current HTTP API, SignalR surface, and client integration notes, see [docs/api.md](docs/api.md). For the planned Sockseek UI application API, see [docs/API.md](docs/API.md).
+For the current HTTP API, SignalR surface, and client integration notes, see [docs/current-api.md](docs/current-api.md). For the planned Sockseek UI application API, see [docs/application-api.md](docs/application-api.md).
 <!-- sockseek-help:end -->
 
 <!-- sockseek-help:start(config) -->
