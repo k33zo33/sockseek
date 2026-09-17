@@ -231,6 +231,34 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
+                  IsVisible="{Binding IsDownloadsReady}">
+            <StackPanel Spacing="12">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="Download queue" FontSize="20" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Downloads.RefreshCommand}" />
+              </DockPanel>
+              <TextBlock Text="{Binding Downloads.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding Downloads.Jobs}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel>
+                          <TextBlock Text="{Binding ItemName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding LifecycleState}" Opacity="0.75" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding ActivityPhase}" Opacity="0.75" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
                   IsVisible="{Binding IsHomeSectionActive}">
             <StackPanel Spacing="14">
               <DockPanel>

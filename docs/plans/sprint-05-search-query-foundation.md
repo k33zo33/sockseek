@@ -20,6 +20,7 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 - Submit an explicit file-candidate download action using the stable candidate reference.
 - Delegate cancel and next-candidate actions to the existing daemon job endpoints.
 - Wire the search state into the Avalonia shell with track/album controls and candidate rows.
+- Wire a lazy, authenticated download queue view into the Downloads shell surface.
 
 ## Out of scope
 
@@ -47,7 +48,8 @@ Provide a tested Desktop-side entry point for typed track and album search reque
 4. Add explicit file-candidate download action.
 5. Add cancel and next-candidate job actions.
 6. Wire the initial Search shell surface.
-7. Add HTTP contract tests for payload, validation, result and job actions.
+7. Wire the initial Downloads queue surface with lazy API client creation.
+8. Add HTTP contract tests for payload, validation, result and job actions.
 
 ## Testing strategy
 

@@ -11,6 +11,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? lastKnownHandshake;
     private DesktopSearchViewModel? search;
     private DesktopDaemonHandshake? searchHandshake;
+    private DesktopDownloadQueueViewModel? downloads;
+    private DesktopDaemonHandshake? downloadsHandshake;
     private bool isStartingDaemon;
     private bool disposed;
 
@@ -215,9 +217,37 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public DesktopDaemonHandshake? CurrentHandshake => Shell.CurrentHandshake;
 
-    public DesktopSearchViewModel? Search => search;
+    public DesktopSearchViewModel? Search
+    {
+        get
+        {
+            if (search is null && CurrentHandshake is not null)
+            {
+                search = new DesktopSearchViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                searchHandshake = CurrentHandshake;
+            }
+
+            return search;
+        }
+    }
 
     public bool IsSearchReady => Search is not null;
+
+    public DesktopDownloadQueueViewModel? Downloads
+    {
+        get
+        {
+            if (downloads is null && CurrentHandshake is not null)
+            {
+                downloads = new DesktopDownloadQueueViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                downloadsHandshake = CurrentHandshake;
+            }
+
+            return downloads;
+        }
+    }
+
+    public bool IsDownloadsReady => Downloads is not null;
 
     public bool HasCurrentHandshake => CurrentHandshake is not null;
 
@@ -410,6 +440,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(HasCurrentHandshake));
                 OnPropertyChanged(nameof(Search));
                 OnPropertyChanged(nameof(IsSearchReady));
+                OnPropertyChanged(nameof(Downloads));
+                OnPropertyChanged(nameof(IsDownloadsReady));
                 OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -443,13 +475,21 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             search = null;
             searchHandshake = null;
+            downloads = null;
+            downloadsHandshake = null;
             return;
         }
 
-        if (search is null || !Equals(searchHandshake, CurrentHandshake))
+        if (!Equals(searchHandshake, CurrentHandshake))
         {
-            search = new DesktopSearchViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+            search = null;
             searchHandshake = CurrentHandshake;
+        }
+
+        if (!Equals(downloadsHandshake, CurrentHandshake))
+        {
+            downloads = null;
+            downloadsHandshake = CurrentHandshake;
         }
     }
 
