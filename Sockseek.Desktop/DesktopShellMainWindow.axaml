@@ -206,6 +206,7 @@
                 <TextBox Grid.Column="1" IsVisible="{Binding Search.IsTrackMode}" Watermark="Title" Text="{Binding Search.Title}" />
                 <TextBox Grid.Column="1" IsVisible="{Binding Search.IsAlbumMode}" Watermark="Album" Text="{Binding Search.Album}" />
               </Grid>
+              <TextBox IsVisible="{Binding Search.IsAlbumMode}" Watermark="Track hint (optional)" Text="{Binding Search.SearchHint}" />
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Content="Search" Command="{Binding Search.SearchCommand}" />
                 <Button Content="Refresh results" Command="{Binding Search.RefreshResultsCommand}" />
@@ -220,6 +221,19 @@
                         <TextBlock Text="{Binding Filename}" TextWrapping="Wrap" />
                         <TextBlock Grid.Column="1" Text="{Binding Peer.Username}" Opacity="0.75" />
                         <TextBlock Grid.Column="2" Text="{Binding BitRate, StringFormat='{}{0} kbps'}" Opacity="0.75" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <ItemsControl ItemsSource="{Binding Search.FolderCandidates}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                        <TextBlock Text="{Binding FolderPath}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="1" Text="{Binding Peer.Username}" Opacity="0.75" />
+                        <TextBlock Grid.Column="2" Text="{Binding AudioFileCount, StringFormat='{}{0} audio files'}" Opacity="0.75" />
                       </Grid>
                     </Border>
                   </DataTemplate>
