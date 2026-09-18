@@ -34,3 +34,4 @@ locked_decisions:
   - adr/0004-avalonia-desktop-ui.md
   - adr/0005-separate-local-daemon.md
   - adr/0006-sqlite-ef-core.md
+  - adr/0007-libvlcsharp-local-player-engine.md
