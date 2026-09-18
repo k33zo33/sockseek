@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 6
-  slug: local-library
-  file: docs/sprints/sprint-06-local-library.md
+  id: 7
+  slug: local-player-mvp
+  file: docs/sprints/sprint-07-local-player-mvp.md
   status: in_progress
 
 completed_sprints:
@@ -24,6 +24,7 @@ completed_sprints:
   - 3
   - 4
   - 5
+  - 6
 blocked_by: []
 
 locked_decisions:
