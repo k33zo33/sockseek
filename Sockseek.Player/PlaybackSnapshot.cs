@@ -6,7 +6,10 @@ public sealed record PlaybackSnapshot(
     Guid? PlaylistItemId,
     Guid? LocalMediaFileId,
     string? Path,
-    string? ErrorMessage)
+    string? ErrorMessage,
+    TimeSpan Position,
+    double Volume,
+    bool IsMuted)
 {
     public static PlaybackSnapshot Stopped { get; } = new(
         PlaybackState.Stopped,
@@ -14,5 +17,8 @@ public sealed record PlaybackSnapshot(
         null,
         null,
         null,
-        null);
+        null,
+        TimeSpan.Zero,
+        1.0,
+        false);
 }

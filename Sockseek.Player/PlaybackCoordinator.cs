@@ -36,7 +36,16 @@ public sealed class PlaybackCoordinator
         Guid canonicalTrackId,
         CancellationToken cancellationToken = default)
     {
-        snapshot = new PlaybackSnapshot(PlaybackState.ResolvingSource, canonicalTrackId, null, null, null, null);
+        snapshot = snapshot with
+        {
+            State = PlaybackState.ResolvingSource,
+            CanonicalTrackId = canonicalTrackId,
+            PlaylistItemId = null,
+            LocalMediaFileId = null,
+            Path = null,
+            ErrorMessage = null,
+            Position = TimeSpan.Zero,
+        };
         var source = await sourceResolver.ResolveCanonicalTrackAsync(canonicalTrackId, cancellationToken);
         return await PlayResolvedSourceAsync(source, cancellationToken);
     }
@@ -45,7 +54,16 @@ public sealed class PlaybackCoordinator
         Guid playlistItemId,
         CancellationToken cancellationToken = default)
     {
-        snapshot = new PlaybackSnapshot(PlaybackState.ResolvingSource, null, playlistItemId, null, null, null);
+        snapshot = snapshot with
+        {
+            State = PlaybackState.ResolvingSource,
+            CanonicalTrackId = null,
+            PlaylistItemId = playlistItemId,
+            LocalMediaFileId = null,
+            Path = null,
+            ErrorMessage = null,
+            Position = TimeSpan.Zero,
+        };
         var source = await sourceResolver.ResolvePlaylistItemAsync(playlistItemId, cancellationToken);
         return await PlayResolvedSourceAsync(source, cancellationToken);
     }
@@ -55,9 +73,9 @@ public sealed class PlaybackCoordinator
         if (snapshot.State != PlaybackState.Playing)
             return snapshot;
 
-        await mediaEngine.PauseAsync(cancellationToken);
-        snapshot = snapshot with { State = PlaybackState.Paused, ErrorMessage = null };
-        return snapshot;
+        return await RunEngineCommandAsync(
+            engine => engine.PauseAsync(cancellationToken),
+            () => snapshot with { State = PlaybackState.Paused, ErrorMessage = null });
     }
 
     public async Task<PlaybackSnapshot> ResumeAsync(CancellationToken cancellationToken = default)
@@ -65,16 +83,49 @@ public sealed class PlaybackCoordinator
         if (snapshot.State != PlaybackState.Paused)
             return snapshot;
 
-        await mediaEngine.PlayAsync(cancellationToken);
-        snapshot = snapshot with { State = PlaybackState.Playing, ErrorMessage = null };
-        return snapshot;
+        return await RunEngineCommandAsync(
+            engine => engine.PlayAsync(cancellationToken),
+            () => snapshot with { State = PlaybackState.Playing, ErrorMessage = null });
     }
 
     public async Task<PlaybackSnapshot> StopAsync(CancellationToken cancellationToken = default)
     {
-        await mediaEngine.StopAsync(cancellationToken);
-        snapshot = PlaybackSnapshot.Stopped;
-        return snapshot;
+        return await RunEngineCommandAsync(
+            engine => engine.StopAsync(cancellationToken),
+            () => PlaybackSnapshot.Stopped with
+            {
+                Volume = snapshot.Volume,
+                IsMuted = snapshot.IsMuted,
+            });
+    }
+
+    public async Task<PlaybackSnapshot> SeekAsync(TimeSpan position, CancellationToken cancellationToken = default)
+    {
+        if (position < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(position), "Seek position cannot be negative.");
+        if (snapshot.State is not (PlaybackState.Playing or PlaybackState.Paused))
+            return snapshot;
+
+        return await RunEngineCommandAsync(
+            engine => engine.SeekAsync(position, cancellationToken),
+            () => snapshot with { Position = position, ErrorMessage = null });
+    }
+
+    public async Task<PlaybackSnapshot> SetVolumeAsync(double volume, CancellationToken cancellationToken = default)
+    {
+        if (volume is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(volume), "Volume must be between 0 and 1.");
+
+        return await RunEngineCommandAsync(
+            engine => engine.SetVolumeAsync(volume, cancellationToken),
+            () => snapshot with { Volume = volume, ErrorMessage = null });
+    }
+
+    public async Task<PlaybackSnapshot> SetMutedAsync(bool isMuted, CancellationToken cancellationToken = default)
+    {
+        return await RunEngineCommandAsync(
+            engine => engine.SetMutedAsync(isMuted, cancellationToken),
+            () => snapshot with { IsMuted = isMuted, ErrorMessage = null });
     }
 
     private async Task<PlaybackSnapshot> PlayResolvedSourceAsync(
@@ -89,7 +140,10 @@ public sealed class PlaybackCoordinator
                 source.PlaylistItemId,
                 source.LocalMediaFileId,
                 source.Path,
-                source.Reason ?? "Playback source is not available.");
+                source.Reason ?? "Playback source is not available.",
+                snapshot.Position,
+                snapshot.Volume,
+                snapshot.IsMuted);
             return snapshot;
         }
 
@@ -101,7 +155,10 @@ public sealed class PlaybackCoordinator
                 source.PlaylistItemId,
                 source.LocalMediaFileId,
                 source.Path,
-                "Playback source must be a local file path.");
+                "Playback source must be a local file path.",
+                snapshot.Position,
+                snapshot.Volume,
+                snapshot.IsMuted);
             return snapshot;
         }
 
@@ -111,13 +168,41 @@ public sealed class PlaybackCoordinator
             source.PlaylistItemId,
             source.LocalMediaFileId,
             source.Path,
-            null);
+            null,
+            TimeSpan.Zero,
+            snapshot.Volume,
+            snapshot.IsMuted);
 
         try
         {
             await mediaEngine.LoadAsync(source.Path, cancellationToken);
             await mediaEngine.PlayAsync(cancellationToken);
             snapshot = snapshot with { State = PlaybackState.Playing };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            snapshot = snapshot with
+            {
+                State = PlaybackState.Failed,
+                ErrorMessage = ex.Message,
+            };
+        }
+
+        return snapshot;
+    }
+
+    private async Task<PlaybackSnapshot> RunEngineCommandAsync(
+        Func<IMediaEngine, Task> command,
+        Func<PlaybackSnapshot> success)
+    {
+        try
+        {
+            await command(mediaEngine);
+            snapshot = success();
         }
         catch (OperationCanceledException)
         {

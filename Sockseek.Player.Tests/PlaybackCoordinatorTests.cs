@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Application.Playback;
 
@@ -127,6 +128,57 @@ public sealed class PlaybackCoordinatorTests
             engine.Calls.ToArray());
     }
 
+    [TestMethod]
+    public async Task SeekVolumeAndMuteAsync_UpdateSnapshotAndEngine()
+    {
+        var trackId = Guid.NewGuid();
+        var engine = new FakeMediaEngine();
+        var coordinator = new PlaybackCoordinator(
+            new FakePlaybackSourceResolver(PlaybackSourceResolution.LocalFile(trackId, null, Guid.NewGuid(), "C:/Music/Track.mp3")),
+            engine);
+
+        await coordinator.PlayCanonicalTrackAsync(trackId);
+        var seeked = await coordinator.SeekAsync(TimeSpan.FromSeconds(42));
+        var volume = await coordinator.SetVolumeAsync(0.35);
+        var muted = await coordinator.SetMutedAsync(true);
+
+        Assert.AreEqual(TimeSpan.FromSeconds(42), seeked.Position);
+        Assert.AreEqual(0.35, volume.Volume);
+        Assert.IsTrue(muted.IsMuted);
+        CollectionAssert.AreEqual(
+            new[] { "Load:C:/Music/Track.mp3", "Play", "Seek:00:00:42", "Volume:0.35", "Muted:True" },
+            engine.Calls.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ControlFailure_EntersFailedStateWithoutThrowing()
+    {
+        var trackId = Guid.NewGuid();
+        var engine = new FakeMediaEngine { SeekException = new InvalidOperationException("seek failed") };
+        var coordinator = new PlaybackCoordinator(
+            new FakePlaybackSourceResolver(PlaybackSourceResolution.LocalFile(trackId, null, Guid.NewGuid(), "C:/Music/Track.mp3")),
+            engine);
+
+        await coordinator.PlayCanonicalTrackAsync(trackId);
+        var result = await coordinator.SeekAsync(TimeSpan.FromSeconds(10));
+
+        Assert.AreEqual(PlaybackState.Failed, result.State);
+        Assert.AreEqual("seek failed", result.ErrorMessage);
+    }
+
+    [TestMethod]
+    public async Task SetVolumeAsync_OutOfRange_ThrowsWithoutCallingEngine()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = new PlaybackCoordinator(
+            new FakePlaybackSourceResolver(PlaybackSourceResolution.PendingResolution(null, "pending")),
+            engine);
+
+        await Assert.ThrowsExceptionAsync<ArgumentOutOfRangeException>(() => coordinator.SetVolumeAsync(1.5));
+
+        Assert.AreEqual(0, engine.Calls.Count);
+    }
+
     private sealed class FakePlaybackSourceResolver(PlaybackSourceResolution result) : IPlaybackSourceResolver
     {
         public Guid? CanonicalTrackId { get; private set; }
@@ -156,6 +208,8 @@ public sealed class PlaybackCoordinatorTests
 
         public Exception? LoadException { get; init; }
 
+        public Exception? SeekException { get; init; }
+
         public Task LoadAsync(string path, CancellationToken cancellationToken = default)
         {
             Calls.Add("Load:" + path);
@@ -180,6 +234,27 @@ public sealed class PlaybackCoordinatorTests
         public Task StopAsync(CancellationToken cancellationToken = default)
         {
             Calls.Add("Stop");
+            return Task.CompletedTask;
+        }
+
+        public Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("Seek:" + position);
+            if (SeekException != null)
+                throw SeekException;
+
+            return Task.CompletedTask;
+        }
+
+        public Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("Volume:" + volume.ToString(CultureInfo.InvariantCulture));
+            return Task.CompletedTask;
+        }
+
+        public Task SetMutedAsync(bool isMuted, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("Muted:" + isMuted);
             return Task.CompletedTask;
         }
     }
