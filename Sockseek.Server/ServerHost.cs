@@ -80,6 +80,7 @@ public static class ServerHost
         builder.Services.AddScoped<IPlaybackSourceResolver, LocalPlaybackSourceResolver>();
         builder.Services.AddScoped<PlaybackCoordinator>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
+        builder.Services.AddHostedService<LocalLibraryBackgroundScanHostedService>();
 
         var app = builder.Build();
         DesktopDaemonStartupHandshakeEmitter.Register(app, startupHandshakeWriter ?? Console.Out);
