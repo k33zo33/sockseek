@@ -102,6 +102,74 @@ public class CanonicalTrackStoreTests
     }
 
     [TestMethod]
+    public async Task UpsertAsync_UnchangedPhysicalFile_PreservesContentHash()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.MigrateAsync();
+
+        var lastWrite = new DateTimeOffset(2026, 8, 4, 20, 0, 0, TimeSpan.Zero);
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new CanonicalTrackStore(context);
+            await store.UpsertAsync(CreateRecord("C:/Music/Artist/Track.mp3", size: 1024, lastWrite));
+            var file = await context.LocalMediaFiles.SingleAsync();
+            file.ContentHash = "existing";
+            file.ContentHashAlgorithm = "SHA256";
+            file.ContentHashComputedAtUtc = new DateTimeOffset(2026, 9, 18, 9, 0, 0, TimeSpan.Zero);
+            await context.SaveChangesAsync();
+
+            await store.UpsertAsync(CreateRecord("C:/Music/Artist/Track.mp3", size: 1024, lastWrite));
+        }
+
+        await using var verify = new SockseekDbContext(options);
+        var unchanged = await verify.LocalMediaFiles.SingleAsync();
+        Assert.AreEqual("existing", unchanged.ContentHash);
+        Assert.AreEqual("SHA256", unchanged.ContentHashAlgorithm);
+        Assert.IsNotNull(unchanged.ContentHashComputedAtUtc);
+    }
+
+    [TestMethod]
+    public async Task UpsertAsync_ChangedPhysicalFile_ClearsContentHash()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.MigrateAsync();
+
+        var lastWrite = new DateTimeOffset(2026, 8, 4, 20, 0, 0, TimeSpan.Zero);
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new CanonicalTrackStore(context);
+            await store.UpsertAsync(CreateRecord("C:/Music/Artist/Track.mp3", size: 1024, lastWrite));
+            var file = await context.LocalMediaFiles.SingleAsync();
+            file.ContentHash = "existing";
+            file.ContentHashAlgorithm = "SHA256";
+            file.ContentHashComputedAtUtc = new DateTimeOffset(2026, 9, 18, 9, 0, 0, TimeSpan.Zero);
+            await context.SaveChangesAsync();
+
+            await store.UpsertAsync(CreateRecord("C:/Music/Artist/Track.mp3", size: 2048, lastWrite.AddMinutes(1)));
+        }
+
+        await using var verify = new SockseekDbContext(options);
+        var changed = await verify.LocalMediaFiles.SingleAsync();
+        Assert.IsNull(changed.ContentHash);
+        Assert.IsNull(changed.ContentHashAlgorithm);
+        Assert.IsNull(changed.ContentHashComputedAtUtc);
+    }
+
+    [TestMethod]
     public async Task UpsertAsync_ExistingPathFromOtherTrack_ReassignsLocalMediaWithoutDuplication()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -145,4 +213,23 @@ public class CanonicalTrackStoreTests
             Assert.IsNotNull(file.CanonicalTrackId);
         }
     }
+
+    private static CanonicalTrackRecord CreateRecord(string path, long size, DateTimeOffset lastWrite)
+        => new(
+            "Artist",
+            "Track",
+            180000,
+            null,
+            null,
+            [],
+            [new LocalMediaFileRecord(
+                path,
+                size,
+                lastWrite,
+                180000,
+                "mp3",
+                320,
+                44100,
+                16,
+                LocalMediaAvailability.Available)]);
 }

@@ -38,6 +38,9 @@ public sealed class LocalMediaFileRelinker(
         entity.SampleRate = metadata.SampleRate;
         entity.BitDepth = metadata.BitDepth;
         entity.Availability = (int)LocalMediaAvailability.Available;
+        entity.ContentHash = null;
+        entity.ContentHashAlgorithm = null;
+        entity.ContentHashComputedAtUtc = null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return new LocalMediaFileRelinkResult(entity.Id, entity.CanonicalTrackId, entity.Path);

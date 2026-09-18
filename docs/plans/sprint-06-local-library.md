@@ -23,7 +23,6 @@ Build the local-library vertical increment: scan configured folders, read local 
 
 - External provider imports beyond exact local match plumbing.
 - Player implementation and play-while-downloading.
-- Content hash calculation beyond an optional placeholder or interface.
 - Full 10k rendered UI profiling in the first vertical slice.
 
 ## Files and projects affected
@@ -37,7 +36,7 @@ Build the local-library vertical increment: scan configured folders, read local 
 
 ## API, schema and event changes
 
-- Expected schema addition: library roots and scan checkpoint/progress records.
+- Expected schema addition: library roots, scan checkpoint/progress records, and optional local media content hash columns.
 - Expected API addition: library roots, scan trigger/status, local track/file list.
 - Expected event addition: library scan progress snapshots or workflow-style progress updates.
 - Any schema change requires EF migration and upgrade tests.
@@ -48,8 +47,9 @@ Build the local-library vertical increment: scan configured folders, read local 
 2. Persist library roots and scan results idempotently.
 3. Mark deleted/missing files unavailable during rescan without deleting canonical tracks.
 4. Add scan progress model/events.
-5. Add Library UI list/search and rescan/relink actions.
-6. Add performance fixture for 10k rows.
+5. Add optional low-priority content hashing for available local files.
+6. Add Library UI list/search and rescan/relink actions.
+7. Add performance fixture for 10k rows.
 
 ## Testing strategy
 
@@ -58,11 +58,12 @@ Build the local-library vertical increment: scan configured folders, read local 
 - Repeat scan idempotency tests.
 - Delete/move/modified scan tests.
 - 10k local search/list performance test.
+- Content hash job tests for successful hashing, already-hashed skip, and missing-file handling.
 - Desktop Library VM tests for loading, searching, unavailable rows, and action commands.
 
 ## Migration and rollback
 
-- Use EF migration for any new tables/columns.
+- Use EF migration for any new tables/columns, including optional hash metadata columns.
 - Existing migration backup behavior remains mandatory before applying pending migrations.
 - Rollback is database backup restore; downgrade migrations are not supported.
 

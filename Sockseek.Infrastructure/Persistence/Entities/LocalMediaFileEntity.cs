@@ -15,6 +15,9 @@ public sealed class LocalMediaFileEntity : IHasConcurrencyToken
     public int? Bitrate { get; set; }
     public int? SampleRate { get; set; }
     public int? BitDepth { get; set; }
+    public string? ContentHash { get; set; }
+    public string? ContentHashAlgorithm { get; set; }
+    public DateTimeOffset? ContentHashComputedAtUtc { get; set; }
     public int Availability { get; set; }
 
     public CanonicalTrackEntity? CanonicalTrack { get; set; }

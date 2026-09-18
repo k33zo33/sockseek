@@ -124,6 +124,8 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
             }
             else
             {
+                bool physicalFileChanged = existingFile.Size != file.Size
+                    || existingFile.LastWriteUtc != file.LastWriteUtc;
                 existingFile.CanonicalTrackId = entity.Id;
                 existingFile.Size = file.Size;
                 existingFile.LastWriteUtc = file.LastWriteUtc;
@@ -133,6 +135,12 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
                 existingFile.SampleRate = file.SampleRate;
                 existingFile.BitDepth = file.BitDepth;
                 existingFile.Availability = (int)file.Availability;
+                if (physicalFileChanged)
+                {
+                    existingFile.ContentHash = null;
+                    existingFile.ContentHashAlgorithm = null;
+                    existingFile.ContentHashComputedAtUtc = null;
+                }
             }
         }
 

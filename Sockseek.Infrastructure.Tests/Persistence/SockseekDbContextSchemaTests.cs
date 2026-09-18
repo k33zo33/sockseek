@@ -54,6 +54,11 @@ public class SockseekDbContextSchemaTests
         var allIndexColumns = await IndexColumnsByTableAsync(connection);
         CollectionAssert.Contains(allIndexColumns["LocalMediaFiles"], "Availability,CanonicalTrackId");
         CollectionAssert.Contains(allIndexColumns["CanonicalTracks"], "NormalizedArtist,NormalizedTitle");
+
+        var localMediaColumns = await ColumnNamesAsync(connection, "LocalMediaFiles");
+        CollectionAssert.Contains(localMediaColumns, "ContentHash");
+        CollectionAssert.Contains(localMediaColumns, "ContentHashAlgorithm");
+        CollectionAssert.Contains(localMediaColumns, "ContentHashComputedAtUtc");
     }
 
     [TestMethod]
