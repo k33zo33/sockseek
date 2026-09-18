@@ -18,8 +18,8 @@ public class LocalLibraryScanCoordinatorTests
         string enabledFile = CreateAudioFile(enabledRoot.Path, "Artist", "Enabled.mp3");
         string disabledFile = CreateAudioFile(disabledRoot.Path, "Artist", "Disabled.mp3");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(enabledFile, new LocalAudioMetadata("Artist", "Enabled", 180000, null, null, "mp3", 320, 44100, 16));
-        metadataReader.Set(disabledFile, new LocalAudioMetadata("Artist", "Disabled", 180000, null, null, "mp3", 320, 44100, 16));
+        metadataReader.Set(enabledFile, new LocalAudioMetadata("Artist", "Enabled", "Enabled Album", 180000, null, null, "mp3", 320, 44100, 16));
+        metadataReader.Set(disabledFile, new LocalAudioMetadata("Artist", "Disabled", "Disabled Album", 180000, null, null, "mp3", 320, 44100, 16));
 
         await using var database = await TestDatabase.CreateAsync();
         var clock = new FakeClock(new DateTimeOffset(2026, 9, 17, 22, 0, 0, TimeSpan.Zero));
@@ -47,7 +47,9 @@ public class LocalLibraryScanCoordinatorTests
         await using var verify = new SockseekDbContext(database.Options);
         Assert.AreEqual(1, await verify.CanonicalTracks.CountAsync());
         Assert.AreEqual(1, await verify.LocalMediaFiles.CountAsync());
-        Assert.AreEqual("Enabled", (await verify.CanonicalTracks.SingleAsync()).Title);
+        var track = await verify.CanonicalTracks.SingleAsync();
+        Assert.AreEqual("Enabled", track.Title);
+        Assert.AreEqual("Enabled Album", track.AlbumTitle);
 
         var enabled = await verify.LibraryRoots.SingleAsync(root => root.Id == enabledRootId);
         Assert.IsNotNull(enabled.LastScanStartedUtc);
@@ -98,7 +100,7 @@ public class LocalLibraryScanCoordinatorTests
         public Task<LocalAudioMetadata> ReadAsync(string path, CancellationToken cancellationToken = default)
             => Task.FromResult(metadataByPath.TryGetValue(NormalizePath(path), out var metadata)
                 ? metadata
-                : new LocalAudioMetadata(null, null, null, null, null, null, null, null, null));
+                : new LocalAudioMetadata(null, null, null, null, null, null, null, null, null, null));
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : IClock

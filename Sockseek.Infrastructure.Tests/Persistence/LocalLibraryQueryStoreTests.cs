@@ -31,12 +31,17 @@ public class LocalLibraryQueryStoreTests
             var availableOnly = await store.SearchAsync(new LocalLibrarySearchRequest("song", IncludeMissing: false));
             Assert.AreEqual(1, availableOnly.TotalCount);
             Assert.AreEqual(availableId, availableOnly.Items.Single().TrackId);
+            Assert.AreEqual("First Album", availableOnly.Items.Single().AlbumTitle);
             Assert.AreEqual(1, availableOnly.Items.Single().AvailableFileCount);
             Assert.AreEqual(0, availableOnly.Items.Single().MissingFileCount);
 
             var withMissing = await store.SearchAsync(new LocalLibrarySearchRequest("song", IncludeMissing: true, Limit: 1));
             Assert.AreEqual(2, withMissing.TotalCount);
             Assert.AreEqual(1, withMissing.Items.Count);
+
+            var byAlbum = await store.SearchAsync(new LocalLibrarySearchRequest("first album", IncludeMissing: false));
+            Assert.AreEqual(1, byAlbum.TotalCount);
+            Assert.AreEqual(availableId, byAlbum.Items.Single().TrackId);
         }
     }
 
@@ -54,6 +59,7 @@ public class LocalLibraryQueryStoreTests
                     Id = Guid.NewGuid(),
                     Artist = $"Artist {i % 100:D3}",
                     Title = $"Track {i:D5}",
+                    AlbumTitle = $"Album {i / 10:D4}",
                     DurationMs = 180000 + i,
                     NormalizedArtist = NormalizeForMatch($"Artist {i % 100:D3}"),
                     NormalizedTitle = NormalizeForMatch($"Track {i:D5}"),
@@ -123,6 +129,7 @@ public class LocalLibraryQueryStoreTests
             await store.UpsertAsync(new CanonicalTrackRecord(
                 "Artist",
                 "Duplicate Song",
+                null,
                 180000,
                 null,
                 null,
@@ -157,6 +164,7 @@ public class LocalLibraryQueryStoreTests
             await new CanonicalTrackStore(context).UpsertAsync(new CanonicalTrackRecord(
                 "Artist",
                 "Half Missing",
+                null,
                 180000,
                 null,
                 null,
@@ -186,6 +194,7 @@ public class LocalLibraryQueryStoreTests
         => new(
             artist,
             title,
+            title == "First Song" ? "First Album" : null,
             180000,
             null,
             null,

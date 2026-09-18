@@ -16,7 +16,7 @@ public class LocalLibraryScannerTests
         using var temp = TemporaryDirectory.Create();
         string filePath = CreateAudioFile(temp.Path, "Artist", "Track.mp3");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Track", 181000, "hr-abc-1", null, "mp3", 320, 44100, 16));
+        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Track", "Album", 181000, "hr-abc-1", null, "mp3", 320, 44100, 16));
 
         await using var database = await TestDatabase.CreateAsync();
         var scanner = CreateScanner(database.Options, metadataReader);
@@ -31,6 +31,7 @@ public class LocalLibraryScannerTests
         var track = await verify.CanonicalTracks.Include(x => x.LocalMediaFiles).SingleAsync();
         Assert.AreEqual("Artist", track.Artist);
         Assert.AreEqual("Track", track.Title);
+        Assert.AreEqual("Album", track.AlbumTitle);
         Assert.AreEqual("HR-ABC-1", track.Isrc);
 
         var localFile = track.LocalMediaFiles.Single();
@@ -46,7 +47,7 @@ public class LocalLibraryScannerTests
         using var temp = TemporaryDirectory.Create();
         string filePath = CreateAudioFile(temp.Path, "Artist", "Track.flac");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Track", 220000, null, "recording-a", "flac", 900, 48000, 24));
+        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Track", null, 220000, null, "recording-a", "flac", 900, 48000, 24));
 
         await using var database = await TestDatabase.CreateAsync();
         var scanner = CreateScanner(database.Options, metadataReader);
@@ -67,8 +68,8 @@ public class LocalLibraryScannerTests
         string firstPath = CreateAudioFile(temp.Path, "A", "Track.flac");
         string secondPath = CreateAudioFile(temp.Path, "B", "Track.flac");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(firstPath, new LocalAudioMetadata("Artist", "Track", 220000, null, null, "flac", 900, 48000, 24));
-        metadataReader.Set(secondPath, new LocalAudioMetadata("Artist", "Track", 220000, null, null, "flac", 900, 48000, 24));
+        metadataReader.Set(firstPath, new LocalAudioMetadata("Artist", "Track", null, 220000, null, null, "flac", 900, 48000, 24));
+        metadataReader.Set(secondPath, new LocalAudioMetadata("Artist", "Track", null, 220000, null, null, "flac", 900, 48000, 24));
 
         await using var database = await TestDatabase.CreateAsync();
         var scanner = CreateScanner(database.Options, metadataReader);
@@ -90,13 +91,13 @@ public class LocalLibraryScannerTests
         using var temp = TemporaryDirectory.Create();
         string filePath = CreateAudioFile(temp.Path, "Artist", "Track.mp3");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Old Title", 200000, null, null, "mp3", 128, 44100, 16));
+        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Old Title", "Old Album", 200000, null, null, "mp3", 128, 44100, 16));
 
         await using var database = await TestDatabase.CreateAsync();
         var scanner = CreateScanner(database.Options, metadataReader);
 
         await scanner.ScanAsync(new LocalLibraryScanRequest([temp.Path]));
-        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "New Title", 201000, null, null, "mp3", 320, 48000, 24));
+        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "New Title", "New Album", 201000, null, null, "mp3", 320, 48000, 24));
         await scanner.ScanAsync(new LocalLibraryScanRequest([temp.Path]));
 
         await using var verify = new SockseekDbContext(database.Options);
@@ -104,6 +105,7 @@ public class LocalLibraryScannerTests
 
         var localFile = await verify.LocalMediaFiles.Include(x => x.CanonicalTrack).SingleAsync();
         Assert.AreEqual("New Title", localFile.CanonicalTrack?.Title);
+        Assert.AreEqual("New Album", localFile.CanonicalTrack?.AlbumTitle);
         Assert.AreEqual(201000, localFile.DurationMs);
         Assert.AreEqual(320, localFile.Bitrate);
         Assert.AreEqual(48000, localFile.SampleRate);
@@ -117,7 +119,7 @@ public class LocalLibraryScannerTests
         using var temp = TemporaryDirectory.Create();
         string filePath = CreateAudioFile(temp.Path, "Artist", "Track.mp3");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Track", 180000, null, null, "mp3", 256, 44100, 16));
+        metadataReader.Set(filePath, new LocalAudioMetadata("Artist", "Track", null, 180000, null, null, "mp3", 256, 44100, 16));
 
         await using var database = await TestDatabase.CreateAsync();
         var scanner = CreateScanner(database.Options, metadataReader);
@@ -160,7 +162,7 @@ public class LocalLibraryScannerTests
         string goodPath = CreateAudioFile(temp.Path, "Artist", "Good.mp3");
         string badPath = CreateAudioFile(temp.Path, "Artist", "Bad.mp3");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(goodPath, new LocalAudioMetadata("Artist", "Good", 180000, null, null, "mp3", 320, 44100, 16));
+        metadataReader.Set(goodPath, new LocalAudioMetadata("Artist", "Good", null, 180000, null, null, "mp3", 320, 44100, 16));
         metadataReader.ThrowOn(badPath);
 
         await using var database = await TestDatabase.CreateAsync();
@@ -218,7 +220,7 @@ public class LocalLibraryScannerTests
 
             return Task.FromResult(metadataByPath.TryGetValue(normalizedPath, out var metadata)
                 ? metadata
-                : new LocalAudioMetadata(null, null, null, null, null, null, null, null, null));
+                : new LocalAudioMetadata(null, null, null, null, null, null, null, null, null, null));
         }
     }
 

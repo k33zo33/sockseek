@@ -16,7 +16,7 @@ public class LocalMediaFileRelinkerTests
         using var temp = TemporaryDirectory.Create();
         string newPath = CreateAudioFile(temp.Path, "Artist", "Track.flac");
         var metadataReader = new FakeMetadataReader();
-        metadataReader.Set(newPath, new LocalAudioMetadata("Different Tag Artist", "Different Tag Title", 201000, null, null, "flac", 900, 48000, 24));
+        metadataReader.Set(newPath, new LocalAudioMetadata("Different Tag Artist", "Different Tag Title", null, 201000, null, null, "flac", 900, 48000, 24));
 
         await using var database = await TestDatabase.CreateAsync();
         Guid trackId;
@@ -85,6 +85,7 @@ public class LocalMediaFileRelinkerTests
         => new(
             artist,
             title,
+            null,
             180000,
             null,
             null,
@@ -121,7 +122,7 @@ public class LocalMediaFileRelinkerTests
         public Task<LocalAudioMetadata> ReadAsync(string path, CancellationToken cancellationToken = default)
             => Task.FromResult(metadataByPath.TryGetValue(NormalizePath(path), out var metadata)
                 ? metadata
-                : new LocalAudioMetadata(null, null, null, null, null, null, null, null, null));
+                : new LocalAudioMetadata(null, null, null, null, null, null, null, null, null, null));
     }
 
     private sealed class TestDatabase : IAsyncDisposable

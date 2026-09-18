@@ -26,6 +26,7 @@ public class CanonicalTrackStoreTests
         var record = new CanonicalTrackRecord(
             "Artist",
             "Track",
+            "Album",
             180000,
             "HR-ABC-01",
             null,
@@ -53,6 +54,8 @@ public class CanonicalTrackStoreTests
             Assert.AreEqual(1, await verify.LocalMediaFiles.CountAsync());
 
             var file = await verify.LocalMediaFiles.SingleAsync();
+            var track = await verify.CanonicalTracks.SingleAsync();
+            Assert.AreEqual("Album", track.AlbumTitle);
             Assert.AreEqual(2048, file.Size);
             Assert.AreEqual("C:/Music/Artist/Track.mp3", file.Path);
         }
@@ -79,6 +82,7 @@ public class CanonicalTrackStoreTests
             firstId = await store.UpsertAsync(new CanonicalTrackRecord(
                 "Artist",
                 "Track",
+                null,
                 180000,
                 null,
                 null,
@@ -87,6 +91,7 @@ public class CanonicalTrackStoreTests
             secondId = await store.UpsertAsync(new CanonicalTrackRecord(
                 "Artist",
                 "Track",
+                null,
                 180000,
                 null,
                 null,
@@ -188,6 +193,7 @@ public class CanonicalTrackStoreTests
             await store.UpsertAsync(new CanonicalTrackRecord(
                 "Artist A",
                 "Track A",
+                null,
                 100000,
                 null,
                 null,
@@ -197,6 +203,7 @@ public class CanonicalTrackStoreTests
             await store.UpsertAsync(new CanonicalTrackRecord(
                 "Artist B",
                 "Track B",
+                null,
                 120000,
                 null,
                 "mbid-b",
@@ -218,6 +225,7 @@ public class CanonicalTrackStoreTests
         => new(
             "Artist",
             "Track",
+            null,
             180000,
             null,
             null,

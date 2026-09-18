@@ -6,6 +6,7 @@ namespace Sockseek.Infrastructure.Persistence;
 public sealed record CanonicalTrackRecord(
     string Artist,
     string Title,
+    string? AlbumTitle,
     int? DurationMs,
     string? Isrc,
     string? MusicBrainzRecordingId,

@@ -4662,6 +4662,7 @@
           "trackId",
           "artist",
           "title",
+          "albumTitle",
           "durationMs",
           "isrc",
           "musicBrainzRecordingId",
@@ -4685,6 +4686,12 @@
           },
           "title": {
             "type": "string"
+          },
+          "albumTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "durationMs": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

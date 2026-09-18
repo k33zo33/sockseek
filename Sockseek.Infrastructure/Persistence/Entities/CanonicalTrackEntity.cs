@@ -8,6 +8,7 @@ public sealed class CanonicalTrackEntity : IHasConcurrencyToken
     public Guid ConcurrencyToken { get; set; }
     public string Artist { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
+    public string? AlbumTitle { get; set; }
     public int? DurationMs { get; set; }
     public string? Isrc { get; set; }
     public string? MusicBrainzRecordingId { get; set; }

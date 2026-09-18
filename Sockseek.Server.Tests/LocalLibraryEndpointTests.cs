@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
 using Sockseek.Core.Settings;
+using Sockseek.Infrastructure.Persistence;
 using Sockseek.Server;
 
 namespace Tests.Server;
@@ -33,9 +35,10 @@ public class LocalLibraryEndpointTests
         int port = GetFreeTcpPort();
         string url = $"http://127.0.0.1:{port}";
         const string sessionToken = "library-test-token";
+        string databasePath = Path.Combine(temp.Path, "sockseek.db");
         await using var app = ServerHost.Build([], new ServerOptions
         {
-            DatabasePath = Path.Combine(temp.Path, "sockseek.db"),
+            DatabasePath = databasePath,
             DatabaseBackupDir = Path.Combine(temp.Path, "backups"),
             Engine = new EngineSettings
             {
@@ -79,11 +82,19 @@ public class LocalLibraryEndpointTests
             Assert.AreEqual(2, scan.ScanResult.ImportedFiles);
             Assert.AreEqual(0, scan.ScanResult.FailedFiles);
 
+            await using (var context = CreateContext(databasePath))
+            {
+                var scannedTrack = await context.CanonicalTracks.SingleAsync();
+                scannedTrack.AlbumTitle = "Fixture Album";
+                await context.SaveChangesAsync();
+            }
+
             var search = await client.SearchLibraryTracksAsync("local track", limit: 10);
             Assert.AreEqual(1, search.TotalCount);
             var track = search.Items.Single();
             Assert.AreEqual("Unknown Artist", track.Artist);
             Assert.AreEqual("Local Track", track.Title);
+            Assert.AreEqual("Fixture Album", track.AlbumTitle);
             Assert.AreEqual(2, track.AvailableFileCount);
             Assert.AreEqual(0, track.MissingFileCount);
             Assert.IsNotNull(track.BestAvailableFileId);
@@ -152,6 +163,14 @@ public class LocalLibraryEndpointTests
 
     private static string NormalizePath(string path)
         => Path.GetFullPath(path).Trim().Replace('\\', '/');
+
+    private static SockseekDbContext CreateContext(string databasePath)
+    {
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite($"Data Source={databasePath}")
+            .Options;
+        return new SockseekDbContext(options);
+    }
 
     private static int GetFreeTcpPort()
     {

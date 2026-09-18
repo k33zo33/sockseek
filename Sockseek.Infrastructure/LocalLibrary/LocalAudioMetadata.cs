@@ -3,6 +3,7 @@ namespace Sockseek.Infrastructure.LocalLibrary;
 public sealed record LocalAudioMetadata(
     string? Artist,
     string? Title,
+    string? AlbumTitle,
     int? DurationMs,
     string? Isrc,
     string? MusicBrainzRecordingId,

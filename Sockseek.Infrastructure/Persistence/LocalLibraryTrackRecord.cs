@@ -4,6 +4,7 @@ public sealed record LocalLibraryTrackRecord(
     Guid TrackId,
     string Artist,
     string Title,
+    string? AlbumTitle,
     int? DurationMs,
     string? Isrc,
     string? MusicBrainzRecordingId,

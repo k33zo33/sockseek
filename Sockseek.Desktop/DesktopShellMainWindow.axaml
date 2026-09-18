@@ -371,6 +371,18 @@
                 <Button Grid.Column="3" Content="Duplicates" Command="{Binding Library.RefreshDuplicatesCommand}" />
               </Grid>
               <TextBlock Text="{Binding Library.TotalTrackCount, StringFormat='{}{0} tracks'}" Opacity="0.75" />
+              <ItemsControl ItemsSource="{Binding Library.AlbumGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopLibraryAlbumGroupViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding TrackSummary}" Opacity="0.75" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <ListBox ItemsSource="{Binding Library.Tracks}"
                        MaxHeight="420"
                        Background="Transparent"
@@ -382,6 +394,7 @@
                       <StackPanel Spacing="4">
                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Artist}" Opacity="0.75" />
+                        <TextBlock Text="{Binding AlbumTitle}" Opacity="0.75" />
                         <TextBlock Text="{Binding AvailabilitySummary}" Opacity="0.75" />
                         <TextBlock Text="{Binding TechnicalSummary}" Opacity="0.75" />
                         <TextBlock Text="{Binding BestPath}" TextWrapping="Wrap" Opacity="0.65" />

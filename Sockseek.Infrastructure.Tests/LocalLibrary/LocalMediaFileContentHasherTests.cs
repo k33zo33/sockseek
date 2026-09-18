@@ -106,6 +106,7 @@ public class LocalMediaFileContentHasherTests
         => new(
             "Artist",
             "Track",
+            null,
             180000,
             null,
             null,

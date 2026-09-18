@@ -101,6 +101,7 @@ public sealed class LocalLibraryScanner(
         => new(
             Fallback(metadata.Artist, "Unknown Artist"),
             Fallback(metadata.Title, Path.GetFileNameWithoutExtension(fileInfo.Name)),
+            Normalize(metadata.AlbumTitle),
             metadata.DurationMs,
             metadata.Isrc,
             metadata.MusicBrainzRecordingId,
@@ -160,6 +161,9 @@ public sealed class LocalLibraryScanner(
 
     private static string Fallback(string? value, string fallback)
         => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static void Report(
         IProgress<LocalLibraryScanProgress>? progress,

@@ -8,6 +8,7 @@ public sealed class DesktopLibraryViewModel : ObservableObject
     private readonly SockseekApiClient apiClient;
     private IReadOnlyList<LibraryRootDto> roots = [];
     private IReadOnlyList<DesktopLibraryTrackViewModel> tracks = [];
+    private IReadOnlyList<DesktopLibraryAlbumGroupViewModel> albumGroups = [];
     private IReadOnlyList<DesktopLibraryDuplicateGroupViewModel> duplicateGroups = [];
     private string rootPath = string.Empty;
     private string rootDisplayName = string.Empty;
@@ -47,7 +48,17 @@ public sealed class DesktopLibraryViewModel : ObservableObject
     public IReadOnlyList<DesktopLibraryTrackViewModel> Tracks
     {
         get => tracks;
-        private set => SetProperty(ref tracks, value);
+        private set
+        {
+            if (SetProperty(ref tracks, value))
+                AlbumGroups = DesktopLibraryAlbumGroups.BuildAlbumGroups(value);
+        }
+    }
+
+    public IReadOnlyList<DesktopLibraryAlbumGroupViewModel> AlbumGroups
+    {
+        get => albumGroups;
+        private set => SetProperty(ref albumGroups, value);
     }
 
     public IReadOnlyList<DesktopLibraryDuplicateGroupViewModel> DuplicateGroups
@@ -205,6 +216,8 @@ public sealed class DesktopLibraryTrackViewModel(LocalLibraryTrackDto track)
 
     public string Title { get; } = track.Title;
 
+    public string AlbumTitle { get; } = string.IsNullOrWhiteSpace(track.AlbumTitle) ? "Unknown album" : track.AlbumTitle;
+
     public string AvailabilitySummary { get; } = $"{track.AvailableFileCount} available / {track.MissingFileCount} missing";
 
     public string BestPath { get; } = track.BestAvailablePath ?? string.Empty;
@@ -228,6 +241,17 @@ public sealed class DesktopLibraryTrackViewModel(LocalLibraryTrackDto track)
     }
 }
 
+public sealed class DesktopLibraryAlbumGroupViewModel(string artist, string albumTitle, IReadOnlyList<DesktopLibraryTrackViewModel> tracks)
+{
+    public string Artist { get; } = artist;
+
+    public string AlbumTitle { get; } = albumTitle;
+
+    public string DisplayTitle { get; } = $"{artist} - {albumTitle}";
+
+    public string TrackSummary { get; } = $"{tracks.Count} tracks";
+}
+
 public sealed class DesktopLibraryDuplicateGroupViewModel(LocalLibraryDuplicateGroupDto group)
 {
     public Guid TrackId { get; } = group.TrackId;
@@ -237,4 +261,16 @@ public sealed class DesktopLibraryDuplicateGroupViewModel(LocalLibraryDuplicateG
     public string FileSummary { get; } = $"{group.FileCount} files";
 
     public IReadOnlyList<string> Paths { get; } = group.Files.Select(file => file.Path).ToArray();
+}
+
+file static class DesktopLibraryAlbumGroups
+{
+    public static IReadOnlyList<DesktopLibraryAlbumGroupViewModel> BuildAlbumGroups(
+        IReadOnlyList<DesktopLibraryTrackViewModel> tracks)
+        => tracks
+            .GroupBy(track => new { track.Artist, track.AlbumTitle })
+            .OrderBy(group => group.Key.Artist, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(group => group.Key.AlbumTitle, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new DesktopLibraryAlbumGroupViewModel(group.Key.Artist, group.Key.AlbumTitle, group.ToList()))
+            .ToArray();
 }

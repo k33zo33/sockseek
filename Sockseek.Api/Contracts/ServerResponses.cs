@@ -287,6 +287,7 @@ public sealed record LocalLibraryTrackDto(
     Guid TrackId,
     string Artist,
     string Title,
+    string? AlbumTitle,
     int? DurationMs,
     string? Isrc,
     string? MusicBrainzRecordingId,

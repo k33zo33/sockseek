@@ -43,6 +43,7 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
                 Id = Guid.NewGuid(),
                 Artist = record.Artist.Trim(),
                 Title = record.Title.Trim(),
+                AlbumTitle = Normalize(record.AlbumTitle),
                 DurationMs = record.DurationMs,
                 Isrc = normalizedIsrc,
                 MusicBrainzRecordingId = normalizedMbid,
@@ -59,6 +60,9 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
                 entity.Artist = artist;
             if (entity.Title != title)
                 entity.Title = title;
+            string? albumTitle = Normalize(record.AlbumTitle);
+            if (entity.AlbumTitle != albumTitle)
+                entity.AlbumTitle = albumTitle;
             if (entity.DurationMs != record.DurationMs)
                 entity.DurationMs = record.DurationMs;
             if (entity.Isrc == null && normalizedIsrc != null)

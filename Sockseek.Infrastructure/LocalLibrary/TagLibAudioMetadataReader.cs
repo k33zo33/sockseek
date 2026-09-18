@@ -16,6 +16,7 @@ public sealed class TagLibAudioMetadataReader : ILocalAudioMetadataReader
         return Task.FromResult(new LocalAudioMetadata(
             FirstValue(tag.Performers) ?? FirstValue(tag.AlbumArtists),
             Normalize(tag.Title),
+            Normalize(tag.Album),
             ToDurationMs(properties.Duration),
             null,
             null,

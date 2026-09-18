@@ -83,6 +83,7 @@ public sealed class DesktopLibraryViewModelTests
                 trackId,
                 "Artist",
                 "Track",
+                "Album",
                 210000,
                 null,
                 null,
@@ -107,6 +108,9 @@ public sealed class DesktopLibraryViewModelTests
         Assert.AreEqual(1, viewModel.TotalTrackCount);
         Assert.AreEqual(1, viewModel.Tracks.Count);
         Assert.AreEqual("Track", viewModel.Tracks[0].Title);
+        Assert.AreEqual("Album", viewModel.Tracks[0].AlbumTitle);
+        Assert.AreEqual(1, viewModel.AlbumGroups.Count);
+        Assert.AreEqual("Artist - Album", viewModel.AlbumGroups[0].DisplayTitle);
         Assert.AreEqual("1 available / 0 missing", viewModel.Tracks[0].AvailabilitySummary);
         Assert.AreEqual("3:30 | flac | 900 kbps | 48000 Hz | 24 bit", viewModel.Tracks[0].TechnicalSummary);
     }

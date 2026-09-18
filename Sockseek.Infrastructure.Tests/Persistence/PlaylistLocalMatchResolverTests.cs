@@ -81,6 +81,7 @@ public class PlaylistLocalMatchResolverTests
         => new(
             artist,
             title,
+            null,
             durationMs,
             null,
             null,

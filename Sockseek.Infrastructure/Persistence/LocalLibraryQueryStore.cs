@@ -31,12 +31,14 @@ public sealed class LocalLibraryQueryStore(SockseekDbContext dbContext)
             query = query.Where(track =>
                 EF.Functions.Like(track.NormalizedArtist, pattern, "\\")
                 || EF.Functions.Like(track.NormalizedTitle, pattern, "\\")
+                || (track.AlbumTitle != null && EF.Functions.Like(track.AlbumTitle, pattern, "\\"))
                 || track.LocalMediaFiles.Any(file => EF.Functions.Like(file.Path, pattern, "\\")));
         }
 
         int totalCount = await query.CountAsync(cancellationToken);
         var tracks = await query
             .OrderBy(track => track.NormalizedArtist)
+            .ThenBy(track => track.AlbumTitle)
             .ThenBy(track => track.NormalizedTitle)
             .ThenBy(track => track.DurationMs)
             .Skip(offset)
@@ -84,6 +86,7 @@ public sealed class LocalLibraryQueryStore(SockseekDbContext dbContext)
             track.Id,
             track.Artist,
             track.Title,
+            track.AlbumTitle,
             track.DurationMs,
             track.Isrc,
             track.MusicBrainzRecordingId,

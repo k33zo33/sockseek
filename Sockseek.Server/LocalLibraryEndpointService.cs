@@ -154,6 +154,7 @@ public sealed class LocalLibraryEndpointService(IOptions<ServerOptions> options)
             record.TrackId,
             record.Artist,
             record.Title,
+            record.AlbumTitle,
             record.DurationMs,
             record.Isrc,
             record.MusicBrainzRecordingId,
