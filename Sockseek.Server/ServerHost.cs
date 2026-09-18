@@ -4,11 +4,15 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sockseek.Api;
+using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
+using Sockseek.Infrastructure.Persistence;
+using Sockseek.Player;
 
 namespace Sockseek.Server;
 
@@ -68,6 +72,13 @@ public static class ServerHost
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddSingleton<LocalLibraryEndpointService>();
+        builder.Services.AddDbContext<SockseekDbContext>((sp, db) =>
+        {
+            var serverOptions = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
+            db.UseSqlite($"Data Source={ResolveDatabasePath(serverOptions)}");
+        });
+        builder.Services.AddScoped<IPlaybackSourceResolver, LocalPlaybackSourceResolver>();
+        builder.Services.AddScoped<PlaybackCoordinator>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
 
         var app = builder.Build();
@@ -146,6 +157,17 @@ public static class ServerHost
             : !string.IsNullOrWhiteSpace(configuredUrl)
                 ? configuredUrl
                 : DefaultListenUrl;
+
+    private static string ResolveDatabasePath(ServerOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.DatabasePath))
+            return Path.GetFullPath(options.DatabasePath);
+
+        string baseDirectory = !string.IsNullOrWhiteSpace(options.ConfigDir)
+            ? options.ConfigDir
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
+        return Path.GetFullPath(Path.Combine(baseDirectory, "sockseek.db"));
+    }
 
     private static string GetOpenApiVersion()
     {

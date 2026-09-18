@@ -45,6 +45,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Infrastructure.Tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Desktop.Tests", "Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj", "{4AA24317-3F90-49F6-B719-E951FD66A2A7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Player.Tests", "Sockseek.Player.Tests\Sockseek.Player.Tests.csproj", "{77683917-5B5F-43AF-9F67-09D591FD7AAE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -307,6 +309,18 @@ Global
 		{4AA24317-3F90-49F6-B719-E951FD66A2A7}.Release|x64.Build.0 = Release|Any CPU
 		{4AA24317-3F90-49F6-B719-E951FD66A2A7}.Release|x86.ActiveCfg = Release|Any CPU
 		{4AA24317-3F90-49F6-B719-E951FD66A2A7}.Release|x86.Build.0 = Release|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Debug|x64.Build.0 = Debug|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Debug|x86.Build.0 = Debug|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Release|x64.ActiveCfg = Release|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Release|x64.Build.0 = Release|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Release|x86.ActiveCfg = Release|Any CPU
+		{77683917-5B5F-43AF-9F67-09D591FD7AAE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

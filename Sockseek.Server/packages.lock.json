@@ -223,6 +223,13 @@
       "sockseek.integrations.abstractions": {
         "type": "Project"
       },
+      "sockseek.player": {
+        "type": "Project",
+        "dependencies": {
+          "Sockseek.Application": "[3.0.5, )",
+          "Sockseek.Domain": "[3.0.5, )"
+        }
+      },
       "Google.Apis.YouTube.v3": {
         "type": "CentralTransitive",
         "requested": "[1.75.0.4176, )",
