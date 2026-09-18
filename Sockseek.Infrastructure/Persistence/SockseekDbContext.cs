@@ -41,6 +41,8 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
     public DbSet<LibraryRootEntity> LibraryRoots => Set<LibraryRootEntity>();
     public DbSet<ResolutionAttemptEntity> ResolutionAttempts => Set<ResolutionAttemptEntity>();
     public DbSet<DownloadWorkflowEntity> DownloadWorkflows => Set<DownloadWorkflowEntity>();
+    public DbSet<PlaybackQueueEntity> PlaybackQueues => Set<PlaybackQueueEntity>();
+    public DbSet<PlaybackQueueItemEntity> PlaybackQueueItems => Set<PlaybackQueueItemEntity>();
     public DbSet<ProviderSyncStateEntity> ProviderSyncStates => Set<ProviderSyncStateEntity>();
     public DbSet<AppSettingEntity> AppSettings => Set<AppSettingEntity>();
     public DbSet<SchemaInfoEntity> SchemaInfos => Set<SchemaInfoEntity>();
@@ -173,6 +175,36 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
             entity.HasOne(x => x.PlaylistItem)
                 .WithMany(x => x.DownloadWorkflows)
                 .HasForeignKey(x => x.PlaylistItemId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<PlaybackQueueEntity>(entity =>
+        {
+            entity.ToTable("PlaybackQueues");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).IsRequired();
+        });
+
+        modelBuilder.Entity<PlaybackQueueItemEntity>(entity =>
+        {
+            entity.ToTable("PlaybackQueueItems");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.QueueId, x.Position }).IsUnique();
+            entity.HasOne(x => x.Queue)
+                .WithMany(x => x.Items)
+                .HasForeignKey(x => x.QueueId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.CanonicalTrack)
+                .WithMany()
+                .HasForeignKey(x => x.CanonicalTrackId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.LocalMediaFile)
+                .WithMany()
+                .HasForeignKey(x => x.LocalMediaFileId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.DownloadWorkflow)
+                .WithMany()
+                .HasForeignKey(x => x.DownloadWorkflowId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
