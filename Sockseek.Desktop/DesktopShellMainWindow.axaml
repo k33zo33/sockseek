@@ -194,7 +194,7 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
-                  IsVisible="{Binding IsSearchReady}">
+                  IsVisible="{Binding IsSearchWorkspaceVisible}">
             <StackPanel Spacing="12">
               <TextBlock Text="Search workspace" FontSize="20" FontWeight="SemiBold" />
               <StackPanel Orientation="Horizontal" Spacing="8">
@@ -264,7 +264,7 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
-                  IsVisible="{Binding IsDownloadsReady}">
+                  IsVisible="{Binding IsDownloadsQueueVisible}">
             <StackPanel Spacing="12">
               <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Text="Download queue" FontSize="20" FontWeight="SemiBold" />
@@ -330,6 +330,85 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
+                  IsVisible="{Binding IsLibraryVisible}">
+            <StackPanel Spacing="12">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="Local library" FontSize="20" FontWeight="SemiBold" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <Button Content="Refresh roots" Command="{Binding Library.RefreshRootsCommand}" />
+                  <Button Content="Scan" Command="{Binding Library.ScanCommand}" />
+                </StackPanel>
+              </DockPanel>
+              <TextBlock Text="{Binding Library.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Library.ScanSummary}" Opacity="0.75" />
+              <Grid ColumnDefinitions="2*,*,Auto" ColumnSpacing="10">
+                <TextBox Grid.Column="0" Watermark="Root path" Text="{Binding Library.RootPath}" />
+                <TextBox Grid.Column="1" Watermark="Display name" Text="{Binding Library.RootDisplayName}" />
+                <Button Grid.Column="2" Content="Save root" Command="{Binding Library.SaveRootCommand}" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Library.Roots}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Path}" TextWrapping="Wrap" Opacity="0.75" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+                <TextBox Grid.Column="0" Watermark="Search local tracks" Text="{Binding Library.SearchText}" />
+                <CheckBox Grid.Column="1" Content="Include missing" IsChecked="{Binding Library.IncludeMissing}" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Content="Search" Command="{Binding Library.SearchCommand}" />
+                <Button Grid.Column="3" Content="Duplicates" Command="{Binding Library.RefreshDuplicatesCommand}" />
+              </Grid>
+              <TextBlock Text="{Binding Library.TotalTrackCount, StringFormat='{}{0} tracks'}" Opacity="0.75" />
+              <ListBox ItemsSource="{Binding Library.Tracks}"
+                       MaxHeight="420"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopLibraryTrackViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Artist}" Opacity="0.75" />
+                        <TextBlock Text="{Binding AvailabilitySummary}" Opacity="0.75" />
+                        <TextBlock Text="{Binding TechnicalSummary}" Opacity="0.75" />
+                        <TextBlock Text="{Binding BestPath}" TextWrapping="Wrap" Opacity="0.65" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <ItemsControl ItemsSource="{Binding Library.DuplicateGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopLibraryDuplicateGroupViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding FileSummary}" Opacity="0.75" />
+                        <ItemsControl ItemsSource="{Binding Paths}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <TextBlock Text="{Binding}" TextWrapping="Wrap" Opacity="0.65" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
           </Border>
 

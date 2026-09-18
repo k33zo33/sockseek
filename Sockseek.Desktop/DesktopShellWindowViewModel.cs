@@ -13,6 +13,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? searchHandshake;
     private DesktopDownloadQueueViewModel? downloads;
     private DesktopDaemonHandshake? downloadsHandshake;
+    private DesktopLibraryViewModel? library;
+    private DesktopDaemonHandshake? libraryHandshake;
     private readonly IDesktopFileOpener fileOpener;
     private bool isStartingDaemon;
     private bool disposed;
@@ -200,6 +202,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public bool IsHomeSectionActive => CurrentSection == ShellSection.Home;
 
+    public bool IsSearchWorkspaceVisible => CurrentSection == ShellSection.Search && IsSearchReady;
+
+    public bool IsDownloadsQueueVisible => CurrentSection == ShellSection.Downloads && IsDownloadsReady;
+
+    public bool IsLibraryVisible => CurrentSection == ShellSection.Library && IsLibraryReady;
+
     public string HomeSummaryTitle => DesktopStringResources.Get("Shell.Home.Summary.Title");
 
     public string HomeSummaryTitleResourceKey { get; } = "Shell.Home.Summary.Title";
@@ -251,6 +259,22 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     }
 
     public bool IsDownloadsReady => Downloads is not null;
+
+    public DesktopLibraryViewModel? Library
+    {
+        get
+        {
+            if (library is null && CurrentHandshake is not null)
+            {
+                library = new DesktopLibraryViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                libraryHandshake = CurrentHandshake;
+            }
+
+            return library;
+        }
+    }
+
+    public bool IsLibraryReady => Library is not null;
 
     public bool HasCurrentHandshake => CurrentHandshake is not null;
 
@@ -403,6 +427,10 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CurrentPageEmptyStateDescriptionResourceKey));
                 OnPropertyChanged(nameof(CurrentPageHighlights));
                 OnPropertyChanged(nameof(IsHomeSectionActive));
+                OnPropertyChanged(nameof(IsSearchWorkspaceVisible));
+                OnPropertyChanged(nameof(IsDownloadsQueueVisible));
+                OnPropertyChanged(nameof(IsLibraryReady));
+                OnPropertyChanged(nameof(IsLibraryVisible));
                 OnPropertyChanged(nameof(WindowTitle));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -444,8 +472,13 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(HasCurrentHandshake));
                 OnPropertyChanged(nameof(Search));
                 OnPropertyChanged(nameof(IsSearchReady));
+                OnPropertyChanged(nameof(IsSearchWorkspaceVisible));
                 OnPropertyChanged(nameof(Downloads));
                 OnPropertyChanged(nameof(IsDownloadsReady));
+                OnPropertyChanged(nameof(IsDownloadsQueueVisible));
+                OnPropertyChanged(nameof(Library));
+                OnPropertyChanged(nameof(IsLibraryReady));
+                OnPropertyChanged(nameof(IsLibraryVisible));
                 OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -484,6 +517,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             searchHandshake = null;
             downloads = null;
             downloadsHandshake = null;
+            library = null;
+            libraryHandshake = null;
             return;
         }
 
@@ -497,6 +532,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             downloads = null;
             downloadsHandshake = CurrentHandshake;
+        }
+
+        if (!Equals(libraryHandshake, CurrentHandshake))
+        {
+            library = null;
+            libraryHandshake = CurrentHandshake;
         }
     }
 

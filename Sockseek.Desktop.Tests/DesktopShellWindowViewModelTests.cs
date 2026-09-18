@@ -190,6 +190,37 @@ public sealed class DesktopShellWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task WindowViewModel_SectionPanels_AreVisibleOnlyForCurrentSection()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(session);
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"secret-token\"}");
+
+        Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsLibraryVisible);
+        Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
+
+        session.Shell.NavigateTo(ShellSection.Search);
+        Assert.IsTrue(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsLibraryVisible);
+        Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
+
+        session.Shell.NavigateTo(ShellSection.Library);
+        Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsTrue(viewModel.IsLibraryVisible);
+        Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
+
+        session.Shell.NavigateTo(ShellSection.Downloads);
+        Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsLibraryVisible);
+        Assert.IsTrue(viewModel.IsDownloadsQueueVisible);
+    }
+
+    [TestMethod]
     public async Task WindowViewModel_WhenSessionCanLaunchAndBackendDisconnects_ExposesStartDaemonAction()
     {
         await using var session = new DesktopShellSession(
