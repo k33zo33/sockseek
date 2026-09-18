@@ -9,6 +9,7 @@ public sealed record LocalLibraryTrackRecord(
     string? MusicBrainzRecordingId,
     int AvailableFileCount,
     int MissingFileCount,
+    Guid? BestAvailableFileId,
     string? BestAvailablePath,
     string? Codec,
     int? Bitrate,

@@ -53,13 +53,22 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
         }
         else
         {
-            entity.Artist = record.Artist.Trim();
-            entity.Title = record.Title.Trim();
-            entity.DurationMs = record.DurationMs;
-            entity.Isrc ??= normalizedIsrc;
-            entity.MusicBrainzRecordingId ??= normalizedMbid;
-            entity.NormalizedArtist = normalizedArtist;
-            entity.NormalizedTitle = normalizedTitle;
+            string artist = record.Artist.Trim();
+            string title = record.Title.Trim();
+            if (entity.Artist != artist)
+                entity.Artist = artist;
+            if (entity.Title != title)
+                entity.Title = title;
+            if (entity.DurationMs != record.DurationMs)
+                entity.DurationMs = record.DurationMs;
+            if (entity.Isrc == null && normalizedIsrc != null)
+                entity.Isrc = normalizedIsrc;
+            if (entity.MusicBrainzRecordingId == null && normalizedMbid != null)
+                entity.MusicBrainzRecordingId = normalizedMbid;
+            if (entity.NormalizedArtist != normalizedArtist)
+                entity.NormalizedArtist = normalizedArtist;
+            if (entity.NormalizedTitle != normalizedTitle)
+                entity.NormalizedTitle = normalizedTitle;
         }
 
         foreach (var source in record.Sources)
@@ -93,9 +102,10 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
 
             if (existingFile == null)
             {
-                entity.LocalMediaFiles.Add(new LocalMediaFileEntity
+                var newFile = new LocalMediaFileEntity
                 {
                     Id = Guid.NewGuid(),
+                    CanonicalTrackId = entity.Id,
                     Path = normalizedPath,
                     Size = file.Size,
                     LastWriteUtc = file.LastWriteUtc,
@@ -105,7 +115,12 @@ public sealed class CanonicalTrackStore(SockseekDbContext dbContext)
                     SampleRate = file.SampleRate,
                     BitDepth = file.BitDepth,
                     Availability = (int)file.Availability,
-                });
+                };
+
+                if (dbContext.Entry(entity).State == EntityState.Added)
+                    entity.LocalMediaFiles.Add(newFile);
+                else
+                    dbContext.LocalMediaFiles.Add(newFile);
             }
             else
             {

@@ -248,3 +248,13 @@ public sealed record AggregateTrackProjectionRequestDto(
 public sealed record AggregateAlbumProjectionRequestDto(
     AlbumQueryDto? AlbumQuery = null,
     bool IncludeFolders = false);
+
+/// <summary>Adds or updates a local library root.</summary>
+public sealed record SaveLibraryRootRequestDto(
+    string Path,
+    string? DisplayName = null,
+    bool Enabled = true);
+
+/// <summary>Relinks an existing local media file record to a new physical path.</summary>
+public sealed record RelinkLocalMediaFileRequestDto(
+    string Path);

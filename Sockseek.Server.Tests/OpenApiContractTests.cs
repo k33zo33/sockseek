@@ -68,6 +68,11 @@ public class OpenApiContractTests
             StringAssert.Contains(json, nameof(SystemHealthDto));
             StringAssert.Contains(json, nameof(SystemCapabilitiesDto));
             StringAssert.Contains(json, nameof(AppErrorDto));
+            StringAssert.Contains(json, nameof(LibraryRootDto));
+            StringAssert.Contains(json, nameof(LocalLibraryTrackDto));
+            StringAssert.Contains(json, nameof(LocalLibrarySearchResponseDto));
+            StringAssert.Contains(json, nameof(LocalLibraryDuplicateGroupDto));
+            StringAssert.Contains(json, nameof(LocalMediaFileRelinkResultDto));
             StringAssert.Contains(json, "lifecycleState");
             StringAssert.Contains(json, "activityPhase");
             StringAssert.Contains(json, "terminalOutcome");
@@ -79,6 +84,12 @@ public class OpenApiContractTests
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/info", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/health", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/capabilities", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/library/roots", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/library/roots/{rootId}", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/library/scan", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/library/tracks", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/library/duplicates", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/library/files/{localMediaFileId}/relink", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/jobs/{jobId}/retry", out _));
 
             var jobListParameterNames = paths

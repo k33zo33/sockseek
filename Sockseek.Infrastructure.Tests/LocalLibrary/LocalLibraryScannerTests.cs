@@ -61,6 +61,30 @@ public class LocalLibraryScannerTests
     }
 
     [TestMethod]
+    public async Task ScanAsync_MultipleFilesForSameTrack_ImportsDuplicateLocalFiles()
+    {
+        using var temp = TemporaryDirectory.Create();
+        string firstPath = CreateAudioFile(temp.Path, "A", "Track.flac");
+        string secondPath = CreateAudioFile(temp.Path, "B", "Track.flac");
+        var metadataReader = new FakeMetadataReader();
+        metadataReader.Set(firstPath, new LocalAudioMetadata("Artist", "Track", 220000, null, null, "flac", 900, 48000, 24));
+        metadataReader.Set(secondPath, new LocalAudioMetadata("Artist", "Track", 220000, null, null, "flac", 900, 48000, 24));
+
+        await using var database = await TestDatabase.CreateAsync();
+        var scanner = CreateScanner(database.Options, metadataReader);
+
+        var result = await scanner.ScanAsync(new LocalLibraryScanRequest([temp.Path]));
+
+        Assert.AreEqual(2, result.DiscoveredFiles);
+        Assert.AreEqual(2, result.ImportedFiles);
+        Assert.AreEqual(0, result.FailedFiles);
+
+        await using var verify = new SockseekDbContext(database.Options);
+        var track = await verify.CanonicalTracks.Include(x => x.LocalMediaFiles).SingleAsync();
+        Assert.AreEqual(2, track.LocalMediaFiles.Count);
+    }
+
+    [TestMethod]
     public async Task ScanAsync_ChangedTags_RefreshesLocalMediaAndCanonicalLink()
     {
         using var temp = TemporaryDirectory.Create();

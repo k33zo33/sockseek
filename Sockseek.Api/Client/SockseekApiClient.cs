@@ -119,6 +119,77 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SystemCapabilitiesDto>(response, ct);
     }
 
+    public async Task<IReadOnlyList<LibraryRootDto>> GetLibraryRootsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/library/roots", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<LibraryRootDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<LibraryRootDto> SaveLibraryRootAsync(SaveLibraryRootRequestDto request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/library/roots", request, jsonOptions, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<LibraryRootDto>(response, ct);
+    }
+
+    public async Task<bool> DeleteLibraryRootAsync(Guid rootId, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/library/roots/{rootId}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(response, ct);
+        return true;
+    }
+
+    public async Task<LocalLibraryConfiguredScanResultDto> ScanLibraryAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/v1/library/scan", null, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<LocalLibraryConfiguredScanResultDto>(response, ct);
+    }
+
+    public async Task<LocalLibrarySearchResponseDto> SearchLibraryTracksAsync(
+        string? searchText = null,
+        int offset = 0,
+        int limit = 100,
+        bool includeMissing = true,
+        CancellationToken ct = default)
+    {
+        string url = "api/v1/library/tracks"
+            + $"?offset={offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            + $"&limit={limit.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            + $"&includeMissing={includeMissing.ToString().ToLowerInvariant()}"
+            + QueryPart("searchText", searchText);
+
+        using var response = await http.GetAsync(url, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<LocalLibrarySearchResponseDto>(response, ct);
+    }
+
+    public async Task<IReadOnlyList<LocalLibraryDuplicateGroupDto>> GetLibraryDuplicateGroupsAsync(
+        int limit = 100,
+        bool includeMissing = false,
+        CancellationToken ct = default)
+    {
+        string url = "api/v1/library/duplicates"
+            + $"?limit={limit.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+            + $"&includeMissing={includeMissing.ToString().ToLowerInvariant()}";
+
+        using var response = await http.GetAsync(url, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<LocalLibraryDuplicateGroupDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<LocalMediaFileRelinkResultDto?> RelinkLocalMediaFileAsync(
+        Guid localMediaFileId,
+        RelinkLocalMediaFileRequestDto request,
+        CancellationToken ct = default)
+        => await PostOptionalAsync<LocalMediaFileRelinkResultDto, RelinkLocalMediaFileRequestDto>(
+            $"api/v1/library/files/{localMediaFileId}/relink",
+            request,
+            ct);
+
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
     {

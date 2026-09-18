@@ -6,16 +6,28 @@ namespace Sockseek.Infrastructure.Persistence;
 
 public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> options) : DbContext(options)
 {
+    public override int SaveChanges()
+        => SaveChanges(acceptAllChangesOnSuccess: true);
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         StampConcurrencyTokens();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
+        int result = base.SaveChanges(acceptAllChangesOnSuccess);
+        if (acceptAllChangesOnSuccess)
+            SyncOriginalConcurrencyTokens();
+        return result;
     }
 
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         StampConcurrencyTokens();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        int result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        if (acceptAllChangesOnSuccess)
+            SyncOriginalConcurrencyTokens();
+        return result;
     }
 
     public DbSet<AppProfileEntity> AppProfiles => Set<AppProfileEntity>();
@@ -194,6 +206,18 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
         {
             if (entry.State is EntityState.Added or EntityState.Modified)
                 entry.Entity.ConcurrencyToken = Guid.NewGuid();
+        }
+    }
+
+    private void SyncOriginalConcurrencyTokens()
+    {
+        foreach (var entry in ChangeTracker.Entries<IHasConcurrencyToken>())
+        {
+            if (entry.State == EntityState.Unchanged)
+            {
+                entry.Property(nameof(IHasConcurrencyToken.ConcurrencyToken)).OriginalValue =
+                    entry.Entity.ConcurrencyToken;
+            }
         }
     }
 

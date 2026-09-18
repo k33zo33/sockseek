@@ -67,6 +67,7 @@ public static class ServerHost
         builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
+        builder.Services.AddSingleton<LocalLibraryEndpointService>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
 
         var app = builder.Build();
@@ -186,6 +187,120 @@ public static class ServerHost
             .WithTags("System")
             .WithSummary("Gets the versioned application API capability snapshot.")
             .Produces<SystemCapabilitiesDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/library/roots", async (LocalLibraryEndpointService library, CancellationToken ct) =>
+            Results.Ok(await library.ListRootsAsync(ct)))
+            .WithTags("Library")
+            .WithSummary("Lists configured local library roots.")
+            .Produces<IReadOnlyList<LibraryRootDto>>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/library/roots", async (SaveLibraryRootRequestDto request, LocalLibraryEndpointService library, CancellationToken ct) =>
+        {
+            try
+            {
+                var root = await library.SaveRootAsync(request, ct);
+                return Results.Ok(root);
+            }
+            catch (Exception ex) when (TryCreateBadRequest(ex, out _))
+            {
+                return BadRequest(ex);
+            }
+        })
+            .WithTags("Library")
+            .WithSummary("Adds or updates a local library root.")
+            .Produces<LibraryRootDto>()
+            .Produces<ApiErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapDelete("/api/v1/library/roots/{rootId:guid}", async (Guid rootId, LocalLibraryEndpointService library, CancellationToken ct) =>
+            await library.DeleteRootAsync(rootId, ct) ? Results.NoContent() : Results.NotFound())
+            .WithTags("Library")
+            .WithSummary("Deletes a local library root record without deleting physical audio files.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/library/scan", async (LocalLibraryEndpointService library, CancellationToken ct) =>
+            Results.Ok(await library.ScanAsync(ct)))
+            .WithTags("Library")
+            .WithSummary("Scans all enabled local library roots.")
+            .Produces<LocalLibraryConfiguredScanResultDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/library/tracks", async (
+            string? searchText,
+            int? offset,
+            int? limit,
+            bool? includeMissing,
+            LocalLibraryEndpointService library,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await library.SearchTracksAsync(searchText, offset ?? 0, limit ?? 100, includeMissing ?? true, ct));
+            }
+            catch (Exception ex) when (TryCreateBadRequest(ex, out _))
+            {
+                return BadRequest(ex);
+            }
+        })
+            .WithTags("Library")
+            .WithSummary("Searches indexed local library tracks.")
+            .Produces<LocalLibrarySearchResponseDto>()
+            .Produces<ApiErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/library/duplicates", async (
+            int? limit,
+            bool? includeMissing,
+            LocalLibraryEndpointService library,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await library.GetDuplicateGroupsAsync(limit ?? 100, includeMissing ?? false, ct));
+            }
+            catch (Exception ex) when (TryCreateBadRequest(ex, out _))
+            {
+                return BadRequest(ex);
+            }
+        })
+            .WithTags("Library")
+            .WithSummary("Lists local tracks with duplicate local media files.")
+            .Produces<IReadOnlyList<LocalLibraryDuplicateGroupDto>>()
+            .Produces<ApiErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/library/files/{localMediaFileId:guid}/relink", async (
+            Guid localMediaFileId,
+            RelinkLocalMediaFileRequestDto request,
+            LocalLibraryEndpointService library,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await library.RelinkAsync(localMediaFileId, request, ct);
+                return result != null ? Results.Ok(result) : Results.NotFound();
+            }
+            catch (Exception ex) when (TryCreateBadRequest(ex, out _))
+            {
+                return BadRequest(ex);
+            }
+        })
+            .WithTags("Library")
+            .WithSummary("Relinks an indexed local media file record to a new physical file path.")
+            .Produces<LocalMediaFileRelinkResultDto>()
+            .Produces<ApiErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
         app.MapGet("/api/server/status", (EngineSupervisor supervisor) => Results.Ok(supervisor.GetStatus()))

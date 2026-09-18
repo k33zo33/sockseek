@@ -201,6 +201,14 @@ public enum ServerResourceActionKind
     Retry,
 }
 
+/// <summary>Availability of a local audio file in the indexed library.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<LocalMediaAvailabilityDto>))]
+public enum LocalMediaAvailabilityDto
+{
+    Available = 0,
+    Missing = 1,
+}
+
 /// <summary>
 /// Stable string values used by server wire formats and JSON discriminators.
 /// Prefer the typed protocol enums for normal DTO fields in .NET code.

@@ -59,6 +59,49 @@ public class CanonicalTrackStoreTests
     }
 
     [TestMethod]
+    public async Task UpsertAsync_SameTrackWithDifferentLocalFiles_AddsDuplicateLocalFiles()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.MigrateAsync();
+
+        Guid firstId;
+        Guid secondId;
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new CanonicalTrackStore(context);
+            firstId = await store.UpsertAsync(new CanonicalTrackRecord(
+                "Artist",
+                "Track",
+                180000,
+                null,
+                null,
+                [],
+                [new LocalMediaFileRecord("C:/Music/A/Track.flac", 1024, new DateTimeOffset(2026, 8, 4, 20, 0, 0, TimeSpan.Zero), 180000, "flac", 900, 48000, 24, LocalMediaAvailability.Available)]));
+            secondId = await store.UpsertAsync(new CanonicalTrackRecord(
+                "Artist",
+                "Track",
+                180000,
+                null,
+                null,
+                [],
+                [new LocalMediaFileRecord("C:/Music/B/Track.flac", 2048, new DateTimeOffset(2026, 8, 4, 20, 5, 0, TimeSpan.Zero), 180000, "flac", 900, 48000, 24, LocalMediaAvailability.Available)]));
+        }
+
+        Assert.AreEqual(firstId, secondId);
+
+        await using var verify = new SockseekDbContext(options);
+        var track = await verify.CanonicalTracks.Include(x => x.LocalMediaFiles).SingleAsync();
+        Assert.AreEqual(2, track.LocalMediaFiles.Count);
+    }
+
+    [TestMethod]
     public async Task UpsertAsync_ExistingPathFromOtherTrack_ReassignsLocalMediaWithoutDuplication()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

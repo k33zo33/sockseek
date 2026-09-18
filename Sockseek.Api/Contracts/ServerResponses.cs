@@ -272,3 +272,69 @@ public sealed record JobQuery(
     Guid? WorkflowId,
     bool IncludeAll,
     ServerJobSkipReason? SkipReason = null);
+
+public sealed record LibraryRootDto(
+    Guid Id,
+    string Path,
+    string? DisplayName,
+    bool Enabled,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    DateTimeOffset? LastScanStartedUtc,
+    DateTimeOffset? LastScanCompletedUtc);
+
+public sealed record LocalLibraryTrackDto(
+    Guid TrackId,
+    string Artist,
+    string Title,
+    int? DurationMs,
+    string? Isrc,
+    string? MusicBrainzRecordingId,
+    int AvailableFileCount,
+    int MissingFileCount,
+    Guid? BestAvailableFileId,
+    string? BestAvailablePath,
+    string? Codec,
+    int? Bitrate,
+    int? SampleRate,
+    int? BitDepth);
+
+public sealed record LocalLibrarySearchResponseDto(
+    int TotalCount,
+    IReadOnlyList<LocalLibraryTrackDto> Items);
+
+public sealed record LocalLibraryScanResultDto(
+    int DiscoveredFiles,
+    int ScannedFiles,
+    int ImportedFiles,
+    int SkippedFiles,
+    int FailedFiles,
+    int MissingFiles);
+
+public sealed record LocalLibraryConfiguredScanResultDto(
+    IReadOnlyList<Guid> RootIds,
+    LocalLibraryScanResultDto ScanResult);
+
+public sealed record LocalLibraryDuplicateFileDto(
+    Guid LocalMediaFileId,
+    string Path,
+    long Size,
+    int? DurationMs,
+    string? Codec,
+    int? Bitrate,
+    int? SampleRate,
+    int? BitDepth,
+    LocalMediaAvailabilityDto Availability);
+
+public sealed record LocalLibraryDuplicateGroupDto(
+    Guid TrackId,
+    string Artist,
+    string Title,
+    int? DurationMs,
+    int FileCount,
+    IReadOnlyList<LocalLibraryDuplicateFileDto> Files);
+
+public sealed record LocalMediaFileRelinkResultDto(
+    Guid LocalMediaFileId,
+    Guid? CanonicalTrackId,
+    string Path);

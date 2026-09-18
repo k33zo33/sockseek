@@ -89,6 +89,7 @@ public sealed class LocalLibraryQueryStore(SockseekDbContext dbContext)
             track.MusicBrainzRecordingId,
             availableFiles.Count,
             missingFiles.Count,
+            best?.Id,
             best?.Path,
             best?.Codec,
             best?.Bitrate,
@@ -103,6 +104,7 @@ public sealed class LocalLibraryQueryStore(SockseekDbContext dbContext)
             .OrderByDescending(file => file.Bitrate ?? 0)
             .ThenBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
             .Select(file => new LocalLibraryDuplicateFileRecord(
+                file.Id,
                 file.Path,
                 file.Size,
                 file.DurationMs,

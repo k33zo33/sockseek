@@ -156,6 +156,432 @@
         }
       }
     },
+    "/api/v1/library/roots": {
+      "get": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Lists configured local library roots.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LibraryRootDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Adds or updates a local library root.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveLibraryRootRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryRootDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/roots/{rootId}": {
+      "delete": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Deletes a local library root record without deleting physical audio files.",
+        "parameters": [
+          {
+            "name": "rootId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/scan": {
+      "post": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Scans all enabled local library roots.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalLibraryConfiguredScanResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/tracks": {
+      "get": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Searches indexed local library tracks.",
+        "parameters": [
+          {
+            "name": "searchText",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "includeMissing",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalLibrarySearchResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/duplicates": {
+      "get": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Lists local tracks with duplicate local media files.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "includeMissing",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocalLibraryDuplicateGroupDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/files/{localMediaFileId}/relink": {
+      "post": {
+        "tags": [
+          "Library"
+        ],
+        "summary": "Relinks an indexed local media file record to a new physical file path.",
+        "parameters": [
+          {
+            "name": "localMediaFileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelinkLocalMediaFileRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalMediaFileRelinkResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/server/status": {
       "get": {
         "tags": [
@@ -3953,6 +4379,428 @@
           }
         }
       },
+      "LibraryRootDto": {
+        "required": [
+          "id",
+          "path",
+          "displayName",
+          "enabled",
+          "createdAtUtc",
+          "updatedAtUtc",
+          "lastScanStartedUtc",
+          "lastScanCompletedUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "path": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastScanStartedUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastScanCompletedUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "LocalLibraryConfiguredScanResultDto": {
+        "required": [
+          "rootIds",
+          "scanResult"
+        ],
+        "type": "object",
+        "properties": {
+          "rootIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "scanResult": {
+            "$ref": "#/components/schemas/LocalLibraryScanResultDto"
+          }
+        }
+      },
+      "LocalLibraryDuplicateFileDto": {
+        "required": [
+          "localMediaFileId",
+          "path",
+          "size",
+          "durationMs",
+          "codec",
+          "bitrate",
+          "sampleRate",
+          "bitDepth",
+          "availability"
+        ],
+        "type": "object",
+        "properties": {
+          "localMediaFileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "durationMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "codec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bitrate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sampleRate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bitDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/LocalMediaAvailabilityDto"
+          }
+        }
+      },
+      "LocalLibraryDuplicateGroupDto": {
+        "required": [
+          "trackId",
+          "artist",
+          "title",
+          "durationMs",
+          "fileCount",
+          "files"
+        ],
+        "type": "object",
+        "properties": {
+          "trackId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artist": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "durationMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fileCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocalLibraryDuplicateFileDto"
+            }
+          }
+        }
+      },
+      "LocalLibraryScanResultDto": {
+        "required": [
+          "discoveredFiles",
+          "scannedFiles",
+          "importedFiles",
+          "skippedFiles",
+          "failedFiles",
+          "missingFiles"
+        ],
+        "type": "object",
+        "properties": {
+          "discoveredFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "scannedFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "importedFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skippedFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failedFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "LocalLibrarySearchResponseDto": {
+        "required": [
+          "totalCount",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocalLibraryTrackDto"
+            }
+          }
+        }
+      },
+      "LocalLibraryTrackDto": {
+        "required": [
+          "trackId",
+          "artist",
+          "title",
+          "durationMs",
+          "isrc",
+          "musicBrainzRecordingId",
+          "availableFileCount",
+          "missingFileCount",
+          "bestAvailableFileId",
+          "bestAvailablePath",
+          "codec",
+          "bitrate",
+          "sampleRate",
+          "bitDepth"
+        ],
+        "type": "object",
+        "properties": {
+          "trackId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artist": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "durationMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isrc": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "musicBrainzRecordingId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "availableFileCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "missingFileCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bestAvailableFileId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bestAvailablePath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "codec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bitrate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sampleRate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bitDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "LocalMediaAvailabilityDto": {
+        "enum": [
+          "Available",
+          "Missing"
+        ]
+      },
+      "LocalMediaFileRelinkResultDto": {
+        "required": [
+          "localMediaFileId",
+          "canonicalTrackId",
+          "path"
+        ],
+        "type": "object",
+        "properties": {
+          "localMediaFileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "canonicalTrackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
       "OutputSettingsPatchDto": {
         "type": "object",
         "properties": {
@@ -4174,6 +5022,17 @@
           }
         }
       },
+      "RelinkLocalMediaFileRequestDto": {
+        "required": [
+          "path"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      },
       "ResourceActionDto": {
         "required": [
           "kind",
@@ -4211,6 +5070,27 @@
                 "$ref": "#/components/schemas/AlbumQueryDto"
               }
             ]
+          }
+        }
+      },
+      "SaveLibraryRootRequestDto": {
+        "required": [
+          "path"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
           }
         }
       },
@@ -5838,6 +6718,9 @@
     },
     {
       "name": "Server"
+    },
+    {
+      "name": "Library"
     },
     {
       "name": "Profiles"

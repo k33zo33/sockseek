@@ -12,6 +12,8 @@ public sealed class ServerOptions
     public DownloadSettingsPatchDto? LaunchDownloadSettings { get; set; }
     public ProfileCatalog Profiles { get; set; } = ProfileCatalog.Empty;
     public string? ConfigDir { get; set; }
+    public string? DatabasePath { get; set; }
+    public string? DatabaseBackupDir { get; set; }
     public Func<EngineSettings, ISoulseekClient>? ClientFactory { get; set; }
     public string? SessionToken { get; set; }
 }
