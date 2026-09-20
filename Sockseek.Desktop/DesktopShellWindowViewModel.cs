@@ -15,6 +15,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? downloadsHandshake;
     private DesktopLibraryViewModel? library;
     private DesktopDaemonHandshake? libraryHandshake;
+    private DesktopDaemonHandshake? playerHandshake;
     private readonly IDesktopFileOpener fileOpener;
     private bool isStartingDaemon;
     private bool disposed;
@@ -43,9 +44,11 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         UpdateHomeSummaryFacts();
         Session.Shell.PropertyChanged += HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
+        PlayerBar.PropertyChanged += HandlePlayerBarPropertyChanged;
         Session.EventsStateChanged += HandleEventsStateChanged;
         Session.WorkflowUpdateBatchReceived += HandleWorkflowUpdateBatchReceived;
         UpdateSearchViewModel();
+        UpdatePlayerBarConnection();
     }
 
     public IDesktopShellSession Session { get; }
@@ -336,6 +339,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         disposed = true;
         Session.Shell.PropertyChanged -= HandleShellPropertyChanged;
         Session.Shell.CommandPalette.PropertyChanged -= HandleCommandPalettePropertyChanged;
+        PlayerBar.PropertyChanged -= HandlePlayerBarPropertyChanged;
         Session.EventsStateChanged -= HandleEventsStateChanged;
         Session.WorkflowUpdateBatchReceived -= HandleWorkflowUpdateBatchReceived;
     }
@@ -467,6 +471,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
                 UpdateSearchViewModel();
+                UpdatePlayerBarConnection();
                 UpdateHomeSummaryFacts();
                 OnPropertyChanged(nameof(CurrentHandshake));
                 OnPropertyChanged(nameof(HasCurrentHandshake));
@@ -492,6 +497,40 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
         if (eventArgs.PropertyName == nameof(CommandPaletteViewModel.IsOpen))
             OnPropertyChanged(nameof(IsCommandPaletteOpen));
+    }
+
+    private void HandlePlayerBarPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        if (disposed)
+            return;
+
+        switch (eventArgs.PropertyName)
+        {
+            case nameof(PlayerBarPlaceholderViewModel.Title):
+                OnPropertyChanged(nameof(PlayerBarTitle));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.Artist):
+                OnPropertyChanged(nameof(PlayerBarArtist));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.Progress):
+                OnPropertyChanged(nameof(PlayerBarProgress));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.QueueSummary):
+                OnPropertyChanged(nameof(PlayerBarQueueSummary));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.VolumeHint):
+                OnPropertyChanged(nameof(VolumeHint));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.CanGoPrevious):
+                OnPropertyChanged(nameof(CanGoPrevious));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.CanPlayPause):
+                OnPropertyChanged(nameof(CanPlayPause));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.CanGoNext):
+                OnPropertyChanged(nameof(CanGoNext));
+                break;
+        }
     }
 
     private void HandleEventsStateChanged(object? sender, DesktopBackendEventsConnectionState state)
@@ -539,6 +578,22 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             library = null;
             libraryHandshake = CurrentHandshake;
         }
+    }
+
+    private void UpdatePlayerBarConnection()
+    {
+        if (CurrentHandshake is null)
+        {
+            playerHandshake = null;
+            PlayerBar.Disconnect();
+            return;
+        }
+
+        if (Equals(playerHandshake, CurrentHandshake))
+            return;
+
+        playerHandshake = CurrentHandshake;
+        _ = PlayerBar.ConnectAsync(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
     }
 
     private void UpdateNavigationSelection()

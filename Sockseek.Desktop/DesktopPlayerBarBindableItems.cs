@@ -2,8 +2,10 @@ using System.Windows.Input;
 
 namespace Sockseek.Desktop;
 
-public sealed class DesktopPlayerBarActionViewModel
+public sealed class DesktopPlayerBarActionViewModel : ObservableObject
 {
+    private bool isEnabled;
+
     public DesktopPlayerBarActionViewModel(
         string iconGlyph,
         string iconToken,
@@ -22,7 +24,7 @@ public sealed class DesktopPlayerBarActionViewModel
         AccessibilityLabelResourceKey = accessibilityLabelResourceKey ?? throw new ArgumentNullException(nameof(accessibilityLabelResourceKey));
         Hint = hint ?? throw new ArgumentNullException(nameof(hint));
         HintResourceKey = hintResourceKey ?? throw new ArgumentNullException(nameof(hintResourceKey));
-        IsEnabled = isEnabled;
+        this.isEnabled = isEnabled;
         Command = new DesktopCommand(execute ?? throw new ArgumentNullException(nameof(execute)));
     }
 
@@ -38,7 +40,11 @@ public sealed class DesktopPlayerBarActionViewModel
 
     public string HintResourceKey { get; }
 
-    public bool IsEnabled { get; }
+    public bool IsEnabled
+    {
+        get => isEnabled;
+        set => SetProperty(ref isEnabled, value);
+    }
 
     public ICommand Command { get; }
 }
