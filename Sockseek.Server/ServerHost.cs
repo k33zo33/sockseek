@@ -78,6 +78,7 @@ public static class ServerHost
             db.UseSqlite($"Data Source={ResolveDatabasePath(serverOptions)}");
         });
         builder.Services.AddScoped<IPlaybackSourceResolver, LocalPlaybackSourceResolver>();
+        builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
         builder.Services.AddScoped<PlaybackCoordinator>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
         builder.Services.AddHostedService<LocalLibraryBackgroundScanHostedService>();

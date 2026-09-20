@@ -11,4 +11,9 @@
     <ProjectReference Include="..\Sockseek.Application\Sockseek.Application.csproj" />
     <ProjectReference Include="..\Sockseek.Domain\Sockseek.Domain.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibVLCSharp" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" />
+  </ItemGroup>
 </Project>

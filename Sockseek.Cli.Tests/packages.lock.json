@@ -415,8 +415,10 @@
       "sockseek.player": {
         "type": "Project",
         "dependencies": {
+          "LibVLCSharp": "[3.10.1, )",
           "Sockseek.Application": "[3.0.5, )",
-          "Sockseek.Domain": "[3.0.5, )"
+          "Sockseek.Domain": "[3.0.5, )",
+          "VideoLAN.LibVLC.Windows": "[3.0.23.1, )"
         }
       },
       "sockseek.server": {
@@ -448,6 +450,12 @@
         "requested": "[1.12.4, )",
         "resolved": "1.12.4",
         "contentHash": "ljqvBabvFwKoLniuoQKO8b5bJfJweKLs4fUNS/V5dsvpo0A8MlJqxxn9XVmP2DaskbUXty6IYaWAi1SArGIMeQ=="
+      },
+      "LibVLCSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.10.1, )",
+        "resolved": "3.10.1",
+        "contentHash": "6iSrYMk6RU8fyftdXrfR1TW3xpR/WhEmliORuWvAu2N05wECb8k2hykWiU53/1zqx616v/qUlDbJJyqv78MDkQ=="
       },
       "Microsoft.AspNetCore.OpenApi": {
         "type": "CentralTransitive",
@@ -563,6 +571,12 @@
         "requested": "[2.3.0, )",
         "resolved": "2.3.0",
         "contentHash": "Qo4z6ZjnIfbR3Us1Za5M2vQ97OWZPmODvVmepxZ8XW0UIVLGdO2T63/N3b23kCcyiwuIe0TQvMEQG8wUCCD1mA=="
+      },
+      "VideoLAN.LibVLC.Windows": {
+        "type": "CentralTransitive",
+        "requested": "[3.0.23.1, )",
+        "resolved": "3.0.23.1",
+        "contentHash": "yTGNrzj+Q/t72VNKK0d64jZ+8BGu5Vcp2nxpZ2ll350LkRWKSwqShGpZWcVxXVP8TiMbeGML09+Jzz3hNsIcqA=="
       },
       "YoutubeExplode": {
         "type": "CentralTransitive",

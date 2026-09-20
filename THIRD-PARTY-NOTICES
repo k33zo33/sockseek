@@ -26,6 +26,7 @@ Direct package references currently present in shipping projects:
 
 - `Google.Apis.YouTube.v3` `1.75.0.4176`
 - `HtmlAgilityPack` `1.12.4`
+- `LibVLCSharp` `3.10.1` (LGPL-2.1-or-later)
 - `Microsoft.AspNetCore.OpenApi` `10.0.9`
 - `Microsoft.AspNetCore.SignalR.Client` `10.0.9`
 - `Microsoft.AspNetCore.SignalR.Protocols.Json` `10.0.9`
@@ -38,6 +39,7 @@ Direct package references currently present in shipping projects:
 - `SpotifyAPI.Web` `7.4.2`
 - `SpotifyAPI.Web.Auth` `7.4.2`
 - `TagLibSharp` `2.3.0`
+- `VideoLAN.LibVLC.Windows` `3.0.23.1` (LGPL-2.1-or-later)
 - `YoutubeExplode` `6.6.0`
 
 ### Development / test / tooling package references

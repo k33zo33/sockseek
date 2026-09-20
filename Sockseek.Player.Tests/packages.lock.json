@@ -123,9 +123,23 @@
       "sockseek.player": {
         "type": "Project",
         "dependencies": {
+          "LibVLCSharp": "[3.10.1, )",
           "Sockseek.Application": "[3.0.5, )",
-          "Sockseek.Domain": "[3.0.5, )"
+          "Sockseek.Domain": "[3.0.5, )",
+          "VideoLAN.LibVLC.Windows": "[3.0.23.1, )"
         }
+      },
+      "LibVLCSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.10.1, )",
+        "resolved": "3.10.1",
+        "contentHash": "6iSrYMk6RU8fyftdXrfR1TW3xpR/WhEmliORuWvAu2N05wECb8k2hykWiU53/1zqx616v/qUlDbJJyqv78MDkQ=="
+      },
+      "VideoLAN.LibVLC.Windows": {
+        "type": "CentralTransitive",
+        "requested": "[3.0.23.1, )",
+        "resolved": "3.0.23.1",
+        "contentHash": "yTGNrzj+Q/t72VNKK0d64jZ+8BGu5Vcp2nxpZ2ll350LkRWKSwqShGpZWcVxXVP8TiMbeGML09+Jzz3hNsIcqA=="
       }
     }
   }
