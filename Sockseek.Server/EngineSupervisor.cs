@@ -21,6 +21,15 @@ public sealed class EngineSupervisor
     private readonly Channel<QueuedSubmission> submissionChannel = Channel.CreateUnbounded<QueuedSubmission>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private readonly Lock engineGate = new();
+    private static readonly IReadOnlyList<PlayerCodecCapabilityDto> LocalPlayerCodecCapabilities =
+    [
+        CreateCodecCapability("MP3", ".mp3", "MPEG audio"),
+        CreateCodecCapability("FLAC", ".flac", "FLAC"),
+        CreateCodecCapability("Ogg Vorbis", ".ogg", "Ogg"),
+        CreateCodecCapability("Opus", ".opus", "Ogg/Opus"),
+        CreateCodecCapability("WAV", ".wav", "RIFF/WAVE"),
+        CreateCodecCapability("AAC/M4A", ".m4a", "MPEG-4 audio"),
+    ];
 
     private DownloadEngine? currentEngine;
     private int restartCount;
@@ -127,7 +136,12 @@ public sealed class EngineSupervisor
             VersionedApi: true,
             SignalR: true,
             StructuredErrors: true,
-            CorrelationIds: true);
+            CorrelationIds: true,
+            Player: new PlayerCapabilitiesDto(
+                LocalFilePlayback: true,
+                ProgressivePlayback: false,
+                Engine: "LibVLCSharp",
+                Codecs: LocalPlayerCodecCapabilities));
 
     public SystemHealthDto GetSystemHealth(string correlationId)
     {
@@ -184,6 +198,16 @@ public sealed class EngineSupervisor
 
         return (informationalVersion[..metadataIndex], informationalVersion[(metadataIndex + 1)..]);
     }
+
+    private static PlayerCodecCapabilityDto CreateCodecCapability(string codec, string extension, string container)
+        => new(
+            codec,
+            extension,
+            container,
+            Status: "requires_fixture_validation",
+            LocalFilePlayback: true,
+            ProgressivePlayback: false,
+            Notes: "LibVLC engine is configured for local playback; Sprint 7 fixture validation is still required.");
 
     private static SoulseekClientStatusDto ToSoulseekClientStatusDto(SoulseekClientStates state)
     {

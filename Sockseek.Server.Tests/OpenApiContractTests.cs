@@ -67,6 +67,8 @@ public class OpenApiContractTests
             StringAssert.Contains(json, nameof(SystemInfoDto));
             StringAssert.Contains(json, nameof(SystemHealthDto));
             StringAssert.Contains(json, nameof(SystemCapabilitiesDto));
+            StringAssert.Contains(json, nameof(PlayerCapabilitiesDto));
+            StringAssert.Contains(json, nameof(PlayerCodecCapabilityDto));
             StringAssert.Contains(json, nameof(AppErrorDto));
             StringAssert.Contains(json, nameof(LibraryRootDto));
             StringAssert.Contains(json, nameof(LocalLibraryTrackDto));

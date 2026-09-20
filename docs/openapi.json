@@ -4923,6 +4923,67 @@
           }
         }
       },
+      "PlayerCapabilitiesDto": {
+        "required": [
+          "localFilePlayback",
+          "progressivePlayback",
+          "engine",
+          "codecs"
+        ],
+        "type": "object",
+        "properties": {
+          "localFilePlayback": {
+            "type": "boolean"
+          },
+          "progressivePlayback": {
+            "type": "boolean"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "codecs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerCodecCapabilityDto"
+            }
+          }
+        }
+      },
+      "PlayerCodecCapabilityDto": {
+        "required": [
+          "codec",
+          "extension",
+          "container",
+          "status",
+          "localFilePlayback",
+          "progressivePlayback",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "codec": {
+            "type": "string"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "container": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "localFilePlayback": {
+            "type": "boolean"
+          },
+          "progressivePlayback": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
       "PreprocessSettingsPatchDto": {
         "type": "object",
         "properties": {
@@ -6452,7 +6513,8 @@
           "versionedApi",
           "signalR",
           "structuredErrors",
-          "correlationIds"
+          "correlationIds",
+          "player"
         ],
         "type": "object",
         "properties": {
@@ -6470,6 +6532,9 @@
           },
           "correlationIds": {
             "type": "boolean"
+          },
+          "player": {
+            "$ref": "#/components/schemas/PlayerCapabilitiesDto"
           }
         }
       },

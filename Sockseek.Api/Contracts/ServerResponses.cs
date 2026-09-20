@@ -33,12 +33,59 @@ public sealed record SystemHealthDto(
 /// <summary>
 /// Snapshot of application-layer capabilities exposed by the versioned API.
 /// </summary>
+[method: JsonConstructor]
 public sealed record SystemCapabilitiesDto(
     bool LegacyApi,
     bool VersionedApi,
     bool SignalR,
     bool StructuredErrors,
-    bool CorrelationIds);
+    bool CorrelationIds,
+    PlayerCapabilitiesDto Player)
+{
+    public SystemCapabilitiesDto(
+        bool LegacyApi,
+        bool VersionedApi,
+        bool SignalR,
+        bool StructuredErrors,
+        bool CorrelationIds)
+        : this(
+            LegacyApi,
+            VersionedApi,
+            SignalR,
+            StructuredErrors,
+            CorrelationIds,
+            PlayerCapabilitiesDto.Unavailable)
+    {
+    }
+}
+
+/// <summary>
+/// Snapshot of local player capabilities exposed by the versioned API.
+/// </summary>
+public sealed record PlayerCapabilitiesDto(
+    bool LocalFilePlayback,
+    bool ProgressivePlayback,
+    string Engine,
+    IReadOnlyList<PlayerCodecCapabilityDto> Codecs)
+{
+    public static PlayerCapabilitiesDto Unavailable { get; } = new(
+        LocalFilePlayback: false,
+        ProgressivePlayback: false,
+        Engine: "unavailable",
+        Codecs: []);
+}
+
+/// <summary>
+/// Local player codec capability entry.
+/// </summary>
+public sealed record PlayerCodecCapabilityDto(
+    string Codec,
+    string Extension,
+    string Container,
+    string Status,
+    bool LocalFilePlayback,
+    bool ProgressivePlayback,
+    string Notes);
 
 /// <summary>
 /// Current daemon and engine activity counters.

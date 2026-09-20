@@ -69,6 +69,7 @@ public class SystemEndpointTests
             Assert.IsTrue(systemInfo.Capabilities.SignalR);
             Assert.IsTrue(systemInfo.Capabilities.StructuredErrors);
             Assert.IsTrue(systemInfo.Capabilities.CorrelationIds);
+            AssertPlayerCapabilities(systemInfo.Capabilities.Player);
 
             var versionedHealthResponse = await http.GetAsync("/api/v1/system/health");
             versionedHealthResponse.EnsureSuccessStatusCode();
@@ -78,7 +79,12 @@ public class SystemEndpointTests
 
             var capabilities = await authorized.GetFromJsonAsync<SystemCapabilitiesDto>("/api/v1/system/capabilities", SockseekApiJson.CreateSerializerOptions());
             Assert.IsNotNull(capabilities);
-            Assert.AreEqual(systemInfo.Capabilities, capabilities);
+            Assert.AreEqual(systemInfo.Capabilities.LegacyApi, capabilities.LegacyApi);
+            Assert.AreEqual(systemInfo.Capabilities.VersionedApi, capabilities.VersionedApi);
+            Assert.AreEqual(systemInfo.Capabilities.SignalR, capabilities.SignalR);
+            Assert.AreEqual(systemInfo.Capabilities.StructuredErrors, capabilities.StructuredErrors);
+            Assert.AreEqual(systemInfo.Capabilities.CorrelationIds, capabilities.CorrelationIds);
+            AssertPlayerCapabilities(capabilities.Player);
         }
         finally
         {
@@ -88,6 +94,20 @@ public class SystemEndpointTests
             if (Directory.Exists(outputDir))
                 Directory.Delete(outputDir, recursive: true);
         }
+    }
+
+    private static void AssertPlayerCapabilities(PlayerCapabilitiesDto player)
+    {
+        Assert.IsTrue(player.LocalFilePlayback);
+        Assert.IsFalse(player.ProgressivePlayback);
+        Assert.AreEqual("LibVLCSharp", player.Engine);
+        CollectionAssert.AreEquivalent(
+            new[] { "MP3", "FLAC", "Ogg Vorbis", "Opus", "WAV", "AAC/M4A" },
+            player.Codecs.Select(codec => codec.Codec).ToArray());
+        Assert.IsTrue(player.Codecs.All(codec =>
+            codec.LocalFilePlayback
+            && !codec.ProgressivePlayback
+            && codec.Status == "requires_fixture_validation"));
     }
 
     [TestMethod]

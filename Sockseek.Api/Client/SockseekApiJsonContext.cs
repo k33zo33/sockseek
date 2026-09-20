@@ -9,6 +9,8 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(SystemInfoDto))]
 [JsonSerializable(typeof(SystemHealthDto))]
 [JsonSerializable(typeof(SystemCapabilitiesDto))]
+[JsonSerializable(typeof(PlayerCapabilitiesDto))]
+[JsonSerializable(typeof(PlayerCodecCapabilityDto))]
 [JsonSerializable(typeof(ServerStatusDto))]
 [JsonSerializable(typeof(SoulseekClientStatusDto))]
 [JsonSerializable(typeof(ProfileSummaryDto))]
@@ -158,6 +160,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(TrackBatchResolvedEventDto))]
 
 [JsonSerializable(typeof(IReadOnlyList<ProfileSummaryDto>))]
+[JsonSerializable(typeof(IReadOnlyList<PlayerCodecCapabilityDto>))]
 [JsonSerializable(typeof(IReadOnlyList<ServerEventDescriptorDto>))]
 [JsonSerializable(typeof(IReadOnlyList<JobSummaryDto>))]
 [JsonSerializable(typeof(IReadOnlyList<ResourceActionDto>))]
