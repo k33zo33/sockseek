@@ -77,9 +77,10 @@ public static class ServerHost
             var serverOptions = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
             db.UseSqlite($"Data Source={ResolveDatabasePath(serverOptions)}");
         });
-        builder.Services.AddScoped<IPlaybackSourceResolver, LocalPlaybackSourceResolver>();
+        builder.Services.AddScoped<LocalPlaybackSourceResolver>();
+        builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
-        builder.Services.AddScoped<PlaybackCoordinator>();
+        builder.Services.AddSingleton<PlaybackCoordinator>();
         builder.Services.AddHostedService<EngineRuntimeHostedService>();
         builder.Services.AddHostedService<LocalLibraryBackgroundScanHostedService>();
 

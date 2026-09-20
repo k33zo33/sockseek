@@ -34,9 +34,13 @@ public sealed class PlaybackCompositionTests
         }, "http://127.0.0.1:0");
 
         using var scope = app.Services.CreateScope();
+        using var otherScope = app.Services.CreateScope();
 
         Assert.IsNotNull(scope.ServiceProvider.GetRequiredService<IPlaybackSourceResolver>());
-        Assert.IsNotNull(scope.ServiceProvider.GetRequiredService<PlaybackCoordinator>());
+        var coordinator = scope.ServiceProvider.GetRequiredService<PlaybackCoordinator>();
+
+        Assert.IsNotNull(coordinator);
+        Assert.AreSame(coordinator, otherScope.ServiceProvider.GetRequiredService<PlaybackCoordinator>());
     }
 
     private sealed class TemporaryDirectory : IDisposable
