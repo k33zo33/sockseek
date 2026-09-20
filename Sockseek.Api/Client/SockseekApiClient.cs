@@ -119,6 +119,58 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SystemCapabilitiesDto>(response, ct);
     }
 
+    public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/player", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<PlayerStateDto>(response, ct);
+    }
+
+    public async Task<PlayerStateDto> PlayCanonicalTrackAsync(Guid canonicalTrackId, CancellationToken ct = default)
+        => await PostRequiredAsync<PlayerStateDto, PlayCanonicalTrackRequestDto>(
+            "api/v1/player/play/canonical-track",
+            new PlayCanonicalTrackRequestDto(canonicalTrackId),
+            ct);
+
+    public async Task<PlayerStateDto> PlayPlaylistItemAsync(Guid playlistItemId, CancellationToken ct = default)
+        => await PostRequiredAsync<PlayerStateDto, PlayPlaylistItemRequestDto>(
+            "api/v1/player/play/playlist-item",
+            new PlayPlaylistItemRequestDto(playlistItemId),
+            ct);
+
+    public async Task<PlayerStateDto> PausePlaybackAsync(CancellationToken ct = default)
+        => await PostEmptyRequiredAsync<PlayerStateDto>("api/v1/player/pause", ct);
+
+    public async Task<PlayerStateDto> ResumePlaybackAsync(CancellationToken ct = default)
+        => await PostEmptyRequiredAsync<PlayerStateDto>("api/v1/player/resume", ct);
+
+    public async Task<PlayerStateDto> StopPlaybackAsync(CancellationToken ct = default)
+        => await PostEmptyRequiredAsync<PlayerStateDto>("api/v1/player/stop", ct);
+
+    public async Task<PlayerStateDto> NextPlaybackItemAsync(CancellationToken ct = default)
+        => await PostEmptyRequiredAsync<PlayerStateDto>("api/v1/player/next", ct);
+
+    public async Task<PlayerStateDto> PreviousPlaybackItemAsync(CancellationToken ct = default)
+        => await PostEmptyRequiredAsync<PlayerStateDto>("api/v1/player/previous", ct);
+
+    public async Task<PlayerStateDto> SeekPlaybackAsync(TimeSpan position, CancellationToken ct = default)
+        => await PostRequiredAsync<PlayerStateDto, SeekPlaybackRequestDto>(
+            "api/v1/player/seek",
+            new SeekPlaybackRequestDto(Convert.ToInt64(position.TotalMilliseconds)),
+            ct);
+
+    public async Task<PlayerStateDto> SetPlayerVolumeAsync(double volume, CancellationToken ct = default)
+        => await PostRequiredAsync<PlayerStateDto, SetPlayerVolumeRequestDto>(
+            "api/v1/player/volume",
+            new SetPlayerVolumeRequestDto(volume),
+            ct);
+
+    public async Task<PlayerStateDto> SetPlayerMutedAsync(bool isMuted, CancellationToken ct = default)
+        => await PostRequiredAsync<PlayerStateDto, SetPlayerMutedRequestDto>(
+            "api/v1/player/mute",
+            new SetPlayerMutedRequestDto(isMuted),
+            ct);
+
     public async Task<IReadOnlyList<LibraryRootDto>> GetLibraryRootsAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/library/roots", ct);
@@ -443,6 +495,20 @@ public sealed class SockseekApiClient
         using var response = await http.PostAsJsonAsync(url, request, jsonOptions, ct);
         await EnsureSuccessAsync(response, ct);
         return await ReadRequiredAsync<JobSummaryDto>(response, ct);
+    }
+
+    private async Task<TResponse> PostRequiredAsync<TResponse, TRequest>(string url, TRequest request, CancellationToken ct)
+    {
+        using var response = await http.PostAsJsonAsync(url, request, jsonOptions, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<TResponse>(response, ct);
+    }
+
+    private async Task<TResponse> PostEmptyRequiredAsync<TResponse>(string url, CancellationToken ct)
+    {
+        using var response = await http.PostAsync(url, null, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<TResponse>(response, ct);
     }
 
     private async Task<JobSummaryDto?> PostOptionalSummaryAsync<T>(string url, T request, CancellationToken ct)

@@ -29,8 +29,9 @@ public sealed class PlayerEndpointTests
             using var anonymousResponse = await anonymous.GetAsync("/api/v1/player");
             Assert.AreEqual(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
 
-            using var authorized = SockseekApiClient.CreateHttpClient(url, sessionToken);
-            var state = await authorized.GetFromJsonAsync<PlayerStateDto>("/api/v1/player", SockseekApiJson.CreateSerializerOptions());
+            using var authorizedHttp = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(authorizedHttp);
+            var state = await client.GetPlayerStateAsync();
 
             Assert.IsNotNull(state);
             Assert.AreEqual("Stopped", state.State);
@@ -60,24 +61,13 @@ public sealed class PlayerEndpointTests
         try
         {
             using var authorized = SockseekApiClient.CreateHttpClient(url, sessionToken);
-            using var volumeResponse = await authorized.PostAsJsonAsync(
-                "/api/v1/player/volume",
-                new SetPlayerVolumeRequestDto(0.25),
-                SockseekApiJson.CreateSerializerOptions());
-            volumeResponse.EnsureSuccessStatusCode();
-            var volumeState = await volumeResponse.Content.ReadFromJsonAsync<PlayerStateDto>(SockseekApiJson.CreateSerializerOptions());
+            var client = new SockseekApiClient(authorized);
+            var volumeState = await client.SetPlayerVolumeAsync(0.25);
 
-            Assert.IsNotNull(volumeState);
             Assert.AreEqual(0.25, volumeState.Volume);
 
-            using var muteResponse = await authorized.PostAsJsonAsync(
-                "/api/v1/player/mute",
-                new SetPlayerMutedRequestDto(true),
-                SockseekApiJson.CreateSerializerOptions());
-            muteResponse.EnsureSuccessStatusCode();
-            var mutedState = await muteResponse.Content.ReadFromJsonAsync<PlayerStateDto>(SockseekApiJson.CreateSerializerOptions());
+            var mutedState = await client.SetPlayerMutedAsync(true);
 
-            Assert.IsNotNull(mutedState);
             Assert.IsTrue(mutedState.IsMuted);
 
             using var invalidVolumeResponse = await authorized.PostAsJsonAsync(
