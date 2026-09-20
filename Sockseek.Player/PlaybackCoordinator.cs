@@ -8,6 +8,12 @@ public sealed class PlaybackCoordinator
     private readonly IMediaEngine mediaEngine;
 
     private PlaybackSnapshot snapshot = PlaybackSnapshot.Stopped;
+    private List<PlaybackQueueItem> queueItems = [];
+    private IReadOnlyList<int> playbackOrder = [];
+    private int currentQueueIndex = -1;
+    private PlaybackRepeatMode repeatMode = PlaybackRepeatMode.None;
+    private bool shuffleEnabled;
+    private int shuffleSeed;
 
     public PlaybackCoordinator(IPlaybackSourceResolver sourceResolver)
         : this(sourceResolver, new UnavailableMediaEngine())
@@ -21,6 +27,54 @@ public sealed class PlaybackCoordinator
     }
 
     public PlaybackSnapshot Snapshot => snapshot;
+
+    public PlaybackQueueSnapshot Queue => new(
+        queueItems.ToArray(),
+        currentQueueIndex,
+        repeatMode,
+        shuffleEnabled,
+        shuffleSeed,
+        playbackOrder.ToArray());
+
+    public PlaybackQueueSnapshot SetQueue(
+        IReadOnlyList<PlaybackQueueItem> items,
+        int currentIndex = 0,
+        PlaybackRepeatMode repeatMode = PlaybackRepeatMode.None,
+        bool shuffleEnabled = false,
+        int shuffleSeed = 0)
+    {
+        if (items.Count == 0)
+        {
+            if (currentIndex is not (-1 or 0))
+                throw new ArgumentOutOfRangeException(nameof(currentIndex), "Empty queues must use current index -1 or 0.");
+        }
+        else if (currentIndex < 0 || currentIndex >= items.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(currentIndex), "Current index must point to a queue item.");
+        }
+
+        queueItems = items.ToList();
+        currentQueueIndex = queueItems.Count == 0 ? -1 : currentIndex;
+        this.repeatMode = repeatMode;
+        this.shuffleEnabled = shuffleEnabled;
+        this.shuffleSeed = shuffleSeed;
+        RebuildPlaybackOrder();
+        return Queue;
+    }
+
+    public PlaybackQueueSnapshot SetRepeatMode(PlaybackRepeatMode repeatMode)
+    {
+        this.repeatMode = repeatMode;
+        return Queue;
+    }
+
+    public PlaybackQueueSnapshot SetShuffle(bool enabled, int seed)
+    {
+        shuffleEnabled = enabled;
+        shuffleSeed = seed;
+        RebuildPlaybackOrder();
+        return Queue;
+    }
 
     public Task<PlaybackSourceResolution> ResolveCanonicalTrackAsync(
         Guid canonicalTrackId,
@@ -66,6 +120,46 @@ public sealed class PlaybackCoordinator
         };
         var source = await sourceResolver.ResolvePlaylistItemAsync(playlistItemId, cancellationToken);
         return await PlayResolvedSourceAsync(source, cancellationToken);
+    }
+
+    public async Task<PlaybackSnapshot> PlayCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        if (currentQueueIndex < 0 || currentQueueIndex >= queueItems.Count)
+            return await StopAsync(cancellationToken);
+
+        return await PlayCanonicalTrackAsync(queueItems[currentQueueIndex].CanonicalTrackId, cancellationToken);
+    }
+
+    public async Task<PlaybackSnapshot> NextAsync(CancellationToken cancellationToken = default)
+    {
+        if (queueItems.Count == 0)
+            return await StopAsync(cancellationToken);
+
+        if (repeatMode == PlaybackRepeatMode.One && currentQueueIndex >= 0)
+            return await PlayCurrentAsync(cancellationToken);
+
+        var nextIndex = GetRelativeQueueIndex(1);
+        if (nextIndex == null)
+            return await StopAsync(cancellationToken);
+
+        currentQueueIndex = nextIndex.Value;
+        return await PlayCurrentAsync(cancellationToken);
+    }
+
+    public async Task<PlaybackSnapshot> PreviousAsync(CancellationToken cancellationToken = default)
+    {
+        if (queueItems.Count == 0)
+            return snapshot;
+
+        if (repeatMode == PlaybackRepeatMode.One && currentQueueIndex >= 0)
+            return await PlayCurrentAsync(cancellationToken);
+
+        var previousIndex = GetRelativeQueueIndex(-1);
+        if (previousIndex == null)
+            return snapshot;
+
+        currentQueueIndex = previousIndex.Value;
+        return await PlayCurrentAsync(cancellationToken);
     }
 
     public async Task<PlaybackSnapshot> PauseAsync(CancellationToken cancellationToken = default)
@@ -226,5 +320,80 @@ public sealed class PlaybackCoordinator
             return false;
 
         return !uri.IsFile && uri.Scheme.Length > 1;
+    }
+
+    private int? GetRelativeQueueIndex(int delta)
+    {
+        if (playbackOrder.Count != queueItems.Count)
+            RebuildPlaybackOrder();
+
+        if (playbackOrder.Count == 0)
+            return null;
+
+        if (currentQueueIndex < 0)
+            return delta > 0 ? playbackOrder[0] : null;
+
+        var currentOrderIndex = IndexOf(playbackOrder, currentQueueIndex);
+        if (currentOrderIndex < 0)
+            currentOrderIndex = 0;
+
+        var targetOrderIndex = currentOrderIndex + delta;
+        if (targetOrderIndex >= 0 && targetOrderIndex < playbackOrder.Count)
+            return playbackOrder[targetOrderIndex];
+
+        return repeatMode == PlaybackRepeatMode.All
+            ? playbackOrder[(targetOrderIndex + playbackOrder.Count) % playbackOrder.Count]
+            : null;
+    }
+
+    private void RebuildPlaybackOrder()
+    {
+        if (queueItems.Count == 0)
+        {
+            playbackOrder = [];
+            currentQueueIndex = -1;
+            return;
+        }
+
+        if (currentQueueIndex < 0 || currentQueueIndex >= queueItems.Count)
+            currentQueueIndex = 0;
+
+        var order = Enumerable.Range(0, queueItems.Count)
+            .OrderBy(index => shuffleEnabled ? StableShuffleKey(shuffleSeed, index) : (uint)index)
+            .ThenBy(index => index)
+            .ToList();
+
+        if (shuffleEnabled)
+        {
+            order.Remove(currentQueueIndex);
+            order.Insert(0, currentQueueIndex);
+        }
+
+        playbackOrder = order;
+    }
+
+    private static int IndexOf(IReadOnlyList<int> items, int value)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i] == value)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static uint StableShuffleKey(int seed, int index)
+    {
+        unchecked
+        {
+            var value = (uint)seed ^ ((uint)index * 0x9E3779B9u);
+            value ^= value >> 16;
+            value *= 0x7FEB352Du;
+            value ^= value >> 15;
+            value *= 0x846CA68Bu;
+            value ^= value >> 16;
+            return value;
+        }
     }
 }

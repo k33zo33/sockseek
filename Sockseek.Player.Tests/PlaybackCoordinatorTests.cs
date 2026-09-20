@@ -179,6 +179,106 @@ public sealed class PlaybackCoordinatorTests
         Assert.AreEqual(0, engine.Calls.Count);
     }
 
+    [TestMethod]
+    public async Task PlayCurrentAndNextAsync_AdvanceQueueAndStopAtEnd()
+    {
+        var firstTrackId = Guid.NewGuid();
+        var secondTrackId = Guid.NewGuid();
+        var engine = new FakeMediaEngine();
+        var coordinator = new PlaybackCoordinator(
+            new QueuePlaybackSourceResolver(
+                (firstTrackId, "C:/Music/First.mp3"),
+                (secondTrackId, "C:/Music/Second.mp3")),
+            engine);
+        coordinator.SetQueue(
+            [
+                new PlaybackQueueItem(Guid.NewGuid(), firstTrackId),
+                new PlaybackQueueItem(Guid.NewGuid(), secondTrackId),
+            ]);
+
+        var first = await coordinator.PlayCurrentAsync();
+        var second = await coordinator.NextAsync();
+        var end = await coordinator.NextAsync();
+
+        Assert.AreEqual(firstTrackId, first.CanonicalTrackId);
+        Assert.AreEqual(secondTrackId, second.CanonicalTrackId);
+        Assert.AreEqual(PlaybackState.Stopped, end.State);
+        Assert.AreEqual(1, coordinator.Queue.CurrentIndex);
+        CollectionAssert.AreEqual(
+            new[] { "Load:C:/Music/First.mp3", "Play", "Load:C:/Music/Second.mp3", "Play", "Stop" },
+            engine.Calls.ToArray());
+    }
+
+    [TestMethod]
+    public async Task NextAsync_RepeatAll_WrapsToFirstQueueItem()
+    {
+        var firstTrackId = Guid.NewGuid();
+        var secondTrackId = Guid.NewGuid();
+        var engine = new FakeMediaEngine();
+        var coordinator = new PlaybackCoordinator(
+            new QueuePlaybackSourceResolver(
+                (firstTrackId, "C:/Music/First.mp3"),
+                (secondTrackId, "C:/Music/Second.mp3")),
+            engine);
+        coordinator.SetQueue(
+            [
+                new PlaybackQueueItem(Guid.NewGuid(), firstTrackId),
+                new PlaybackQueueItem(Guid.NewGuid(), secondTrackId),
+            ],
+            currentIndex: 1,
+            repeatMode: PlaybackRepeatMode.All);
+
+        var result = await coordinator.NextAsync();
+
+        Assert.AreEqual(firstTrackId, result.CanonicalTrackId);
+        Assert.AreEqual(0, coordinator.Queue.CurrentIndex);
+    }
+
+    [TestMethod]
+    public async Task NextAsync_RepeatOne_ReplaysCurrentQueueItem()
+    {
+        var firstTrackId = Guid.NewGuid();
+        var secondTrackId = Guid.NewGuid();
+        var engine = new FakeMediaEngine();
+        var coordinator = new PlaybackCoordinator(
+            new QueuePlaybackSourceResolver(
+                (firstTrackId, "C:/Music/First.mp3"),
+                (secondTrackId, "C:/Music/Second.mp3")),
+            engine);
+        coordinator.SetQueue(
+            [
+                new PlaybackQueueItem(Guid.NewGuid(), firstTrackId),
+                new PlaybackQueueItem(Guid.NewGuid(), secondTrackId),
+            ],
+            repeatMode: PlaybackRepeatMode.One);
+
+        var result = await coordinator.NextAsync();
+
+        Assert.AreEqual(firstTrackId, result.CanonicalTrackId);
+        Assert.AreEqual(0, coordinator.Queue.CurrentIndex);
+    }
+
+    [TestMethod]
+    public void SetShuffle_BuildsStableOrderAndKeepsCurrentItemFirst()
+    {
+        var items = Enumerable.Range(0, 6)
+            .Select(_ => new PlaybackQueueItem(Guid.NewGuid(), Guid.NewGuid()))
+            .ToArray();
+        var first = new PlaybackCoordinator(new FakePlaybackSourceResolver(PlaybackSourceResolution.PendingResolution(null, "pending")));
+        var second = new PlaybackCoordinator(new FakePlaybackSourceResolver(PlaybackSourceResolution.PendingResolution(null, "pending")));
+
+        var firstQueue = first.SetQueue(items, currentIndex: 3, shuffleEnabled: true, shuffleSeed: 4242);
+        var secondQueue = second.SetQueue(items, currentIndex: 3, shuffleEnabled: true, shuffleSeed: 4242);
+
+        Assert.IsTrue(firstQueue.ShuffleEnabled);
+        Assert.AreEqual(4242, firstQueue.ShuffleSeed);
+        Assert.AreEqual(3, firstQueue.PlaybackOrder[0]);
+        CollectionAssert.AreEqual(firstQueue.PlaybackOrder.ToArray(), secondQueue.PlaybackOrder.ToArray());
+        CollectionAssert.AreEquivalent(
+            Enumerable.Range(0, items.Length).ToArray(),
+            firstQueue.PlaybackOrder.ToArray());
+    }
+
     private sealed class FakePlaybackSourceResolver(PlaybackSourceResolution result) : IPlaybackSourceResolver
     {
         public Guid? CanonicalTrackId { get; private set; }
@@ -200,6 +300,26 @@ public sealed class PlaybackCoordinatorTests
             PlaylistItemId = playlistItemId;
             return Task.FromResult(result);
         }
+    }
+
+    private sealed class QueuePlaybackSourceResolver(params (Guid TrackId, string Path)[] sources) : IPlaybackSourceResolver
+    {
+        private readonly Dictionary<Guid, string> pathsByTrackId = sources.ToDictionary(source => source.TrackId, source => source.Path);
+
+        public Task<PlaybackSourceResolution> ResolveCanonicalTrackAsync(
+            Guid canonicalTrackId,
+            CancellationToken cancellationToken = default)
+        {
+            if (!pathsByTrackId.TryGetValue(canonicalTrackId, out var path))
+                return Task.FromResult(PlaybackSourceResolution.PendingResolution(null, "missing"));
+
+            return Task.FromResult(PlaybackSourceResolution.LocalFile(canonicalTrackId, null, Guid.NewGuid(), path));
+        }
+
+        public Task<PlaybackSourceResolution> ResolvePlaylistItemAsync(
+            Guid playlistItemId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(PlaybackSourceResolution.PendingResolution(playlistItemId, "missing"));
     }
 
     private sealed class FakeMediaEngine : IMediaEngine
