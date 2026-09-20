@@ -90,6 +90,16 @@ public sealed record SubmitJobListRequestDto(
     IReadOnlyList<JobDraftDto> Jobs,
     SubmissionOptionsDto? Options = null);
 
+public sealed record PlayCanonicalTrackRequestDto(Guid CanonicalTrackId);
+
+public sealed record PlayPlaylistItemRequestDto(Guid PlaylistItemId);
+
+public sealed record SeekPlaybackRequestDto(long PositionMs);
+
+public sealed record SetPlayerVolumeRequestDto(double Volume);
+
+public sealed record SetPlayerMutedRequestDto(bool IsMuted);
+
 public sealed record SourceMutationDto(
     string Kind,
     string Source,

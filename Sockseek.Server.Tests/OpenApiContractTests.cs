@@ -69,6 +69,11 @@ public class OpenApiContractTests
             StringAssert.Contains(json, nameof(SystemCapabilitiesDto));
             StringAssert.Contains(json, nameof(PlayerCapabilitiesDto));
             StringAssert.Contains(json, nameof(PlayerCodecCapabilityDto));
+            StringAssert.Contains(json, nameof(PlayerStateDto));
+            StringAssert.Contains(json, nameof(PlayerQueueDto));
+            StringAssert.Contains(json, nameof(PlayerQueueItemDto));
+            StringAssert.Contains(json, nameof(PlayCanonicalTrackRequestDto));
+            StringAssert.Contains(json, nameof(SetPlayerVolumeRequestDto));
             StringAssert.Contains(json, nameof(AppErrorDto));
             StringAssert.Contains(json, nameof(LibraryRootDto));
             StringAssert.Contains(json, nameof(LocalLibraryTrackDto));
@@ -86,6 +91,9 @@ public class OpenApiContractTests
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/info", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/health", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/system/capabilities", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/player", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/player/play/canonical-track", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/player/volume", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/roots", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/roots/{rootId}", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/scan", out _));

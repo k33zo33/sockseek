@@ -88,6 +88,41 @@ public sealed record PlayerCodecCapabilityDto(
     string Notes);
 
 /// <summary>
+/// Current local player state.
+/// </summary>
+public sealed record PlayerStateDto(
+    string State,
+    Guid? CanonicalTrackId,
+    Guid? PlaylistItemId,
+    Guid? LocalMediaFileId,
+    string? Path,
+    string? ErrorMessage,
+    long PositionMs,
+    double Volume,
+    bool IsMuted,
+    PlayerQueueDto Queue);
+
+/// <summary>
+/// Current in-memory playback queue state.
+/// </summary>
+public sealed record PlayerQueueDto(
+    IReadOnlyList<PlayerQueueItemDto> Items,
+    int CurrentIndex,
+    string RepeatMode,
+    bool ShuffleEnabled,
+    int ShuffleSeed,
+    IReadOnlyList<int> PlaybackOrder);
+
+/// <summary>
+/// Playback queue item exposed to local clients.
+/// </summary>
+public sealed record PlayerQueueItemDto(
+    Guid Id,
+    Guid CanonicalTrackId,
+    Guid? LocalMediaFileId,
+    Guid? DownloadWorkflowId);
+
+/// <summary>
 /// Current daemon and engine activity counters.
 /// </summary>
 public sealed record ServerStatusDto(

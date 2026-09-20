@@ -215,6 +215,128 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapGet("/api/v1/player", (PlaybackCoordinator player) => Results.Ok(ToPlayerStateDto(player)))
+            .WithTags("Player")
+            .WithSummary("Gets the current local player state.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/play/canonical-track", async (
+            PlayCanonicalTrackRequestDto request,
+            PlaybackCoordinator player,
+            CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.PlayCanonicalTrackAsync(request.CanonicalTrackId, ct))))
+            .WithTags("Player")
+            .WithSummary("Starts playback for a canonical track resolved to a local file.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/play/playlist-item", async (
+            PlayPlaylistItemRequestDto request,
+            PlaybackCoordinator player,
+            CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.PlayPlaylistItemAsync(request.PlaylistItemId, ct))))
+            .WithTags("Player")
+            .WithSummary("Starts playback for a playlist item resolved to a local file.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/pause", async (PlaybackCoordinator player, CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.PauseAsync(ct))))
+            .WithTags("Player")
+            .WithSummary("Pauses local playback when currently playing.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/resume", async (PlaybackCoordinator player, CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.ResumeAsync(ct))))
+            .WithTags("Player")
+            .WithSummary("Resumes local playback when currently paused.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/stop", async (PlaybackCoordinator player, CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.StopAsync(ct))))
+            .WithTags("Player")
+            .WithSummary("Stops local playback.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/next", async (PlaybackCoordinator player, CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.NextAsync(ct))))
+            .WithTags("Player")
+            .WithSummary("Moves to the next local queue item when available.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/previous", async (PlaybackCoordinator player, CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.PreviousAsync(ct))))
+            .WithTags("Player")
+            .WithSummary("Moves to the previous local queue item when available.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/seek", async (
+            SeekPlaybackRequestDto request,
+            PlaybackCoordinator player,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(ToPlayerStateDto(player, await player.SeekAsync(TimeSpan.FromMilliseconds(request.PositionMs), ct)));
+            }
+            catch (Exception ex) when (TryCreateBadRequest(ex, out _))
+            {
+                return BadRequest(ex);
+            }
+        })
+            .WithTags("Player")
+            .WithSummary("Seeks within the current local playback item.")
+            .Produces<PlayerStateDto>()
+            .Produces<ApiErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/volume", async (
+            SetPlayerVolumeRequestDto request,
+            PlaybackCoordinator player,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(ToPlayerStateDto(player, await player.SetVolumeAsync(request.Volume, ct)));
+            }
+            catch (Exception ex) when (TryCreateBadRequest(ex, out _))
+            {
+                return BadRequest(ex);
+            }
+        })
+            .WithTags("Player")
+            .WithSummary("Sets local player volume from 0.0 to 1.0.")
+            .Produces<PlayerStateDto>()
+            .Produces<ApiErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/player/mute", async (
+            SetPlayerMutedRequestDto request,
+            PlaybackCoordinator player,
+            CancellationToken ct) =>
+                Results.Ok(ToPlayerStateDto(player, await player.SetMutedAsync(request.IsMuted, ct))))
+            .WithTags("Player")
+            .WithSummary("Sets local player mute state.")
+            .Produces<PlayerStateDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapGet("/api/v1/library/roots", async (LocalLibraryEndpointService library, CancellationToken ct) =>
             Results.Ok(await library.ListRootsAsync(ct)))
             .WithTags("Library")
@@ -777,6 +899,37 @@ public static class ServerHost
 
         return !path.StartsWithSegments("/api/v1/system/health", StringComparison.Ordinal);
     }
+
+    private static PlayerStateDto ToPlayerStateDto(PlaybackCoordinator player)
+        => ToPlayerStateDto(player, player.Snapshot);
+
+    private static PlayerStateDto ToPlayerStateDto(PlaybackCoordinator player, PlaybackSnapshot snapshot)
+        => new(
+            snapshot.State.ToString(),
+            snapshot.CanonicalTrackId,
+            snapshot.PlaylistItemId,
+            snapshot.LocalMediaFileId,
+            snapshot.Path,
+            snapshot.ErrorMessage,
+            Convert.ToInt64(snapshot.Position.TotalMilliseconds),
+            snapshot.Volume,
+            snapshot.IsMuted,
+            ToPlayerQueueDto(player.Queue));
+
+    private static PlayerQueueDto ToPlayerQueueDto(PlaybackQueueSnapshot queue)
+        => new(
+            queue.Items
+                .Select(item => new PlayerQueueItemDto(
+                    item.Id,
+                    item.CanonicalTrackId,
+                    item.LocalMediaFileId,
+                    item.DownloadWorkflowId))
+                .ToList(),
+            queue.CurrentIndex,
+            queue.RepeatMode.ToString(),
+            queue.ShuffleEnabled,
+            queue.ShuffleSeed,
+            queue.PlaybackOrder.ToList());
 
     private static string GetCorrelationId(HttpContext context)
         => context.TraceIdentifier;
