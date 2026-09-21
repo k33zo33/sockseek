@@ -22,7 +22,7 @@ Replace the placeholder player engine with a local LibVLCSharp-backed `IMediaEng
 
 - Player HTTP API endpoints.
 - Desktop bottom player UI.
-- Long playback smoke fixtures.
+- Progressive playback fixtures.
 - External provider playback or audio downloading.
 
 ## Files and projects affected
@@ -67,7 +67,7 @@ Replace the placeholder player engine with a local LibVLCSharp-backed `IMediaEng
 
 - Stop if the concrete engine requires changing the locked local-file-only playback policy.
 - Stop if package restore introduces incompatible or non-redistributable native dependencies.
-- Codec behavior is covered by the Sprint 7 local-file fixture matrix for startup smoke coverage; progressive codec behavior remains Sprint 8 scope.
+- Codec behavior is covered by the Sprint 7 local-file fixture matrix and long local playback smoke coverage; progressive codec behavior remains Sprint 8 scope.
 
 ## Acceptance-criteria mapping
 

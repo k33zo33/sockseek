@@ -13,6 +13,13 @@ Fixtures are 0.5 second sine-wave files generated locally with ffmpeg and stored
 | WAV | `tone.wav` | WAV PCM | Pass: LibVLC starts local playback without error. |
 | AAC/M4A | `tone.m4a` | MPEG-4 audio | Pass: LibVLC starts local playback without error. |
 
+## Long playback smoke
+
+`tone-long.mp3` is a 3 second local MP3 fixture. `LibVlcMediaEngineFixtureTests`
+loads it through LibVLC with dummy audio output, keeps playback running for 2 seconds,
+and stops it explicitly. This covers the Sprint 7 long playback smoke requirement
+without relying on external audio devices or provider media sources.
+
 Scope notes:
 
 - This matrix covers completed local files only.
