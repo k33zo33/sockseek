@@ -24,4 +24,8 @@
     <Compile Include="..\Sockseek.Core.Tests\TestClients\MockSoulseekClientNotImpl.cs" Link="TestClients\MockSoulseekClientNotImpl.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\Sockseek.Infrastructure.Tests\Fixtures\LocalArtwork\*.*" Link="Fixtures\LocalArtwork\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

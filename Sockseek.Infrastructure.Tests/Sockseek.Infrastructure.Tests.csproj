@@ -16,4 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Sockseek.Infrastructure\Sockseek.Infrastructure.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Fixtures\LocalArtwork\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

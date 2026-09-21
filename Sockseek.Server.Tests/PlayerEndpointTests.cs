@@ -95,9 +95,8 @@ public sealed class PlayerEndpointTests
         var port = GetFreeTcpPort();
         var url = $"http://127.0.0.1:{port}";
         const string sessionToken = "player-metadata-token";
-        var audioPath = Path.Combine(temp.Path, "Tagged.flac");
-        await File.WriteAllTextAsync(audioPath, "not real audio");
-        var seeded = await SeedTrackAsync(temp.Path, audioPath);
+        var audioPath = CopyArtworkFixture(temp.Path, "Tagged.mp3");
+        var seeded = await SeedTrackAsync(temp.Path, audioPath, codec: "mp3");
         var trackId = seeded.TrackId;
         var app = CreateApp(temp.Path, url, sessionToken);
 
@@ -114,7 +113,14 @@ public sealed class PlayerEndpointTests
             Assert.AreEqual("Tagged Artist", state.NowPlaying.Artist);
             Assert.AreEqual("Tagged Album", state.NowPlaying.AlbumTitle);
             Assert.AreEqual(185000, state.NowPlaying.DurationMs);
-            Assert.AreEqual("flac", state.NowPlaying.Codec);
+            Assert.AreEqual("mp3", state.NowPlaying.Codec);
+            var artworkPath = state.NowPlaying.ArtworkPath;
+            Assert.IsFalse(string.IsNullOrWhiteSpace(artworkPath));
+            Assert.IsNotNull(artworkPath);
+            Assert.IsTrue(File.Exists(artworkPath), $"Expected cached artwork file to exist: {artworkPath}");
+            StringAssert.StartsWith(
+                NormalizePath(Path.GetFullPath(artworkPath)),
+                NormalizePath(Path.Combine(temp.Path, "artwork-cache")) + "/");
             Assert.AreEqual("local_media_file", state.NowPlaying.Source);
             Assert.AreEqual(NormalizePath(audioPath), NormalizePath(state.Path));
         }
@@ -182,7 +188,7 @@ public sealed class PlayerEndpointTests
             SessionToken = sessionToken,
         }, url);
 
-    private static async Task<(Guid TrackId, Guid FileId)> SeedTrackAsync(string tempPath, string audioPath)
+    private static async Task<(Guid TrackId, Guid FileId)> SeedTrackAsync(string tempPath, string audioPath, string codec = "flac")
     {
         var options = new DbContextOptionsBuilder<SockseekDbContext>()
             .UseSqlite($"Data Source={Path.Combine(tempPath, "sockseek.db")}")
@@ -204,7 +210,7 @@ public sealed class PlayerEndpointTests
                     1234,
                     new DateTimeOffset(2026, 9, 21, 12, 0, 0, TimeSpan.Zero),
                     185000,
-                    "flac",
+                    codec,
                     900,
                     48000,
                     24,
@@ -215,6 +221,14 @@ public sealed class PlayerEndpointTests
             .Select(file => file.Id)
             .SingleAsync();
         return (trackId, fileId);
+    }
+
+    private static string CopyArtworkFixture(string tempPath, string fileName)
+    {
+        var source = Path.Combine(AppContext.BaseDirectory, "Fixtures", "LocalArtwork", "tone-artwork.mp3");
+        var destination = Path.Combine(tempPath, fileName);
+        File.Copy(source, destination);
+        return destination;
     }
 
     private static async Task SeedDefaultQueueAsync(string tempPath, Guid trackId, Guid fileId)

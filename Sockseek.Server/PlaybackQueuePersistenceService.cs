@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Sockseek.Infrastructure;
@@ -74,11 +75,18 @@ public sealed class PlaybackQueuePersistenceService(
         SockseekDbContext db,
         CancellationToken cancellationToken)
     {
-        var count = await db.Database
-            .SqlQueryRaw<int>(
-                "SELECT COUNT(*) AS Value FROM sqlite_master WHERE type = 'table' AND name IN ('PlaybackQueues', 'PlaybackQueueItems')")
-            .SingleAsync(cancellationToken);
-        return count == 2;
+        try
+        {
+            var count = await db.Database
+                .SqlQueryRaw<int>(
+                    "SELECT COUNT(*) AS Value FROM sqlite_master WHERE type = 'table' AND name IN ('PlaybackQueues', 'PlaybackQueueItems')")
+                .SingleAsync(cancellationToken);
+            return count == 2;
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 14)
+        {
+            return false;
+        }
     }
 
     private static PlaybackRepeatMode ToPlayerRepeatMode(PlaybackQueueRepeatMode repeatMode)
