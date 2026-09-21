@@ -39,6 +39,7 @@ public sealed class PlaybackQueueStore(SockseekDbContext dbContext, IClock clock
         entity.Name = record.Name.Trim();
         entity.CurrentIndex = record.CurrentIndex;
         entity.RepeatMode = (int)record.RepeatMode;
+        entity.ShuffleEnabled = record.ShuffleEnabled;
         entity.ShuffleSeed = record.ShuffleSeed;
         entity.UpdatedAtUtc = clock.UtcNow;
 
@@ -75,6 +76,7 @@ public sealed class PlaybackQueueStore(SockseekDbContext dbContext, IClock clock
             entity.Name,
             entity.CurrentIndex,
             (PlaybackQueueRepeatMode)entity.RepeatMode,
+            entity.ShuffleEnabled,
             entity.ShuffleSeed,
             entity.UpdatedAtUtc,
             entity.Items

@@ -51,7 +51,8 @@ public sealed class LocalLibraryBackgroundScanHostedServiceTests
         string basePath,
         string libraryRoot,
         string outputDir)
-        => new(Options.Create(new ServerOptions
+    {
+        var options = Options.Create(new ServerOptions
         {
             DatabasePath = Path.Combine(basePath, "sockseek.db"),
             DatabaseBackupDir = Path.Combine(basePath, "backups"),
@@ -68,7 +69,9 @@ public sealed class LocalLibraryBackgroundScanHostedServiceTests
             },
             Profiles = ProfileCatalog.Empty,
             SessionToken = "background-library-test-token",
-        }));
+        });
+        return new LocalLibraryEndpointService(options, new ServerDatabaseMigrationService(options));
+    }
 
     private static async Task WaitForTrackCountAsync(
         LocalLibraryEndpointService library,

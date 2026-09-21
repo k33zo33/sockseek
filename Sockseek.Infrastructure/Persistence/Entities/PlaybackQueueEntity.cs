@@ -9,6 +9,7 @@ public sealed class PlaybackQueueEntity : IHasConcurrencyToken
     public string Name { get; set; } = string.Empty;
     public int CurrentIndex { get; set; }
     public int RepeatMode { get; set; }
+    public bool ShuffleEnabled { get; set; }
     public int ShuffleSeed { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
 

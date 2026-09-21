@@ -358,6 +358,9 @@ namespace Sockseek.Infrastructure.Persistence.Migrations
                     b.Property<int>("RepeatMode")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("ShuffleEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ShuffleSeed")
                         .HasColumnType("INTEGER");
 

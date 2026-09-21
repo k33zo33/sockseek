@@ -29,6 +29,7 @@ public sealed class PlaybackQueueStoreTests
                 "Main queue",
                 CurrentIndex: 1,
                 PlaybackQueueRepeatMode.All,
+                ShuffleEnabled: true,
                 ShuffleSeed: 12345,
                 [
                     new PlaybackQueueItemRecord(Guid.NewGuid(), 1, trackId, fileId, null, PlaybackQueueItemState.LocalFile),
@@ -43,6 +44,7 @@ public sealed class PlaybackQueueStoreTests
         Assert.AreEqual("Main queue", restored.Name);
         Assert.AreEqual(1, restored.CurrentIndex);
         Assert.AreEqual(PlaybackQueueRepeatMode.All, restored.RepeatMode);
+        Assert.IsTrue(restored.ShuffleEnabled);
         Assert.AreEqual(12345, restored.ShuffleSeed);
         Assert.AreEqual(clock.UtcNow, restored.UpdatedAtUtc);
         Assert.AreEqual(2, restored.Items.Count);
@@ -75,6 +77,7 @@ public sealed class PlaybackQueueStoreTests
                 "Main queue",
                 0,
                 PlaybackQueueRepeatMode.None,
+                false,
                 7,
                 [new PlaybackQueueItemRecord(Guid.NewGuid(), 0, firstTrackId, null, null, PlaybackQueueItemState.PendingResolution)]));
 
@@ -84,6 +87,7 @@ public sealed class PlaybackQueueStoreTests
                 "Updated queue",
                 0,
                 PlaybackQueueRepeatMode.One,
+                true,
                 99,
                 [new PlaybackQueueItemRecord(Guid.NewGuid(), 0, secondTrackId, null, null, PlaybackQueueItemState.PendingResolution)]));
         }
@@ -94,6 +98,7 @@ public sealed class PlaybackQueueStoreTests
         Assert.IsNotNull(restored);
         Assert.AreEqual("Updated queue", restored.Name);
         Assert.AreEqual(PlaybackQueueRepeatMode.One, restored.RepeatMode);
+        Assert.IsTrue(restored.ShuffleEnabled);
         Assert.AreEqual(99, restored.ShuffleSeed);
         Assert.AreEqual(1, restored.Items.Count);
         Assert.AreEqual(secondTrackId, restored.Items.Single().CanonicalTrackId);
@@ -114,6 +119,7 @@ public sealed class PlaybackQueueStoreTests
                 "Main queue",
                 0,
                 PlaybackQueueRepeatMode.None,
+                false,
                 1,
                 [new PlaybackQueueItemRecord(Guid.NewGuid(), 2, trackId, null, null, PlaybackQueueItemState.PendingResolution)])));
     }

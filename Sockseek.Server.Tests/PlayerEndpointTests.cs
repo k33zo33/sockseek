@@ -8,6 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
 using Sockseek.Core.Settings;
 using Sockseek.Domain.Tracks;
+using Sockseek.Infrastructure;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Server;
 
@@ -96,7 +97,8 @@ public sealed class PlayerEndpointTests
         const string sessionToken = "player-metadata-token";
         var audioPath = Path.Combine(temp.Path, "Tagged.flac");
         await File.WriteAllTextAsync(audioPath, "not real audio");
-        var trackId = await SeedTrackAsync(temp.Path, audioPath);
+        var seeded = await SeedTrackAsync(temp.Path, audioPath);
+        var trackId = seeded.TrackId;
         var app = CreateApp(temp.Path, url, sessionToken);
 
         await app.StartAsync();
@@ -115,6 +117,42 @@ public sealed class PlayerEndpointTests
             Assert.AreEqual("flac", state.NowPlaying.Codec);
             Assert.AreEqual("local_media_file", state.NowPlaying.Source);
             Assert.AreEqual(NormalizePath(audioPath), NormalizePath(state.Path));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
+    [TestMethod]
+    public async Task PlayerState_RestoresDefaultQueueFromLocalDatabaseOnStartup()
+    {
+        using var temp = TemporaryDirectory.Create();
+        var port = GetFreeTcpPort();
+        var url = $"http://127.0.0.1:{port}";
+        const string sessionToken = "player-queue-restore-token";
+        var audioPath = Path.Combine(temp.Path, "Queued.flac");
+        await File.WriteAllTextAsync(audioPath, "not real audio");
+        var seeded = await SeedTrackAsync(temp.Path, audioPath);
+        await SeedDefaultQueueAsync(temp.Path, seeded.TrackId, seeded.FileId);
+        var app = CreateApp(temp.Path, url, sessionToken);
+
+        await app.StartAsync();
+        try
+        {
+            using var authorizedHttp = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(authorizedHttp);
+
+            var state = await client.GetPlayerStateAsync();
+
+            Assert.AreEqual(1, state.Queue.Items.Count);
+            Assert.AreEqual(0, state.Queue.CurrentIndex);
+            Assert.AreEqual("All", state.Queue.RepeatMode);
+            Assert.IsTrue(state.Queue.ShuffleEnabled);
+            Assert.AreEqual(4242, state.Queue.ShuffleSeed);
+            Assert.AreEqual(seeded.TrackId, state.Queue.Items[0].CanonicalTrackId);
+            Assert.AreEqual(seeded.FileId, state.Queue.Items[0].LocalMediaFileId);
         }
         finally
         {
@@ -144,7 +182,7 @@ public sealed class PlayerEndpointTests
             SessionToken = sessionToken,
         }, url);
 
-    private static async Task<Guid> SeedTrackAsync(string tempPath, string audioPath)
+    private static async Task<(Guid TrackId, Guid FileId)> SeedTrackAsync(string tempPath, string audioPath)
     {
         var options = new DbContextOptionsBuilder<SockseekDbContext>()
             .UseSqlite($"Data Source={Path.Combine(tempPath, "sockseek.db")}")
@@ -152,7 +190,7 @@ public sealed class PlayerEndpointTests
         await using var context = new SockseekDbContext(options);
         await context.Database.MigrateAsync();
 
-        return await new CanonicalTrackStore(context).UpsertAsync(new CanonicalTrackRecord(
+        var trackId = await new CanonicalTrackStore(context).UpsertAsync(new CanonicalTrackRecord(
             "Tagged Artist",
             "Tagged Title",
             "Tagged Album",
@@ -171,6 +209,36 @@ public sealed class PlayerEndpointTests
                     48000,
                     24,
                     LocalMediaAvailability.Available),
+            ]));
+        var fileId = await context.LocalMediaFiles
+            .Where(file => file.CanonicalTrackId == trackId)
+            .Select(file => file.Id)
+            .SingleAsync();
+        return (trackId, fileId);
+    }
+
+    private static async Task SeedDefaultQueueAsync(string tempPath, Guid trackId, Guid fileId)
+    {
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite($"Data Source={Path.Combine(tempPath, "sockseek.db")}")
+            .Options;
+        await using var context = new SockseekDbContext(options);
+        await context.Database.MigrateAsync();
+        await new PlaybackQueueStore(context, new SystemClock()).SaveAsync(new PlaybackQueueSaveRecord(
+            PlaybackQueuePersistenceService.DefaultQueueId,
+            "Main queue",
+            0,
+            PlaybackQueueRepeatMode.All,
+            true,
+            4242,
+            [
+                new PlaybackQueueItemRecord(
+                    Guid.NewGuid(),
+                    0,
+                    trackId,
+                    fileId,
+                    null,
+                    PlaybackQueueItemState.LocalFile),
             ]));
     }
 

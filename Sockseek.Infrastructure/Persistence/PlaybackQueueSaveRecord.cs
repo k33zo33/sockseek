@@ -5,5 +5,6 @@ public sealed record PlaybackQueueSaveRecord(
     string Name,
     int CurrentIndex,
     PlaybackQueueRepeatMode RepeatMode,
+    bool ShuffleEnabled,
     int ShuffleSeed,
     IReadOnlyList<PlaybackQueueItemRecord> Items);

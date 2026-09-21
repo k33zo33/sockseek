@@ -20,6 +20,7 @@ namespace Sockseek.Infrastructure.Persistence.Migrations
                     Name = table.Column<string>(type: "TEXT", nullable: false),
                     CurrentIndex = table.Column<int>(type: "INTEGER", nullable: false),
                     RepeatMode = table.Column<int>(type: "INTEGER", nullable: false),
+                    ShuffleEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
                     ShuffleSeed = table.Column<int>(type: "INTEGER", nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
                 },

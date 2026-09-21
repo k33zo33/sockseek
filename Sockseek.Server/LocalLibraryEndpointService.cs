@@ -8,11 +8,10 @@ using Sockseek.Infrastructure.Persistence;
 
 namespace Sockseek.Server;
 
-public sealed class LocalLibraryEndpointService(IOptions<ServerOptions> options)
+public sealed class LocalLibraryEndpointService(
+    IOptions<ServerOptions> options,
+    ServerDatabaseMigrationService databaseMigration)
 {
-    private readonly SemaphoreSlim migrationLock = new(1, 1);
-    private bool migrated;
-
     public async Task<IReadOnlyList<LibraryRootDto>> ListRootsAsync(CancellationToken cancellationToken)
     {
         await EnsureMigratedAsync(cancellationToken);
@@ -91,30 +90,8 @@ public sealed class LocalLibraryEndpointService(IOptions<ServerOptions> options)
         return result == null ? null : new LocalMediaFileRelinkResultDto(result.LocalMediaFileId, result.CanonicalTrackId, result.Path);
     }
 
-    private async Task EnsureMigratedAsync(CancellationToken cancellationToken)
-    {
-        if (migrated)
-            return;
-
-        await migrationLock.WaitAsync(cancellationToken);
-        try
-        {
-            if (migrated)
-                return;
-
-            string databasePath = ResolveDatabasePath();
-            Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
-            string backupDirectory = options.Value.DatabaseBackupDir
-                ?? Path.Combine(Path.GetDirectoryName(databasePath)!, "backups");
-            var runner = new SqliteMigrationRunner(CreateContext);
-            await runner.MigrateAsync(databasePath, backupDirectory, cancellationToken);
-            migrated = true;
-        }
-        finally
-        {
-            migrationLock.Release();
-        }
-    }
+    private Task EnsureMigratedAsync(CancellationToken cancellationToken)
+        => databaseMigration.EnsureMigratedAsync(cancellationToken);
 
     private SockseekDbContext CreateContext()
     {
