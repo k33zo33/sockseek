@@ -100,7 +100,20 @@ public sealed record PlayerStateDto(
     long PositionMs,
     double Volume,
     bool IsMuted,
-    PlayerQueueDto Queue);
+    PlayerQueueDto Queue,
+    PlayerNowPlayingDto? NowPlaying = null);
+
+/// <summary>
+/// Local now-playing metadata for the current player item.
+/// </summary>
+public sealed record PlayerNowPlayingDto(
+    string? Title,
+    string? Artist,
+    string? AlbumTitle,
+    long? DurationMs,
+    string? Codec,
+    string? ArtworkPath,
+    string Source);
 
 /// <summary>
 /// Current in-memory playback queue state.

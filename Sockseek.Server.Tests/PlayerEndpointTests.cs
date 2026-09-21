@@ -3,9 +3,12 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
 using Sockseek.Core.Settings;
+using Sockseek.Domain.Tracks;
+using Sockseek.Infrastructure.Persistence;
 using Sockseek.Server;
 
 namespace Tests.Server;
@@ -84,6 +87,42 @@ public sealed class PlayerEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task PlayCanonicalTrack_ReturnsLocalNowPlayingMetadata()
+    {
+        using var temp = TemporaryDirectory.Create();
+        var port = GetFreeTcpPort();
+        var url = $"http://127.0.0.1:{port}";
+        const string sessionToken = "player-metadata-token";
+        var audioPath = Path.Combine(temp.Path, "Tagged.flac");
+        await File.WriteAllTextAsync(audioPath, "not real audio");
+        var trackId = await SeedTrackAsync(temp.Path, audioPath);
+        var app = CreateApp(temp.Path, url, sessionToken);
+
+        await app.StartAsync();
+        try
+        {
+            using var authorizedHttp = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(authorizedHttp);
+
+            var state = await client.PlayCanonicalTrackAsync(trackId);
+
+            Assert.IsNotNull(state.NowPlaying);
+            Assert.AreEqual("Tagged Title", state.NowPlaying.Title);
+            Assert.AreEqual("Tagged Artist", state.NowPlaying.Artist);
+            Assert.AreEqual("Tagged Album", state.NowPlaying.AlbumTitle);
+            Assert.AreEqual(185000, state.NowPlaying.DurationMs);
+            Assert.AreEqual("flac", state.NowPlaying.Codec);
+            Assert.AreEqual("local_media_file", state.NowPlaying.Source);
+            Assert.AreEqual(NormalizePath(audioPath), NormalizePath(state.Path));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
     private static WebApplication CreateApp(string tempPath, string url, string sessionToken)
         => ServerHost.Build([], new ServerOptions
         {
@@ -104,6 +143,39 @@ public sealed class PlayerEndpointTests
             Profiles = ProfileCatalog.Empty,
             SessionToken = sessionToken,
         }, url);
+
+    private static async Task<Guid> SeedTrackAsync(string tempPath, string audioPath)
+    {
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite($"Data Source={Path.Combine(tempPath, "sockseek.db")}")
+            .Options;
+        await using var context = new SockseekDbContext(options);
+        await context.Database.MigrateAsync();
+
+        return await new CanonicalTrackStore(context).UpsertAsync(new CanonicalTrackRecord(
+            "Tagged Artist",
+            "Tagged Title",
+            "Tagged Album",
+            185000,
+            null,
+            null,
+            [],
+            [
+                new LocalMediaFileRecord(
+                    audioPath,
+                    1234,
+                    new DateTimeOffset(2026, 9, 21, 12, 0, 0, TimeSpan.Zero),
+                    185000,
+                    "flac",
+                    900,
+                    48000,
+                    24,
+                    LocalMediaAvailability.Available),
+            ]));
+    }
+
+    private static string? NormalizePath(string? path)
+        => path?.Replace('\\', '/');
 
     private static int GetFreeTcpPort()
     {

@@ -5506,6 +5506,62 @@
           }
         }
       },
+      "PlayerNowPlayingDto": {
+        "required": [
+          "title",
+          "artist",
+          "albumTitle",
+          "durationMs",
+          "codec",
+          "artworkPath",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "artist": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "albumTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "durationMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "codec": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "artworkPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
       "PlayerQueueDto": {
         "required": [
           "items",
@@ -5663,6 +5719,16 @@
           },
           "queue": {
             "$ref": "#/components/schemas/PlayerQueueDto"
+          },
+          "nowPlaying": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlayerNowPlayingDto"
+              }
+            ]
           }
         }
       },

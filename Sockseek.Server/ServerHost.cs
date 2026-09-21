@@ -12,6 +12,7 @@ using Sockseek.Api;
 using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
 using Sockseek.Infrastructure.Persistence;
+using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Player;
 
 namespace Sockseek.Server;
@@ -215,7 +216,8 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
-        app.MapGet("/api/v1/player", (PlaybackCoordinator player) => Results.Ok(ToPlayerStateDto(player)))
+        app.MapGet("/api/v1/player", async (PlaybackCoordinator player, SockseekDbContext db, CancellationToken ct) =>
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, ct)))
             .WithTags("Player")
             .WithSummary("Gets the current local player state.")
             .Produces<PlayerStateDto>()
@@ -225,8 +227,9 @@ public static class ServerHost
         app.MapPost("/api/v1/player/play/canonical-track", async (
             PlayCanonicalTrackRequestDto request,
             PlaybackCoordinator player,
+            SockseekDbContext db,
             CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.PlayCanonicalTrackAsync(request.CanonicalTrackId, ct))))
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.PlayCanonicalTrackAsync(request.CanonicalTrackId, ct), ct)))
             .WithTags("Player")
             .WithSummary("Starts playback for a canonical track resolved to a local file.")
             .Produces<PlayerStateDto>()
@@ -236,48 +239,49 @@ public static class ServerHost
         app.MapPost("/api/v1/player/play/playlist-item", async (
             PlayPlaylistItemRequestDto request,
             PlaybackCoordinator player,
+            SockseekDbContext db,
             CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.PlayPlaylistItemAsync(request.PlaylistItemId, ct))))
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.PlayPlaylistItemAsync(request.PlaylistItemId, ct), ct)))
             .WithTags("Player")
             .WithSummary("Starts playback for a playlist item resolved to a local file.")
             .Produces<PlayerStateDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
-        app.MapPost("/api/v1/player/pause", async (PlaybackCoordinator player, CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.PauseAsync(ct))))
+        app.MapPost("/api/v1/player/pause", async (PlaybackCoordinator player, SockseekDbContext db, CancellationToken ct) =>
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.PauseAsync(ct), ct)))
             .WithTags("Player")
             .WithSummary("Pauses local playback when currently playing.")
             .Produces<PlayerStateDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
-        app.MapPost("/api/v1/player/resume", async (PlaybackCoordinator player, CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.ResumeAsync(ct))))
+        app.MapPost("/api/v1/player/resume", async (PlaybackCoordinator player, SockseekDbContext db, CancellationToken ct) =>
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.ResumeAsync(ct), ct)))
             .WithTags("Player")
             .WithSummary("Resumes local playback when currently paused.")
             .Produces<PlayerStateDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
-        app.MapPost("/api/v1/player/stop", async (PlaybackCoordinator player, CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.StopAsync(ct))))
+        app.MapPost("/api/v1/player/stop", async (PlaybackCoordinator player, SockseekDbContext db, CancellationToken ct) =>
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.StopAsync(ct), ct)))
             .WithTags("Player")
             .WithSummary("Stops local playback.")
             .Produces<PlayerStateDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
-        app.MapPost("/api/v1/player/next", async (PlaybackCoordinator player, CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.NextAsync(ct))))
+        app.MapPost("/api/v1/player/next", async (PlaybackCoordinator player, SockseekDbContext db, CancellationToken ct) =>
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.NextAsync(ct), ct)))
             .WithTags("Player")
             .WithSummary("Moves to the next local queue item when available.")
             .Produces<PlayerStateDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
-        app.MapPost("/api/v1/player/previous", async (PlaybackCoordinator player, CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.PreviousAsync(ct))))
+        app.MapPost("/api/v1/player/previous", async (PlaybackCoordinator player, SockseekDbContext db, CancellationToken ct) =>
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.PreviousAsync(ct), ct)))
             .WithTags("Player")
             .WithSummary("Moves to the previous local queue item when available.")
             .Produces<PlayerStateDto>()
@@ -287,11 +291,12 @@ public static class ServerHost
         app.MapPost("/api/v1/player/seek", async (
             SeekPlaybackRequestDto request,
             PlaybackCoordinator player,
+            SockseekDbContext db,
             CancellationToken ct) =>
         {
             try
             {
-                return Results.Ok(ToPlayerStateDto(player, await player.SeekAsync(TimeSpan.FromMilliseconds(request.PositionMs), ct)));
+                return Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.SeekAsync(TimeSpan.FromMilliseconds(request.PositionMs), ct), ct));
             }
             catch (Exception ex) when (TryCreateBadRequest(ex, out _))
             {
@@ -308,11 +313,12 @@ public static class ServerHost
         app.MapPost("/api/v1/player/volume", async (
             SetPlayerVolumeRequestDto request,
             PlaybackCoordinator player,
+            SockseekDbContext db,
             CancellationToken ct) =>
         {
             try
             {
-                return Results.Ok(ToPlayerStateDto(player, await player.SetVolumeAsync(request.Volume, ct)));
+                return Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.SetVolumeAsync(request.Volume, ct), ct));
             }
             catch (Exception ex) when (TryCreateBadRequest(ex, out _))
             {
@@ -329,8 +335,9 @@ public static class ServerHost
         app.MapPost("/api/v1/player/mute", async (
             SetPlayerMutedRequestDto request,
             PlaybackCoordinator player,
+            SockseekDbContext db,
             CancellationToken ct) =>
-                Results.Ok(ToPlayerStateDto(player, await player.SetMutedAsync(request.IsMuted, ct))))
+                Results.Ok(await ToPlayerStateDtoAsync(player, db, await player.SetMutedAsync(request.IsMuted, ct), ct)))
             .WithTags("Player")
             .WithSummary("Sets local player mute state.")
             .Produces<PlayerStateDto>()
@@ -900,10 +907,17 @@ public static class ServerHost
         return !path.StartsWithSegments("/api/v1/system/health", StringComparison.Ordinal);
     }
 
-    private static PlayerStateDto ToPlayerStateDto(PlaybackCoordinator player)
-        => ToPlayerStateDto(player, player.Snapshot);
+    private static Task<PlayerStateDto> ToPlayerStateDtoAsync(
+        PlaybackCoordinator player,
+        SockseekDbContext dbContext,
+        CancellationToken cancellationToken)
+        => ToPlayerStateDtoAsync(player, dbContext, player.Snapshot, cancellationToken);
 
-    private static PlayerStateDto ToPlayerStateDto(PlaybackCoordinator player, PlaybackSnapshot snapshot)
+    private static async Task<PlayerStateDto> ToPlayerStateDtoAsync(
+        PlaybackCoordinator player,
+        SockseekDbContext dbContext,
+        PlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
         => new(
             snapshot.State.ToString(),
             snapshot.CanonicalTrackId,
@@ -914,7 +928,79 @@ public static class ServerHost
             Convert.ToInt64(snapshot.Position.TotalMilliseconds),
             snapshot.Volume,
             snapshot.IsMuted,
-            ToPlayerQueueDto(player.Queue));
+            ToPlayerQueueDto(player.Queue),
+            await ResolveNowPlayingAsync(dbContext, snapshot, cancellationToken));
+
+    private static async Task<PlayerNowPlayingDto?> ResolveNowPlayingAsync(
+        SockseekDbContext dbContext,
+        PlaybackSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (snapshot.LocalMediaFileId is Guid localMediaFileId)
+        {
+            var file = await dbContext.LocalMediaFiles
+                .AsNoTracking()
+                .Include(localFile => localFile.CanonicalTrack)
+                .SingleOrDefaultAsync(localFile => localFile.Id == localMediaFileId, cancellationToken);
+            if (file != null)
+                return ToNowPlaying(file, snapshot.Path);
+        }
+
+        if (snapshot.CanonicalTrackId is Guid canonicalTrackId)
+        {
+            var track = await dbContext.CanonicalTracks
+                .AsNoTracking()
+                .Include(canonicalTrack => canonicalTrack.LocalMediaFiles)
+                .SingleOrDefaultAsync(canonicalTrack => canonicalTrack.Id == canonicalTrackId, cancellationToken);
+            if (track != null)
+                return ToNowPlaying(track, snapshot.Path);
+        }
+
+        return !string.IsNullOrWhiteSpace(snapshot.Path)
+            ? new PlayerNowPlayingDto(
+                Title: Path.GetFileNameWithoutExtension(snapshot.Path),
+                Artist: null,
+                AlbumTitle: null,
+                DurationMs: null,
+                Codec: null,
+                ArtworkPath: null,
+                Source: "path")
+            : null;
+    }
+
+    private static PlayerNowPlayingDto ToNowPlaying(LocalMediaFileEntity file, string? path)
+    {
+        var track = file.CanonicalTrack;
+        return new PlayerNowPlayingDto(
+            Title: NullIfEmpty(track?.Title) ?? Path.GetFileNameWithoutExtension(path ?? file.Path),
+            Artist: NullIfEmpty(track?.Artist),
+            AlbumTitle: NullIfEmpty(track?.AlbumTitle),
+            DurationMs: ToLong(file.DurationMs ?? track?.DurationMs),
+            Codec: NullIfEmpty(file.Codec),
+            ArtworkPath: null,
+            Source: "local_media_file");
+    }
+
+    private static PlayerNowPlayingDto ToNowPlaying(CanonicalTrackEntity track, string? path)
+    {
+        var bestFile = track.LocalMediaFiles
+            .OrderByDescending(file => file.Bitrate ?? 0)
+            .ThenBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        return new PlayerNowPlayingDto(
+            Title: NullIfEmpty(track.Title) ?? Path.GetFileNameWithoutExtension(path ?? bestFile?.Path ?? string.Empty),
+            Artist: NullIfEmpty(track.Artist),
+            AlbumTitle: NullIfEmpty(track.AlbumTitle),
+            DurationMs: ToLong(track.DurationMs ?? bestFile?.DurationMs),
+            Codec: NullIfEmpty(bestFile?.Codec),
+            ArtworkPath: null,
+            Source: "canonical_track");
+    }
+
+    private static long? ToLong(int? value) => value;
+
+    private static string? NullIfEmpty(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 
     private static PlayerQueueDto ToPlayerQueueDto(PlaybackQueueSnapshot queue)
         => new(

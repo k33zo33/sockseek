@@ -79,7 +79,9 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
     public string TitleResourceKey { get; } = "Shell.PlayerBar.Title";
 
     public string Title
-        => state?.Path is { Length: > 0 } path
+        => !string.IsNullOrWhiteSpace(state?.NowPlaying?.Title)
+            ? state.NowPlaying.Title
+            : state?.Path is { Length: > 0 } path
             ? Path.GetFileName(path)
             : DesktopStringResources.Get("Shell.PlayerBar.Title");
 
@@ -96,6 +98,7 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
     public string Artist
         => errorMessage
             ?? state?.ErrorMessage
+            ?? FormatArtist(state?.NowPlaying)
             ?? (apiClient is null
                 ? DesktopStringResources.Get("Shell.PlayerBar.Artist")
                 : "Local player ready");
@@ -105,7 +108,7 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
     public string Progress
         => state is null
             ? DesktopStringResources.Get("Shell.PlayerBar.Progress")
-            : $"{FormatTime(TimeSpan.FromMilliseconds(state.PositionMs))} / --:--";
+            : $"{FormatTime(TimeSpan.FromMilliseconds(state.PositionMs))} / {FormatDuration(state.NowPlaying?.DurationMs)}";
 
     public string ProgressHintResourceKey { get; } = "Shell.PlayerBar.Progress.Hint";
 
@@ -385,7 +388,9 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         int index)
     {
         var isCurrent = index == state.Queue.CurrentIndex;
-        var title = isCurrent && !string.IsNullOrWhiteSpace(state.Path)
+        var title = isCurrent && !string.IsNullOrWhiteSpace(state.NowPlaying?.Title)
+            ? state.NowPlaying.Title
+            : isCurrent && !string.IsNullOrWhiteSpace(state.Path)
             ? Path.GetFileName(state.Path)
             : $"Track {ShortId(item.CanonicalTrackId)}";
         var detail = item.LocalMediaFileId is Guid localMediaFileId
@@ -400,6 +405,25 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
     }
 
     private static string ShortId(Guid id) => id.ToString("N")[..8];
+
+    private static string? FormatArtist(PlayerNowPlayingDto? nowPlaying)
+    {
+        if (nowPlaying is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(nowPlaying.Artist) && !string.IsNullOrWhiteSpace(nowPlaying.AlbumTitle))
+            return $"{nowPlaying.Artist} - {nowPlaying.AlbumTitle}";
+
+        if (!string.IsNullOrWhiteSpace(nowPlaying.Artist))
+            return nowPlaying.Artist;
+
+        return string.IsNullOrWhiteSpace(nowPlaying.AlbumTitle) ? null : nowPlaying.AlbumTitle;
+    }
+
+    private static string FormatDuration(long? durationMs)
+        => durationMs is > 0
+            ? FormatTime(TimeSpan.FromMilliseconds(durationMs.Value))
+            : "--:--";
 
     private static string FormatTime(TimeSpan value)
         => value.TotalHours >= 1

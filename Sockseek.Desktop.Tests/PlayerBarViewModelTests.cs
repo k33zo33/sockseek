@@ -60,6 +60,29 @@ public sealed class PlayerBarViewModelTests
     }
 
     [TestMethod]
+    public async Task ConnectAsync_UsesNowPlayingMetadataWhenAvailable()
+    {
+        var nowPlaying = new PlayerNowPlayingDto(
+            "Tagged Title",
+            "Tagged Artist",
+            "Tagged Album",
+            185000,
+            "flac",
+            null,
+            "local_media_file");
+        var handler = new StubHttpMessageHandler(_ => CreatePlayerState("C:/Music/Artist/Track.flac", nowPlaying: nowPlaying));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var playerBar = new PlayerBarPlaceholderViewModel();
+
+        await playerBar.ConnectAsync(new SockseekApiClient(http));
+
+        Assert.AreEqual("Tagged Title", playerBar.Title);
+        Assert.AreEqual("Tagged Artist - Tagged Album", playerBar.Artist);
+        Assert.AreEqual("00:42 / 03:05", playerBar.Progress);
+        Assert.AreEqual("Tagged Title", playerBar.QueueItems[0].Title);
+    }
+
+    [TestMethod]
     public async Task TryHandleInput_PlayPauseWhenPlaying_PostsPauseCommand()
     {
         var pauseRequestPath = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -122,7 +145,10 @@ public sealed class PlayerBarViewModelTests
         Assert.IsFalse(playerBar.CanPlayPause);
     }
 
-    private static PlayerStateDto CreatePlayerState(string path, string state = "Playing")
+    private static PlayerStateDto CreatePlayerState(
+        string path,
+        string state = "Playing",
+        PlayerNowPlayingDto? nowPlaying = null)
         => new(
             state,
             Guid.NewGuid(),
@@ -139,7 +165,8 @@ public sealed class PlayerBarViewModelTests
                 "All",
                 false,
                 0,
-                [0]));
+                [0]),
+            nowPlaying);
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
     {
