@@ -12,6 +12,7 @@ public sealed class LocalLibraryScanner(
     public static readonly IReadOnlySet<string> DefaultSupportedExtensions = new HashSet<string>(
         [".aac", ".aiff", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".wma"],
         StringComparer.OrdinalIgnoreCase);
+    public const string IncompleteDownloadSuffix = ".incomplete";
 
     public async Task<LocalLibraryScanResult> ScanAsync(
         LocalLibraryScanRequest request,
@@ -91,11 +92,14 @@ public sealed class LocalLibraryScanner(
 
             foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
             {
-                if (supportedExtensions.Contains(Path.GetExtension(path)))
+                if (!IsIncompleteFilePath(path) && supportedExtensions.Contains(Path.GetExtension(path)))
                     yield return Path.GetFullPath(path);
             }
         }
     }
+
+    public static bool IsIncompleteFilePath(string path)
+        => path.EndsWith(IncompleteDownloadSuffix, StringComparison.OrdinalIgnoreCase);
 
     private static CanonicalTrackRecord CreateTrackRecord(FileInfo fileInfo, LocalAudioMetadata metadata)
         => new(

@@ -90,7 +90,8 @@ public sealed class LocalLibraryFileWatcher : IDisposable
     }
 
     private bool IsSupported(string path)
-        => supportedExtensions.Contains(Path.GetExtension(path));
+        => !LocalLibraryScanner.IsIncompleteFilePath(path)
+            && supportedExtensions.Contains(Path.GetExtension(path));
 
     private static IReadOnlyList<string> NormalizeRoots(IReadOnlyList<string> roots)
         => roots

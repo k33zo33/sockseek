@@ -58,6 +58,28 @@ public class LocalLibraryFileWatcherTests
             Assert.AreEqual(0, changes.Count);
     }
 
+    [TestMethod]
+    public async Task Watcher_IgnoresIncompleteDownloadFiles()
+    {
+        using var temp = TemporaryDirectory.Create();
+
+        var changes = new List<LocalLibraryFileChange>();
+        using var watcher = new LocalLibraryFileWatcher(new HashSet<string>([".incomplete"], StringComparer.OrdinalIgnoreCase));
+        watcher.Changed += (_, change) =>
+        {
+            lock (changes)
+                changes.Add(change);
+        };
+        watcher.Start([temp.Path]);
+
+        string incompletePath = Path.Combine(temp.Path, "Track.mp3.incomplete");
+        await File.WriteAllBytesAsync(incompletePath, [1, 2, 3]);
+        await Task.Delay(300);
+
+        lock (changes)
+            Assert.AreEqual(0, changes.Count);
+    }
+
     private static async Task WaitForAsync(
         List<LocalLibraryFileChange> changes,
         Func<LocalLibraryFileChange, bool> predicate)

@@ -156,6 +156,29 @@ public class LocalLibraryScannerTests
     }
 
     [TestMethod]
+    public async Task ScanAsync_IncompleteDownloadFiles_AreNeverImported()
+    {
+        using var temp = TemporaryDirectory.Create();
+        string incompletePath = CreateAudioFile(temp.Path, "Artist", "Track.mp3.incomplete");
+        var metadataReader = new FakeMetadataReader();
+        metadataReader.Set(incompletePath, new LocalAudioMetadata("Artist", "Track", null, 180000, null, null, "mp3", 320, 44100, 16));
+
+        await using var database = await TestDatabase.CreateAsync();
+        var scanner = CreateScanner(database.Options, metadataReader);
+
+        var result = await scanner.ScanAsync(new LocalLibraryScanRequest(
+            [temp.Path],
+            new HashSet<string>([".incomplete"], StringComparer.OrdinalIgnoreCase)));
+
+        Assert.AreEqual(0, result.DiscoveredFiles);
+        Assert.AreEqual(0, result.ImportedFiles);
+
+        await using var verify = new SockseekDbContext(database.Options);
+        Assert.AreEqual(0, await verify.CanonicalTracks.CountAsync());
+        Assert.AreEqual(0, await verify.LocalMediaFiles.CountAsync());
+    }
+
+    [TestMethod]
     public async Task ScanAsync_MetadataFailure_ContinuesAndReportsProgress()
     {
         using var temp = TemporaryDirectory.Create();
