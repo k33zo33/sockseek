@@ -20,8 +20,17 @@ loads it through LibVLC with dummy audio output, keeps playback running for 2 se
 and stops it explicitly. This covers the Sprint 7 long playback smoke requirement
 without relying on external audio devices or provider media sources.
 
+## Progressive playback smoke
+
+Sprint 8 adds a Windows-target growing-file regression for MP3. The test writes the
+first part of `tone-long.mp3` to a local `.mp3.incomplete` path, starts LibVLC before
+the final bytes arrive, appends the remaining bytes and then stops playback. This is
+the evidence used by the experimental progressive playback capability flag to mark
+MP3 as progressive-capable. Other codecs remain local-file-only until they get the
+same growing-file coverage.
+
 Scope notes:
 
-- This matrix covers completed local files only.
-- Progressive playback while downloading remains Sprint 8 scope.
+- Completed local-file playback is validated for every codec listed above.
+- Progressive playback is validated only for the MP3 growing-file smoke test.
 - Tests use dummy audio output and do not introduce provider audio URLs or external media sources.

@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
 using Sockseek.Core.Settings;
@@ -105,6 +106,28 @@ public class SystemEndpointTests
             new[] { "MP3", "FLAC", "Ogg Vorbis", "Opus", "WAV", "AAC/M4A" },
             player.Codecs.Select(codec => codec.Codec).ToArray());
         Assert.IsTrue(player.Codecs.All(codec =>
+            codec.LocalFilePlayback
+            && !codec.ProgressivePlayback
+            && codec.Status == "validated_local_file"));
+    }
+
+    [TestMethod]
+    public void GetSystemCapabilities_ExperimentalProgressivePlayback_ReportsMp3Only()
+    {
+        var supervisor = new EngineSupervisor(Options.Create(new ServerOptions
+        {
+            ExperimentalProgressivePlayback = true,
+            Profiles = ProfileCatalog.Empty,
+        }));
+
+        var player = supervisor.GetSystemCapabilities().Player;
+
+        Assert.IsTrue(player.LocalFilePlayback);
+        Assert.IsTrue(player.ProgressivePlayback);
+        var mp3 = player.Codecs.Single(codec => codec.Codec == "MP3");
+        Assert.IsTrue(mp3.ProgressivePlayback);
+        Assert.AreEqual("validated_progressive_local_file", mp3.Status);
+        Assert.IsTrue(player.Codecs.Where(codec => codec.Codec != "MP3").All(codec =>
             codec.LocalFilePlayback
             && !codec.ProgressivePlayback
             && codec.Status == "validated_local_file"));

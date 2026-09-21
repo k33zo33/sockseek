@@ -21,15 +21,6 @@ public sealed class EngineSupervisor
     private readonly Channel<QueuedSubmission> submissionChannel = Channel.CreateUnbounded<QueuedSubmission>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private readonly Lock engineGate = new();
-    private static readonly IReadOnlyList<PlayerCodecCapabilityDto> LocalPlayerCodecCapabilities =
-    [
-        CreateCodecCapability("MP3", ".mp3", "MPEG audio"),
-        CreateCodecCapability("FLAC", ".flac", "FLAC"),
-        CreateCodecCapability("Ogg Vorbis", ".ogg", "Ogg"),
-        CreateCodecCapability("Opus", ".opus", "Ogg/Opus"),
-        CreateCodecCapability("WAV", ".wav", "RIFF/WAVE"),
-        CreateCodecCapability("AAC/M4A", ".m4a", "MPEG-4 audio"),
-    ];
 
     private DownloadEngine? currentEngine;
     private int restartCount;
@@ -131,7 +122,10 @@ public sealed class EngineSupervisor
     }
 
     public SystemCapabilitiesDto GetSystemCapabilities()
-        => new(
+    {
+        var playerCodecs = CreateLocalPlayerCodecCapabilities(options.ExperimentalProgressivePlayback);
+        var progressivePlayback = playerCodecs.Any(codec => codec.ProgressivePlayback);
+        return new(
             LegacyApi: true,
             VersionedApi: true,
             SignalR: true,
@@ -139,9 +133,10 @@ public sealed class EngineSupervisor
             CorrelationIds: true,
             Player: new PlayerCapabilitiesDto(
                 LocalFilePlayback: true,
-                ProgressivePlayback: false,
+                ProgressivePlayback: progressivePlayback,
                 Engine: "LibVLCSharp",
-                Codecs: LocalPlayerCodecCapabilities));
+                Codecs: playerCodecs));
+    }
 
     public SystemHealthDto GetSystemHealth(string correlationId)
     {
@@ -199,15 +194,32 @@ public sealed class EngineSupervisor
         return (informationalVersion[..metadataIndex], informationalVersion[(metadataIndex + 1)..]);
     }
 
-    private static PlayerCodecCapabilityDto CreateCodecCapability(string codec, string extension, string container)
+    private static IReadOnlyList<PlayerCodecCapabilityDto> CreateLocalPlayerCodecCapabilities(bool progressivePlaybackEnabled)
+        =>
+        [
+            CreateCodecCapability("MP3", ".mp3", "MPEG audio", progressivePlaybackEnabled),
+            CreateCodecCapability("FLAC", ".flac", "FLAC", false),
+            CreateCodecCapability("Ogg Vorbis", ".ogg", "Ogg", false),
+            CreateCodecCapability("Opus", ".opus", "Ogg/Opus", false),
+            CreateCodecCapability("WAV", ".wav", "RIFF/WAVE", false),
+            CreateCodecCapability("AAC/M4A", ".m4a", "MPEG-4 audio", false),
+        ];
+
+    private static PlayerCodecCapabilityDto CreateCodecCapability(
+        string codec,
+        string extension,
+        string container,
+        bool progressivePlayback)
         => new(
             codec,
             extension,
             container,
-            Status: "validated_local_file",
+            Status: progressivePlayback ? "validated_progressive_local_file" : "validated_local_file",
             LocalFilePlayback: true,
-            ProgressivePlayback: false,
-            Notes: "Sprint 7 LibVLC fixture smoke test starts this local file format; progressive playback remains disabled.");
+            ProgressivePlayback: progressivePlayback,
+            Notes: progressivePlayback
+                ? "Sprint 8 LibVLC growing-file regression test starts this local file format before final bytes arrive."
+                : "Sprint 7 LibVLC fixture smoke test starts this local file format; progressive playback remains disabled.");
 
     private static SoulseekClientStatusDto ToSoulseekClientStatusDto(SoulseekClientStates state)
     {

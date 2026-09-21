@@ -16,4 +16,5 @@ public sealed class ServerOptions
     public string? DatabaseBackupDir { get; set; }
     public Func<EngineSettings, ISoulseekClient>? ClientFactory { get; set; }
     public string? SessionToken { get; set; }
+    public bool ExperimentalProgressivePlayback { get; set; }
 }
