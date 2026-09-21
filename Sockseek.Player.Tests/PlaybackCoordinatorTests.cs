@@ -210,6 +210,37 @@ public sealed class PlaybackCoordinatorTests
     }
 
     [TestMethod]
+    public async Task NextAsync_AfterBadQueueItem_PlaysFollowingQueueItem()
+    {
+        var badTrackId = Guid.NewGuid();
+        var goodTrackId = Guid.NewGuid();
+        var engine = new FakeMediaEngine();
+        engine.FailLoadForPath("C:/Music/Broken.mp3", new InvalidDataException("bad file"));
+        var coordinator = new PlaybackCoordinator(
+            new QueuePlaybackSourceResolver(
+                (badTrackId, "C:/Music/Broken.mp3"),
+                (goodTrackId, "C:/Music/Good.mp3")),
+            engine);
+        coordinator.SetQueue(
+            [
+                new PlaybackQueueItem(Guid.NewGuid(), badTrackId),
+                new PlaybackQueueItem(Guid.NewGuid(), goodTrackId),
+            ]);
+
+        var failed = await coordinator.PlayCurrentAsync();
+        var recovered = await coordinator.NextAsync();
+
+        Assert.AreEqual(PlaybackState.Failed, failed.State);
+        Assert.AreEqual("bad file", failed.ErrorMessage);
+        Assert.AreEqual(PlaybackState.Playing, recovered.State);
+        Assert.AreEqual(goodTrackId, recovered.CanonicalTrackId);
+        Assert.AreEqual(1, coordinator.Queue.CurrentIndex);
+        CollectionAssert.AreEqual(
+            new[] { "Load:C:/Music/Broken.mp3", "Load:C:/Music/Good.mp3", "Play" },
+            engine.Calls.ToArray());
+    }
+
+    [TestMethod]
     public async Task NextAsync_RepeatAll_WrapsToFirstQueueItem()
     {
         var firstTrackId = Guid.NewGuid();
@@ -324,15 +355,23 @@ public sealed class PlaybackCoordinatorTests
 
     private sealed class FakeMediaEngine : IMediaEngine
     {
+        private readonly Dictionary<string, Exception> loadExceptionsByPath = [];
+
         public List<string> Calls { get; } = [];
 
         public Exception? LoadException { get; init; }
 
         public Exception? SeekException { get; init; }
 
+        public void FailLoadForPath(string path, Exception exception)
+            => loadExceptionsByPath[path] = exception;
+
         public Task LoadAsync(string path, CancellationToken cancellationToken = default)
         {
             Calls.Add("Load:" + path);
+            if (loadExceptionsByPath.TryGetValue(path, out var pathException))
+                throw pathException;
+
             if (LoadException != null)
                 throw LoadException;
 
