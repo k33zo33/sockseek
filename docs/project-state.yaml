@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 7
-  slug: local-player-mvp
-  file: docs/sprints/sprint-07-local-player-mvp.md
+  id: 8
+  slug: play-while-downloading
+  file: docs/sprints/sprint-08-play-while-downloading.md
   status: in_progress
 
 completed_sprints:
@@ -25,6 +25,7 @@ completed_sprints:
   - 4
   - 5
   - 6
+  - 7
 blocked_by: []
 
 locked_decisions:

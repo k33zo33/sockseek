@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Completed
 
 ## Required context
 
@@ -72,4 +72,43 @@ Ovisnosti: Sprint 6; Sprint 4 UI shell.
 
 ## Completion report
 
-Report changed files, validation commands and results, migrations, security/license impact, known risks and every unmet acceptance criterion.
+Completed on 2026-09-21.
+
+Changed areas:
+
+- `Sockseek.Player`: playback state machine, queue navigation, local LibVLC media engine, codec capability report and bad-file recovery coverage.
+- `Sockseek.Server`: local player control API, persisted queue restore/save, now-playing metadata/artwork resolution, OpenAPI-safe hosted-service startup and database parent-directory creation.
+- `Sockseek.Infrastructure`: local playback source resolution foundation and local embedded artwork extraction/cache helper.
+- `Sockseek.Desktop`: bottom player binding, expanded queue panel, focused key routing and Windows media key bridge.
+- `Sockseek.Api`: typed player client methods and player capability/now-playing contracts.
+- `docs`: LibVLC ADR, codec fixture matrix and Sprint 7 execution plans.
+
+Validation:
+
+- `dotnet test Sockseek.Infrastructure.Tests\Sockseek.Infrastructure.Tests.csproj -c Release` passed, 54 tests.
+- `dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj -c Release` passed, 107 tests.
+- `dotnet build -c Release` passed.
+- `dotnet test -c Release --no-build` passed: Architecture 5, Application 3, Domain 26, Player 22, Infrastructure 54, Core 578, CLI 254, Server 107 and Desktop 206 tests.
+- Provider-audio guard search for `IPlaybackProvider`, `GetAudioStreamAsync`, `DownloadTrackAsync`, `AudioUrl` and `audio URL` in application/integration/player/server/desktop projects returned no matches.
+
+Migrations:
+
+- No EF migration was required in Sprint 7.
+- Queue persistence tables already existed from the accepted persistence schema work; artwork cache files are derived local artifacts and are not stored in SQLite.
+
+Security, privacy and license impact:
+
+- Playback and artwork use only local files or local cache paths.
+- No Spotify, YouTube, Bandcamp, MusicBrainz or other provider audio playback/download capability was introduced.
+- No `IPlaybackProvider`, provider audio URL, `GetAudioStreamAsync` or `DownloadTrackAsync` contract was introduced.
+- AGPL-3.0 posture is unchanged.
+
+Known risks:
+
+- Existing dependency advisories remain: `AngleSharp` moderate severity and `SQLitePCLRaw.lib.e_sqlite3` high severity.
+- Existing Desktop test fake-event CS0067 warnings remain.
+- Progressive play-while-downloading remains Sprint 8 scope.
+
+Unmet acceptance criteria:
+
+- None known. Sprint 7 acceptance criteria are covered by player state, codec fixture, queue persistence/restore, bad-file recovery, Windows media key, now-playing artwork and provider-audio guard validation.
