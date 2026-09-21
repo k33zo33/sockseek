@@ -4,15 +4,27 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 
 namespace Sockseek.Desktop;
 
 public partial class DesktopShellMainWindow : Window
 {
+    private readonly IDesktopMediaKeyBridge mediaKeyBridge;
+    private readonly DesktopMediaKeyBridgeRouter mediaKeyBridgeRouter;
     private DesktopShellWindowViewModel? viewModel;
 
     public DesktopShellMainWindow()
+        : this(DesktopMediaKeyBridge.CreateDefault())
     {
+    }
+
+    internal DesktopShellMainWindow(IDesktopMediaKeyBridge mediaKeyBridge)
+    {
+        this.mediaKeyBridge = mediaKeyBridge ?? throw new ArgumentNullException(nameof(mediaKeyBridge));
+        mediaKeyBridgeRouter = new DesktopMediaKeyBridgeRouter(
+            this.mediaKeyBridge,
+            input => Dispatcher.UIThread.Post(() => HandleMediaKeyInput(input)));
         InitializeComponent();
         DataContextChanged += HandleDataContextChanged;
         KeyDown += HandleKeyDown;
@@ -40,6 +52,7 @@ public partial class DesktopShellMainWindow : Window
             viewModel.PropertyChanged -= HandleViewModelPropertyChanged;
 
         viewModel = null;
+        mediaKeyBridgeRouter.Dispose();
     }
 
     private void HandleViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
@@ -69,6 +82,13 @@ public partial class DesktopShellMainWindow : Window
     }
 
     private static bool IsTextInputFocused(object? source) => source is TextBox;
+
+    private void HandleMediaKeyInput(DesktopPlayerInput input)
+        => _ = DesktopShellKeyRouting.TryHandleShellInput(
+            viewModel,
+            shortcut: null,
+            shouldClosePalette: false,
+            playerInput: input);
 
     private static void ApplyTheme(DesktopThemePreference preference)
     {

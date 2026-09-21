@@ -15,7 +15,7 @@ Add Windows-target media key handling for the desktop player so play/pause, prev
 ## In scope
 
 - Add a small desktop-side media key bridge abstraction.
-- Add a Windows implementation that can register/unregister the supported media keys without affecting non-Windows targets.
+- Add a Windows implementation that registers/unregisters the supported media keys without affecting non-Windows targets.
 - Route bridge events into the same `DesktopPlayerInput` path used by existing key routing.
 - Add focused unit tests around registration lifecycle, input mapping and disposal behavior using a fake registrar.
 - Document the bridge scope and limitations.
@@ -45,7 +45,7 @@ Add Windows-target media key handling for the desktop player so play/pause, prev
 
 1. Extract a testable `IDesktopMediaKeyBridge`/registrar shape that emits `DesktopPlayerInput`.
 2. Implement a no-op bridge for unsupported platforms.
-3. Implement the Windows bridge behind `OperatingSystem.IsWindows()` using native registration only when the main window is active enough to provide a platform handle.
+3. Implement the Windows bridge behind `OperatingSystem.IsWindows()` using native hotkey registration on a message-only window.
 4. Wire the bridge into `DesktopShellMainWindow` lifecycle and route events to `DesktopShellKeyRouting.TryHandleShellInput`.
 5. Add unit tests for mapping, registration failure tolerance, unregister-on-dispose and duplicate event suppression if needed.
 6. Run Desktop targeted tests, full Release build and full test suite.
@@ -70,7 +70,7 @@ Add Windows-target media key handling for the desktop player so play/pause, prev
 ## Risks and stop conditions
 
 - Stop if implementation requires adding a Windows runtime/package that changes packaging or license posture without review.
-- Stop if Avalonia does not expose a stable message hook/handle path in this repo without adding a new dependency.
+- Stop if native hotkey registration requires a new dependency, packaging change or license review.
 - Treat registration failure as non-fatal; app-window key routing must continue working.
 
 ## Acceptance-criteria mapping
