@@ -224,6 +224,24 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         await RunCommandAsync(client => client.GetPlayerStateAsync(cancellationToken));
     }
 
+    internal bool TryHandleInput(DesktopPlayerInput input)
+    {
+        var action = input switch
+        {
+            DesktopPlayerInput.Previous => TransportActions[0],
+            DesktopPlayerInput.TogglePlayPause => TransportActions[1],
+            DesktopPlayerInput.Next => TransportActions[2],
+            DesktopPlayerInput.ToggleMute => UtilityActions[1],
+            _ => null,
+        };
+
+        if (action is null || !action.IsEnabled)
+            return false;
+
+        action.Command.Execute(null);
+        return true;
+    }
+
     private async Task TogglePlayPauseAsync()
     {
         if (apiClient is null || state is null)

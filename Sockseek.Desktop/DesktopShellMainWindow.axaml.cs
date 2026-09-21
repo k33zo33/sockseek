@@ -58,9 +58,17 @@ public partial class DesktopShellMainWindow : Window
 
     private void HandleKeyDown(object? sender, KeyEventArgs eventArgs)
     {
-        if (DesktopShellKeyRouting.TryHandleKeyGesture(viewModel, eventArgs.Key, eventArgs.KeyModifiers))
+        if (DesktopShellKeyRouting.TryHandleKeyGesture(
+            viewModel,
+            eventArgs.Key,
+            eventArgs.KeyModifiers,
+            IsTextInputFocused(eventArgs.Source)))
+        {
             eventArgs.Handled = true;
+        }
     }
+
+    private static bool IsTextInputFocused(object? source) => source is TextBox;
 
     private static void ApplyTheme(DesktopThemePreference preference)
     {

@@ -76,6 +76,27 @@ public sealed class DesktopShellKeyRoutingTests
     public void TryHandleShellInput_NullViewModel_ReturnsFalse()
         => Assert.IsFalse(DesktopShellKeyRouting.TryHandleShellInput(null, "Ctrl+K", shouldClosePalette: false));
 
+    [DataTestMethod]
+    [DataRow(Avalonia.Input.Key.Space, false, nameof(DesktopPlayerInput.TogglePlayPause))]
+    [DataRow(Avalonia.Input.Key.MediaPlayPause, false, nameof(DesktopPlayerInput.TogglePlayPause))]
+    [DataRow(Avalonia.Input.Key.MediaPreviousTrack, false, nameof(DesktopPlayerInput.Previous))]
+    [DataRow(Avalonia.Input.Key.MediaNextTrack, false, nameof(DesktopPlayerInput.Next))]
+    [DataRow(Avalonia.Input.Key.VolumeMute, false, nameof(DesktopPlayerInput.ToggleMute))]
+    public void TryMapPlayerInput_PlayerKey_MapsExpectedInput(
+        Avalonia.Input.Key key,
+        bool isTextInputFocused,
+        string expectedInput)
+    {
+        var handled = DesktopShellKeyRouting.TryMapPlayerInput(key, isTextInputFocused, out var input);
+
+        Assert.IsTrue(handled);
+        Assert.AreEqual(expectedInput, input.ToString());
+    }
+
+    [TestMethod]
+    public void TryMapPlayerInput_SpaceInsideTextInput_DoesNotHandle()
+        => Assert.IsFalse(DesktopShellKeyRouting.TryMapPlayerInput(Avalonia.Input.Key.Space, isTextInputFocused: true, out _));
+
     [TestMethod]
     public async Task TryHandleShellInput_ClosePaletteRequestWithoutOpenPalette_FallsBackToShortcut()
     {

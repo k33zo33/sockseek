@@ -54,6 +54,38 @@ public sealed class PlayerBarViewModelTests
     }
 
     [TestMethod]
+    public async Task TryHandleInput_PlayPauseWhenPlaying_PostsPauseCommand()
+    {
+        var pauseRequestPath = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new StubHttpMessageHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Get)
+                return Task.FromResult(StubHttpMessageHandler.CreateResponse(CreatePlayerState("C:/Music/Artist/Track.mp3")));
+
+            pauseRequestPath.SetResult(request.RequestUri?.AbsolutePath ?? string.Empty);
+            return Task.FromResult(StubHttpMessageHandler.CreateResponse(CreatePlayerState(
+                "C:/Music/Artist/Track.mp3",
+                state: "Paused")));
+        });
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var playerBar = new PlayerBarPlaceholderViewModel();
+        await playerBar.ConnectAsync(new SockseekApiClient(http));
+
+        var handled = playerBar.TryHandleInput(DesktopPlayerInput.TogglePlayPause);
+
+        Assert.IsTrue(handled);
+        Assert.AreEqual("/api/v1/player/pause", await pauseRequestPath.Task.WaitAsync(TimeSpan.FromSeconds(2)));
+    }
+
+    [TestMethod]
+    public void TryHandleInput_DisabledAction_ReturnsFalse()
+    {
+        var playerBar = new PlayerBarPlaceholderViewModel();
+
+        Assert.IsFalse(playerBar.TryHandleInput(DesktopPlayerInput.TogglePlayPause));
+    }
+
+    [TestMethod]
     public void Disconnect_RestoresPlaceholderState()
     {
         var playerBar = new PlayerBarPlaceholderViewModel();
@@ -67,9 +99,9 @@ public sealed class PlayerBarViewModelTests
         Assert.IsFalse(playerBar.CanPlayPause);
     }
 
-    private static PlayerStateDto CreatePlayerState(string path)
+    private static PlayerStateDto CreatePlayerState(string path, string state = "Playing")
         => new(
-            "Playing",
+            state,
             Guid.NewGuid(),
             null,
             Guid.NewGuid(),

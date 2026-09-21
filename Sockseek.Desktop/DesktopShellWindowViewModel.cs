@@ -358,6 +358,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public bool TryHandleShortcut(string shortcut) => Shell.TryHandleShortcut(shortcut);
 
+    internal bool TryHandlePlayerInput(DesktopPlayerInput input) => PlayerBar.TryHandleInput(input);
+
     public bool TryExecuteCommandPaletteItem(string itemId) => Shell.TryExecuteCommandPaletteItem(itemId);
 
     public async Task<bool> TryStartDaemonAsync(CancellationToken cancellationToken = default)
