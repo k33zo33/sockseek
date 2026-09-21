@@ -48,3 +48,18 @@ public sealed class DesktopPlayerBarActionViewModel : ObservableObject
 
     public ICommand Command { get; }
 }
+
+public sealed class DesktopPlayerQueueItemViewModel(
+    string positionLabel,
+    string title,
+    string detail,
+    bool isCurrent)
+{
+    public string PositionLabel { get; } = positionLabel ?? throw new ArgumentNullException(nameof(positionLabel));
+
+    public string Title { get; } = title ?? throw new ArgumentNullException(nameof(title));
+
+    public string Detail { get; } = detail ?? throw new ArgumentNullException(nameof(detail));
+
+    public bool IsCurrent { get; } = isCurrent;
+}

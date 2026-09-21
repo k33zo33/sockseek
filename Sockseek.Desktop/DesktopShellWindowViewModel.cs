@@ -109,6 +109,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public string PlayerBarQueueSummaryResourceKey => PlayerBar.QueueSummaryResourceKey;
 
+    public bool IsPlayerQueueExpanded => PlayerBar.IsQueueExpanded;
+
+    public string PlayerQueueTitle => PlayerBar.ExpandedQueueTitle;
+
+    public string PlayerQueueEmptyMessage => PlayerBar.ExpandedQueueEmptyMessage;
+
+    public IReadOnlyList<DesktopPlayerQueueItemViewModel> PlayerQueueItems => PlayerBar.QueueItems;
+
+    public bool HasPlayerQueueItems => PlayerBar.HasQueueItems;
+
+    public bool IsPlayerQueueEmpty => PlayerBar.IsQueueEmpty;
+
     public bool CanGoPrevious => PlayerBar.CanGoPrevious;
 
     public string PreviousIconAccessibilityLabel => PlayerBar.PreviousIconAccessibilityLabel;
@@ -519,6 +531,24 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 break;
             case nameof(PlayerBarPlaceholderViewModel.QueueSummary):
                 OnPropertyChanged(nameof(PlayerBarQueueSummary));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.IsQueueExpanded):
+                OnPropertyChanged(nameof(IsPlayerQueueExpanded));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.ExpandedQueueTitle):
+                OnPropertyChanged(nameof(PlayerQueueTitle));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.ExpandedQueueEmptyMessage):
+                OnPropertyChanged(nameof(PlayerQueueEmptyMessage));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.QueueItems):
+                OnPropertyChanged(nameof(PlayerQueueItems));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.HasQueueItems):
+                OnPropertyChanged(nameof(HasPlayerQueueItems));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.IsQueueEmpty):
+                OnPropertyChanged(nameof(IsPlayerQueueEmpty));
                 break;
             case nameof(PlayerBarPlaceholderViewModel.VolumeHint):
                 OnPropertyChanged(nameof(VolumeHint));

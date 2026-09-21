@@ -8,6 +8,7 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
     private PlayerStateDto? state;
     private string? errorMessage;
     private bool isBusy;
+    private bool isQueueExpanded;
     private int connectionRevision;
 
     public PlayerBarPlaceholderViewModel()
@@ -53,7 +54,7 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
                 DesktopStringResources.Get("Shell.PlayerBar.Queue.Hint"),
                 "Shell.PlayerBar.Queue.Hint",
                 false,
-                () => { }),
+                ToggleQueueExpanded),
             new(
                 "\U0001F50A",
                 DesktopDesignTokens.Icon.PlayerVolume,
@@ -71,7 +72,7 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
                 DesktopStringResources.Get("Shell.PlayerBar.ExpandedPlayer.Hint"),
                 "Shell.PlayerBar.ExpandedPlayer.Hint",
                 false,
-                () => { }),
+                ToggleQueueExpanded),
         ];
     }
 
@@ -199,6 +200,28 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
 
     public IReadOnlyList<DesktopPlayerBarActionViewModel> UtilityActions { get; }
 
+    public bool IsQueueExpanded => isQueueExpanded;
+
+    public string ExpandedQueueTitle
+        => state is null
+            ? "Player queue"
+            : $"Player queue ({state.Queue.Items.Count})";
+
+    public string ExpandedQueueEmptyMessage
+        => apiClient is null
+            ? DesktopStringResources.Get("Shell.PlayerBar.QueueSummary")
+            : "Queue empty";
+
+    public IReadOnlyList<DesktopPlayerQueueItemViewModel> QueueItems
+        => state?.Queue.Items
+            .Select((item, index) => CreateQueueItemViewModel(state, item, index))
+            .ToArray()
+            ?? [];
+
+    public bool HasQueueItems => QueueItems.Count > 0;
+
+    public bool IsQueueEmpty => !HasQueueItems;
+
     public async Task ConnectAsync(SockseekApiClient client, CancellationToken cancellationToken = default)
     {
         apiClient = client ?? throw new ArgumentNullException(nameof(client));
@@ -212,6 +235,7 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         state = null;
         errorMessage = null;
         isBusy = false;
+        isQueueExpanded = false;
         connectionRevision++;
         NotifyStateChanged();
     }
@@ -238,8 +262,17 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         if (action is null || !action.IsEnabled)
             return false;
 
-        action.Command.Execute(null);
+            action.Command.Execute(null);
         return true;
+    }
+
+    private void ToggleQueueExpanded()
+    {
+        if (apiClient is null)
+            return;
+
+        isQueueExpanded = !isQueueExpanded;
+        OnPropertyChanged(nameof(IsQueueExpanded));
     }
 
     private async Task TogglePlayPauseAsync()
@@ -325,6 +358,11 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         OnPropertyChanged(nameof(Progress));
         OnPropertyChanged(nameof(QueueSummary));
         OnPropertyChanged(nameof(VolumeHint));
+        OnPropertyChanged(nameof(ExpandedQueueTitle));
+        OnPropertyChanged(nameof(ExpandedQueueEmptyMessage));
+        OnPropertyChanged(nameof(QueueItems));
+        OnPropertyChanged(nameof(HasQueueItems));
+        OnPropertyChanged(nameof(IsQueueEmpty));
         NotifyControlStateChanged();
     }
 
@@ -333,13 +371,35 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         TransportActions[0].IsEnabled = CanGoPrevious;
         TransportActions[1].IsEnabled = CanPlayPause;
         TransportActions[2].IsEnabled = CanGoNext;
-        UtilityActions[0].IsEnabled = false;
+        UtilityActions[0].IsEnabled = apiClient is not null && !isBusy;
         UtilityActions[1].IsEnabled = apiClient is not null && !isBusy;
-        UtilityActions[2].IsEnabled = false;
+        UtilityActions[2].IsEnabled = apiClient is not null && !isBusy;
         OnPropertyChanged(nameof(CanGoPrevious));
         OnPropertyChanged(nameof(CanPlayPause));
         OnPropertyChanged(nameof(CanGoNext));
     }
+
+    private static DesktopPlayerQueueItemViewModel CreateQueueItemViewModel(
+        PlayerStateDto state,
+        PlayerQueueItemDto item,
+        int index)
+    {
+        var isCurrent = index == state.Queue.CurrentIndex;
+        var title = isCurrent && !string.IsNullOrWhiteSpace(state.Path)
+            ? Path.GetFileName(state.Path)
+            : $"Track {ShortId(item.CanonicalTrackId)}";
+        var detail = item.LocalMediaFileId is Guid localMediaFileId
+            ? $"Canonical {ShortId(item.CanonicalTrackId)} - Local {ShortId(localMediaFileId)}"
+            : $"Canonical {ShortId(item.CanonicalTrackId)}";
+
+        return new DesktopPlayerQueueItemViewModel(
+            (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            title,
+            detail,
+            isCurrent);
+    }
+
+    private static string ShortId(Guid id) => id.ToString("N")[..8];
 
     private static string FormatTime(TimeSpan value)
         => value.TotalHours >= 1

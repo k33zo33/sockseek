@@ -53,6 +53,7 @@
             Padding="16"
             BorderBrush="{DynamicResource ShellBorderBrush}"
             BorderThickness="0,1,0,0">
+      <StackPanel Spacing="12">
       <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="16">
         <Border Grid.Column="0" Width="56" Height="56" CornerRadius="10" Background="{DynamicResource ShellBadgeBrush}">
           <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="♪" FontSize="24" />
@@ -103,6 +104,37 @@
                      MaxWidth="280" />
         </StackPanel>
       </Grid>
+      <Border IsVisible="{Binding IsPlayerQueueExpanded}"
+              Background="{DynamicResource ShellCardAltBrush}"
+              BorderBrush="{DynamicResource ShellBorderBrush}"
+              BorderThickness="1"
+              Padding="12">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding PlayerQueueTitle}" FontWeight="SemiBold" />
+          <TextBlock IsVisible="{Binding IsPlayerQueueEmpty}"
+                     Text="{Binding PlayerQueueEmptyMessage}"
+                     Opacity="0.7" />
+          <ItemsControl IsVisible="{Binding HasPlayerQueueItems}" ItemsSource="{Binding PlayerQueueItems}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="desktop:DesktopPlayerQueueItemViewModel">
+                <Grid ColumnDefinitions="42,*,Auto" ColumnSpacing="10" Margin="0,0,0,6">
+                  <TextBlock Grid.Column="0" Text="{Binding PositionLabel}" Opacity="0.65" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Detail}" Opacity="0.65" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="2"
+                             IsVisible="{Binding IsCurrent}"
+                             Text="Now"
+                             FontWeight="SemiBold"
+                             Opacity="0.8" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+      </StackPanel>
     </Border>
 
     <Grid ColumnDefinitions="260,*">

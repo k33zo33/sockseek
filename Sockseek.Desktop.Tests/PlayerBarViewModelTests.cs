@@ -26,7 +26,13 @@ public sealed class PlayerBarViewModelTests
         Assert.IsTrue(playerBar.CanPlayPause);
         Assert.IsTrue(playerBar.CanGoNext);
         Assert.IsTrue(playerBar.TransportActions.All(action => action.IsEnabled));
-        Assert.IsTrue(playerBar.UtilityActions[1].IsEnabled);
+        Assert.IsTrue(playerBar.UtilityActions.All(action => action.IsEnabled));
+        Assert.IsTrue(playerBar.HasQueueItems);
+        Assert.IsFalse(playerBar.IsQueueEmpty);
+        Assert.AreEqual("Player queue (1)", playerBar.ExpandedQueueTitle);
+        Assert.AreEqual("1", playerBar.QueueItems[0].PositionLabel);
+        Assert.AreEqual("Track.mp3", playerBar.QueueItems[0].Title);
+        Assert.IsTrue(playerBar.QueueItems[0].IsCurrent);
     }
 
     [TestMethod]
@@ -83,6 +89,23 @@ public sealed class PlayerBarViewModelTests
         var playerBar = new PlayerBarPlaceholderViewModel();
 
         Assert.IsFalse(playerBar.TryHandleInput(DesktopPlayerInput.TogglePlayPause));
+    }
+
+    [TestMethod]
+    public async Task QueueUtilityAction_TogglesExpandedQueue()
+    {
+        var handler = new StubHttpMessageHandler(_ => CreatePlayerState("C:/Music/Artist/Track.mp3"));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var playerBar = new PlayerBarPlaceholderViewModel();
+        await playerBar.ConnectAsync(new SockseekApiClient(http));
+
+        playerBar.UtilityActions[0].Command.Execute(null);
+
+        Assert.IsTrue(playerBar.IsQueueExpanded);
+
+        playerBar.UtilityActions[2].Command.Execute(null);
+
+        Assert.IsFalse(playerBar.IsQueueExpanded);
     }
 
     [TestMethod]
