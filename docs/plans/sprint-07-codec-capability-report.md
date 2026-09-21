@@ -7,18 +7,18 @@ Expose local player codec capability information through the existing versioned 
 ## Current-state findings
 
 - `/api/v1/system/capabilities` already returns `SystemCapabilitiesDto`.
-- Sprint 7 requires a codec capability report and later fixture validation for MP3, FLAC, Ogg, Opus, WAV and M4A.
+- Sprint 7 requires a codec capability report and fixture validation for MP3, FLAC, Ogg, Opus, WAV and M4A.
 - LibVLCSharp is now the selected and registered local player engine.
 
 ## In scope
 
 - Extend `SystemCapabilitiesDto` with local player capability metadata.
-- Include the Sprint 7 codec list with conservative fixture-validation status.
+- Include the Sprint 7 codec list with local-file fixture validation status.
 - Update source-generated JSON metadata, OpenAPI output and server tests.
 
 ## Out of scope
 
-- Real codec fixture playback tests.
+- Progressive playback codec fixture tests.
 - Progressive playback enablement.
 - Desktop rendering of the report.
 - Any provider playback/download capability.
@@ -28,6 +28,8 @@ Expose local player codec capability information through the existing versioned 
 - `Sockseek.Api`
 - `Sockseek.Server`
 - `Sockseek.Server.Tests`
+- `Sockseek.Player.Tests`
+- `docs/player-codec-fixture-matrix.md`
 - `docs/openapi.json`
 - `docs/plans`
 
@@ -47,6 +49,7 @@ Expose local player codec capability information through the existing versioned 
 ## Testing strategy
 
 - Server system endpoint tests verify player capability payload.
+- Player LibVLC fixture tests verify local-file startup for MP3, FLAC, Ogg, Opus, WAV and M4A.
 - OpenAPI contract tests verify schema generation.
 - Full Release build and test suite before commit.
 
@@ -62,10 +65,10 @@ Expose local player codec capability information through the existing versioned 
 
 ## Risks and stop conditions
 
-- Stop if the report would need to claim unverified codec support as fully tested.
+- Stop if the report would need to claim progressive codec support before Sprint 8 fixture evidence exists.
 - Stop if progressive playback would need to be enabled before Sprint 8 fixture evidence exists.
 
 ## Acceptance-criteria mapping
 
-- Partially satisfies Sprint 7 codec capability report.
-- Does not satisfy the required codec fixture integration tests yet; report marks those codecs as requiring fixture validation.
+- Satisfies Sprint 7 local-file codec capability report.
+- Local-file codec fixture tests now cover startup playback for MP3, FLAC, Ogg, Opus, WAV and M4A; progressive playback remains Sprint 8 scope.

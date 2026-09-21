@@ -204,10 +204,10 @@ public sealed class EngineSupervisor
             codec,
             extension,
             container,
-            Status: "requires_fixture_validation",
+            Status: "validated_local_file",
             LocalFilePlayback: true,
             ProgressivePlayback: false,
-            Notes: "LibVLC engine is configured for local playback; Sprint 7 fixture validation is still required.");
+            Notes: "Sprint 7 LibVLC fixture smoke test starts this local file format; progressive playback remains disabled.");
 
     private static SoulseekClientStatusDto ToSoulseekClientStatusDto(SoulseekClientStates state)
     {

@@ -107,7 +107,7 @@ public class SystemEndpointTests
         Assert.IsTrue(player.Codecs.All(codec =>
             codec.LocalFilePlayback
             && !codec.ProgressivePlayback
-            && codec.Status == "requires_fixture_validation"));
+            && codec.Status == "validated_local_file"));
     }
 
     [TestMethod]

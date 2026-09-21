@@ -22,7 +22,7 @@ Replace the placeholder player engine with a local LibVLCSharp-backed `IMediaEng
 
 - Player HTTP API endpoints.
 - Desktop bottom player UI.
-- Codec fixture matrix and long playback smoke fixtures.
+- Long playback smoke fixtures.
 - External provider playback or audio downloading.
 
 ## Files and projects affected
@@ -67,9 +67,9 @@ Replace the placeholder player engine with a local LibVLCSharp-backed `IMediaEng
 
 - Stop if the concrete engine requires changing the locked local-file-only playback policy.
 - Stop if package restore introduces incompatible or non-redistributable native dependencies.
-- Codec behavior still needs the Sprint 7 fixture matrix before acceptance can be closed.
+- Codec behavior is covered by the Sprint 7 local-file fixture matrix for startup smoke coverage; progressive codec behavior remains Sprint 8 scope.
 
 ## Acceptance-criteria mapping
 
 - Supports local player MVP by replacing the unavailable engine with a local media engine.
-- Does not complete the codec fixture matrix, media keys, Desktop UI or full queue restore acceptance criteria.
+- Does not complete media keys, Desktop UI or full queue restore acceptance criteria.

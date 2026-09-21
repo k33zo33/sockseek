@@ -15,4 +15,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Sockseek.Player\Sockseek.Player.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Fixtures\PlayerCodec\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

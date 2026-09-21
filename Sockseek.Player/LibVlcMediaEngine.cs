@@ -11,9 +11,17 @@ public sealed class LibVlcMediaEngine : IMediaEngine, IDisposable
     private bool disposed;
 
     public LibVlcMediaEngine()
+        : this([])
+    {
+    }
+
+    public LibVlcMediaEngine(IReadOnlyList<string> additionalOptions)
     {
         Core.Initialize();
-        libVlc = new LibVLC("--no-video", "--quiet");
+        var options = new[] { "--no-video", "--quiet" }
+            .Concat(additionalOptions)
+            .ToArray();
+        libVlc = new LibVLC(options);
         mediaPlayer = new MediaPlayer(libVlc);
     }
 
