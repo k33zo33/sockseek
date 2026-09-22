@@ -63,6 +63,9 @@
           <TextBlock Text="{Binding PlayerBarTitle}" FontSize="16" FontWeight="SemiBold" />
           <TextBlock Text="{Binding PlayerBarArtist}" Opacity="0.75" />
           <TextBlock Text="{Binding PlayerBarProgress}" Opacity="0.65" />
+          <TextBlock IsVisible="{Binding HasPlayerBarBufferStatus}"
+                     Text="{Binding PlayerBarBufferStatus}"
+                     Opacity="0.65" />
         </StackPanel>
 
         <ItemsControl Grid.Column="2" ItemsSource="{Binding PlayerBar.TransportActions}">

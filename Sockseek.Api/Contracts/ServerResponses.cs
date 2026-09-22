@@ -101,7 +101,21 @@ public sealed record PlayerStateDto(
     double Volume,
     bool IsMuted,
     PlayerQueueDto Queue,
-    PlayerNowPlayingDto? NowPlaying = null);
+    PlayerNowPlayingDto? NowPlaying = null,
+    PlayerBufferDto? Buffer = null);
+
+/// <summary>
+/// Progressive local-file buffer state for play-while-downloading items.
+/// </summary>
+public sealed record PlayerBufferDto(
+    string Status,
+    bool CanOpenMedia,
+    long BufferedUntilMs,
+    long? SeekLimitMs,
+    long AvailableBytes,
+    long? ExpectedBytes,
+    double? DownloadBytesPerSecond,
+    string Reason);
 
 /// <summary>
 /// Local now-playing metadata for the current player item.

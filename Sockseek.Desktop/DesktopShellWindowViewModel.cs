@@ -105,6 +105,10 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public string PlayerBarProgressResourceKey => PlayerBar.ProgressResourceKey;
 
+    public string PlayerBarBufferStatus => PlayerBar.BufferStatus;
+
+    public bool HasPlayerBarBufferStatus => PlayerBar.HasBufferStatus;
+
     public string PlayerBarQueueSummary => PlayerBar.QueueSummary;
 
     public string PlayerBarQueueSummaryResourceKey => PlayerBar.QueueSummaryResourceKey;
@@ -528,6 +532,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 break;
             case nameof(PlayerBarPlaceholderViewModel.Progress):
                 OnPropertyChanged(nameof(PlayerBarProgress));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.BufferStatus):
+                OnPropertyChanged(nameof(PlayerBarBufferStatus));
+                break;
+            case nameof(PlayerBarPlaceholderViewModel.HasBufferStatus):
+                OnPropertyChanged(nameof(HasPlayerBarBufferStatus));
                 break;
             case nameof(PlayerBarPlaceholderViewModel.QueueSummary):
                 OnPropertyChanged(nameof(PlayerBarQueueSummary));

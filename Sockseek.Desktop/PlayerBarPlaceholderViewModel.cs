@@ -1,4 +1,5 @@
 using Sockseek.Api;
+using System.Globalization;
 
 namespace Sockseek.Desktop;
 
@@ -109,6 +110,30 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         => state is null
             ? DesktopStringResources.Get("Shell.PlayerBar.Progress")
             : $"{FormatTime(TimeSpan.FromMilliseconds(state.PositionMs))} / {FormatDuration(state.NowPlaying?.DurationMs)}";
+
+    public string BufferStatus
+    {
+        get
+        {
+            if (state?.Buffer == null)
+                return string.Empty;
+
+            var buffer = state.Buffer;
+            var prefix = state.State == "Buffering"
+                ? "Buffering"
+                : "Buffered";
+            var seekLimit = buffer.SeekLimitMs is > 0
+                ? $" - seek to {FormatTime(TimeSpan.FromMilliseconds(buffer.SeekLimitMs.Value))}"
+                : string.Empty;
+            var speed = buffer.DownloadBytesPerSecond is > 0
+                ? $" - {FormatBytesPerSecond(buffer.DownloadBytesPerSecond.Value)}"
+                : string.Empty;
+
+            return $"{prefix} to {FormatTime(TimeSpan.FromMilliseconds(buffer.BufferedUntilMs))}{seekLimit}{speed}";
+        }
+    }
+
+    public bool HasBufferStatus => !string.IsNullOrWhiteSpace(BufferStatus);
 
     public string ProgressHintResourceKey { get; } = "Shell.PlayerBar.Progress.Hint";
 
@@ -359,6 +384,8 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Artist));
         OnPropertyChanged(nameof(Progress));
+        OnPropertyChanged(nameof(BufferStatus));
+        OnPropertyChanged(nameof(HasBufferStatus));
         OnPropertyChanged(nameof(QueueSummary));
         OnPropertyChanged(nameof(VolumeHint));
         OnPropertyChanged(nameof(ExpandedQueueTitle));
@@ -429,4 +456,21 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         => value.TotalHours >= 1
             ? value.ToString(@"h\:mm\:ss")
             : value.ToString(@"mm\:ss");
+
+    private static string FormatBytesPerSecond(double bytesPerSecond)
+    {
+        if (bytesPerSecond >= 1024 * 1024)
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{bytesPerSecond / (1024 * 1024):0.0} MB/s");
+
+        if (bytesPerSecond >= 1024)
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{bytesPerSecond / 1024:0.0} KB/s");
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{bytesPerSecond:0} B/s");
+    }
 }

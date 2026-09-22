@@ -5445,6 +5445,73 @@
           }
         }
       },
+      "PlayerBufferDto": {
+        "required": [
+          "status",
+          "canOpenMedia",
+          "bufferedUntilMs",
+          "seekLimitMs",
+          "availableBytes",
+          "expectedBytes",
+          "downloadBytesPerSecond",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "canOpenMedia": {
+            "type": "boolean"
+          },
+          "bufferedUntilMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "seekLimitMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "availableBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "expectedBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "downloadBytesPerSecond": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "PlayerCapabilitiesDto": {
         "required": [
           "localFilePlayback",
@@ -5727,6 +5794,16 @@
               },
               {
                 "$ref": "#/components/schemas/PlayerNowPlayingDto"
+              }
+            ]
+          },
+          "buffer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlayerBufferDto"
               }
             ]
           }

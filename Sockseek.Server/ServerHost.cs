@@ -984,7 +984,21 @@ public static class ServerHost
             snapshot.Volume,
             snapshot.IsMuted,
             ToPlayerQueueDto(player.Queue),
-            await ResolveNowPlayingAsync(dbContext, artworkCache, snapshot, cancellationToken));
+            await ResolveNowPlayingAsync(dbContext, artworkCache, snapshot, cancellationToken),
+            ToPlayerBufferDto(snapshot.Buffer));
+
+    private static PlayerBufferDto? ToPlayerBufferDto(PlaybackBufferSnapshot? buffer)
+        => buffer == null
+            ? null
+            : new PlayerBufferDto(
+                buffer.Status.ToString(),
+                buffer.CanOpenMedia,
+                Convert.ToInt64(buffer.BufferedUntil.TotalMilliseconds),
+                buffer.SeekLimit is { } seekLimit ? Convert.ToInt64(seekLimit.TotalMilliseconds) : null,
+                buffer.AvailableBytes,
+                buffer.ExpectedBytes,
+                buffer.DownloadBytesPerSecond,
+                buffer.Reason);
 
     private static async Task<PlayerNowPlayingDto?> ResolveNowPlayingAsync(
         SockseekDbContext dbContext,

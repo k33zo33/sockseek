@@ -388,7 +388,8 @@ public sealed class PlaybackCoordinator
                 decision.Reason,
                 buffer.PlaybackPosition,
                 snapshot.Volume,
-                snapshot.IsMuted);
+                snapshot.IsMuted,
+                ToPlaybackBufferSnapshot(decision, buffer));
             return snapshot;
         }
 
@@ -405,7 +406,8 @@ public sealed class PlaybackCoordinator
             null,
             buffer.PlaybackPosition,
             snapshot.Volume,
-            snapshot.IsMuted);
+            snapshot.IsMuted,
+            ToPlaybackBufferSnapshot(decision, buffer));
 
         try
         {
@@ -421,6 +423,7 @@ public sealed class PlaybackCoordinator
                 State = PlaybackState.Playing,
                 Path = mediaPath,
                 ErrorMessage = null,
+                Buffer = ToPlaybackBufferSnapshot(decision, buffer),
             };
         }
         catch (OperationCanceledException)
@@ -479,6 +482,19 @@ public sealed class PlaybackCoordinator
         progressiveBufferDecision = null;
         progressiveMediaLoaded = false;
     }
+
+    private static PlaybackBufferSnapshot ToPlaybackBufferSnapshot(
+        ProgressiveBufferDecision decision,
+        ProgressiveBufferSnapshot buffer)
+        => new(
+            decision.Status,
+            decision.CanOpenMedia,
+            decision.BufferedUntil,
+            decision.SeekLimit,
+            buffer.AvailableBytes,
+            buffer.ExpectedBytes,
+            buffer.DownloadBytesPerSecond,
+            decision.Reason);
 
     private static bool IsNonFileUri(string path)
     {

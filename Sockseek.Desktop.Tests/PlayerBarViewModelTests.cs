@@ -83,6 +83,32 @@ public sealed class PlayerBarViewModelTests
     }
 
     [TestMethod]
+    public async Task ConnectAsync_BufferingStateShowsBufferStatus()
+    {
+        var buffer = new PlayerBufferDto(
+            "Buffering",
+            false,
+            BufferedUntilMs: 20_000,
+            SeekLimitMs: 20_000,
+            AvailableBytes: 320_000,
+            ExpectedBytes: 960_000,
+            DownloadBytesPerSecond: 98_304,
+            "Buffered data is below resume threshold.");
+        var handler = new StubHttpMessageHandler(_ => CreatePlayerState(
+            "C:/Music/Artist/Track.mp3.incomplete",
+            state: "Buffering",
+            buffer: buffer));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var playerBar = new PlayerBarPlaceholderViewModel();
+
+        await playerBar.ConnectAsync(new SockseekApiClient(http));
+
+        Assert.IsTrue(playerBar.HasBufferStatus);
+        Assert.AreEqual("Buffering to 00:20 - seek to 00:20 - 96.0 KB/s", playerBar.BufferStatus);
+        Assert.IsFalse(playerBar.CanPlayPause);
+    }
+
+    [TestMethod]
     public async Task TryHandleInput_PlayPauseWhenPlaying_PostsPauseCommand()
     {
         var pauseRequestPath = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -148,7 +174,8 @@ public sealed class PlayerBarViewModelTests
     private static PlayerStateDto CreatePlayerState(
         string path,
         string state = "Playing",
-        PlayerNowPlayingDto? nowPlaying = null)
+        PlayerNowPlayingDto? nowPlaying = null,
+        PlayerBufferDto? buffer = null)
         => new(
             state,
             Guid.NewGuid(),
@@ -166,7 +193,8 @@ public sealed class PlayerBarViewModelTests
                 false,
                 0,
                 [0]),
-            nowPlaying);
+            nowPlaying,
+            buffer);
 
     private sealed class StubHttpMessageHandler : HttpMessageHandler
     {

@@ -9,7 +9,8 @@ public sealed record PlaybackSnapshot(
     string? ErrorMessage,
     TimeSpan Position,
     double Volume,
-    bool IsMuted)
+    bool IsMuted,
+    PlaybackBufferSnapshot? Buffer = null)
 {
     public static PlaybackSnapshot Stopped { get; } = new(
         PlaybackState.Stopped,
@@ -20,5 +21,6 @@ public sealed record PlaybackSnapshot(
         null,
         TimeSpan.Zero,
         1.0,
-        false);
+        false,
+        null);
 }

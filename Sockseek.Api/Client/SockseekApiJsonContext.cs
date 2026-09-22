@@ -12,6 +12,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(PlayerCapabilitiesDto))]
 [JsonSerializable(typeof(PlayerCodecCapabilityDto))]
 [JsonSerializable(typeof(PlayerStateDto))]
+[JsonSerializable(typeof(PlayerBufferDto))]
 [JsonSerializable(typeof(PlayerNowPlayingDto))]
 [JsonSerializable(typeof(PlayerQueueDto))]
 [JsonSerializable(typeof(PlayerQueueItemDto))]
