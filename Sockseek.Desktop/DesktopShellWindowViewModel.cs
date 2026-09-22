@@ -269,7 +269,10 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             if (downloads is null && CurrentHandshake is not null)
             {
-                downloads = new DesktopDownloadQueueViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake), fileOpener);
+                downloads = new DesktopDownloadQueueViewModel(
+                    DesktopBackendClientFactory.CreateApiClient(CurrentHandshake),
+                    fileOpener,
+                    PlayerBar.ApplyState);
                 downloadsHandshake = CurrentHandshake;
             }
 

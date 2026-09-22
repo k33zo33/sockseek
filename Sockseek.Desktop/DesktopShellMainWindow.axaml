@@ -335,18 +335,21 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12">
-                        <StackPanel>
+                      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" RowSpacing="8">
+                        <StackPanel Grid.Row="0" Grid.Column="0">
                           <TextBlock Text="{Binding ItemName}" FontWeight="SemiBold" />
                           <TextBlock Text="{Binding LifecycleState}" Opacity="0.75" />
                         </StackPanel>
-                        <TextBlock Grid.Column="1" Text="{Binding ActivityPhase}" Opacity="0.75" />
-                        <Button Grid.Column="2" Content="Next candidate" Command="{Binding DataContext.Downloads.NextCandidateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
-                        <Button Grid.Column="3" Content="Retry" Command="{Binding DataContext.Downloads.RetryCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
-                        <Button Grid.Column="4" Content="Details" Command="{Binding DataContext.Downloads.LoadWorkflowTreeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
-                        <Button Grid.Column="5" Content="Open file" Command="{Binding DataContext.Downloads.OpenFileCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
-                        <Button Grid.Column="6" Content="Open folder" Command="{Binding DataContext.Downloads.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
-                        <Button Grid.Column="7" Content="Cancel" Command="{Binding DataContext.Downloads.CancelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ActivityPhase}" Opacity="0.75" />
+                        <WrapPanel Grid.Row="1" Grid.ColumnSpan="2">
+                          <Button Margin="0,0,8,8" Content="Play" Command="{Binding DataContext.Downloads.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                          <Button Margin="0,0,8,8" Content="Next candidate" Command="{Binding DataContext.Downloads.NextCandidateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                          <Button Margin="0,0,8,8" Content="Retry" Command="{Binding DataContext.Downloads.RetryCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                          <Button Margin="0,0,8,8" Content="Details" Command="{Binding DataContext.Downloads.LoadWorkflowTreeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                          <Button Margin="0,0,8,8" Content="Open file" Command="{Binding DataContext.Downloads.OpenFileCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                          <Button Margin="0,0,8,8" Content="Open folder" Command="{Binding DataContext.Downloads.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                          <Button Margin="0,0,8,8" Content="Cancel" Command="{Binding DataContext.Downloads.CancelCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding JobId}" />
+                        </WrapPanel>
                       </Grid>
                     </Border>
                   </DataTemplate>

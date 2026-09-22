@@ -268,6 +268,14 @@ public sealed class PlayerBarPlaceholderViewModel : ObservableObject
         NotifyStateChanged();
     }
 
+    public void ApplyState(PlayerStateDto nextState)
+    {
+        ArgumentNullException.ThrowIfNull(nextState);
+        state = nextState;
+        errorMessage = null;
+        NotifyStateChanged();
+    }
+
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         if (apiClient is null)

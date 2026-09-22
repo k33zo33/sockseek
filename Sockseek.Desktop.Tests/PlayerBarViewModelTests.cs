@@ -141,6 +141,30 @@ public sealed class PlayerBarViewModelTests
     }
 
     [TestMethod]
+    public void ApplyState_UpdatesVisiblePlayerState()
+    {
+        var buffer = new PlayerBufferDto(
+            "WaitingForInitialBuffer",
+            false,
+            BufferedUntilMs: 10_000,
+            SeekLimitMs: 10_000,
+            AvailableBytes: 160_000,
+            ExpectedBytes: 960_000,
+            DownloadBytesPerSecond: null,
+            "Initial buffer threshold has not been reached.");
+        var playerBar = new PlayerBarPlaceholderViewModel();
+
+        playerBar.ApplyState(CreatePlayerState(
+            "C:/Music/Artist/Track.mp3.incomplete",
+            state: "Buffering",
+            buffer: buffer));
+
+        Assert.AreEqual("Track.mp3.incomplete", playerBar.Title);
+        Assert.AreEqual("Buffering to 00:10 - seek to 00:10", playerBar.BufferStatus);
+        Assert.IsTrue(playerBar.HasBufferStatus);
+    }
+
+    [TestMethod]
     public async Task QueueUtilityAction_TogglesExpandedQueue()
     {
         var handler = new StubHttpMessageHandler(_ => CreatePlayerState("C:/Music/Artist/Track.mp3"));

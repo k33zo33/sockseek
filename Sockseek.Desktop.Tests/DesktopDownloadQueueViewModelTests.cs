@@ -92,6 +92,27 @@ public sealed class DesktopDownloadQueueViewModelTests
     }
 
     [TestMethod]
+    public async Task PlayAsync_DelegatesToPlayerEndpointAndPublishesPlayerState()
+    {
+        var jobId = Guid.NewGuid();
+        PlayerStateDto? publishedState = null;
+        var handler = new RecordingHandler(_ => CreatePlayerState("C:\\Music\\song.mp3.incomplete", "Buffering"));
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopDownloadQueueViewModel(
+            new SockseekApiClient(httpClient),
+            playerStateSink: state => publishedState = state);
+
+        Assert.IsTrue(await viewModel.PlayAsync(jobId));
+
+        Assert.AreEqual("api/v1/player/play/download-job", handler.RequestUri);
+        Assert.AreEqual(HttpMethod.Post, handler.Method);
+        Assert.IsNotNull(publishedState);
+        Assert.AreEqual("Buffering", publishedState.State);
+        Assert.AreEqual("C:\\Music\\song.mp3.incomplete", publishedState.Path);
+        Assert.IsNull(viewModel.ErrorMessage);
+    }
+
+    [TestMethod]
     public async Task OpenFileAsync_LoadsJobDetailAndDelegatesDownloadPath()
     {
         var jobId = Guid.NewGuid();
@@ -163,16 +184,36 @@ public sealed class DesktopDownloadQueueViewModelTests
             new SongJobPayloadDto(new SongQueryDto("Artist", "Title"), 1, downloadPath),
             []);
 
+    private static PlayerStateDto CreatePlayerState(string path, string state = "Playing")
+        => new(
+            state,
+            Guid.NewGuid(),
+            null,
+            Guid.NewGuid(),
+            path,
+            null,
+            0,
+            0.7,
+            false,
+            new PlayerQueueDto([], 0, "None", false, 0, []),
+            null,
+            null);
+
     private sealed class RecordingHandler(Func<HttpRequestMessage, object>? responseFactory = null) : HttpMessageHandler
     {
         public string? RequestUri { get; private set; }
+        public HttpMethod? Method { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestUri = request.RequestUri?.PathAndQuery.TrimStart('/');
+            Method = request.Method;
+            var response = responseFactory?.Invoke(request);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Accepted)
             {
-                Content = JsonContent.Create(responseFactory?.Invoke(request) ?? new { }),
+                Content = response is null
+                    ? new StringContent("{}")
+                    : JsonContent.Create(response, options: SockseekApiJson.CreateSerializerOptions()),
             });
         }
     }

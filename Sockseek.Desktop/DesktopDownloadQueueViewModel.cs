@@ -7,6 +7,7 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
 {
     private readonly SockseekApiClient apiClient;
     private readonly IDesktopFileOpener fileOpener;
+    private readonly Action<PlayerStateDto>? playerStateSink;
     private IReadOnlyList<JobSummaryDto> jobs = [];
     private bool isBusy;
     private string? errorMessage;
@@ -15,11 +16,16 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
     private string? selectedWorkflowTitle;
     private IReadOnlyList<DesktopWorkflowTreeNodeViewModel> selectedWorkflowNodes = [];
 
-    public DesktopDownloadQueueViewModel(SockseekApiClient apiClient, IDesktopFileOpener? fileOpener = null)
+    public DesktopDownloadQueueViewModel(
+        SockseekApiClient apiClient,
+        IDesktopFileOpener? fileOpener = null,
+        Action<PlayerStateDto>? playerStateSink = null)
     {
         this.apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         this.fileOpener = fileOpener ?? new SystemDesktopFileOpener();
+        this.playerStateSink = playerStateSink;
         RefreshCommand = new DesktopAsyncCommand(() => RefreshAsync());
+        PlayCommand = new DesktopAsyncParameterCommand<Guid>(jobId => PlayAsync(jobId));
         CancelCommand = new DesktopAsyncParameterCommand<Guid>(jobId => CancelAsync(jobId));
         NextCandidateCommand = new DesktopAsyncParameterCommand<Guid>(jobId => NextCandidateAsync(jobId));
         RetryCommand = new DesktopAsyncParameterCommand<Guid>(jobId => RetryAsync(jobId));
@@ -29,6 +35,8 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
     }
 
     public ICommand RefreshCommand { get; }
+
+    public ICommand PlayCommand { get; }
 
     public ICommand CancelCommand { get; }
 
@@ -131,6 +139,27 @@ public sealed class DesktopDownloadQueueViewModel : ObservableObject
 
     public Task<bool> RetryAsync(Guid jobId, CancellationToken cancellationToken = default)
         => ExecuteActionAsync(() => apiClient.RetryJobAsync(jobId, cancellationToken));
+
+    public async Task<bool> PlayAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        ErrorMessage = null;
+        IsBusy = true;
+        try
+        {
+            var state = await apiClient.PlayDownloadJobAsync(jobId, cancellationToken);
+            playerStateSink?.Invoke(state);
+            return true;
+        }
+        catch (SockseekApiRequestException exception)
+        {
+            ErrorMessage = exception.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     public Task<bool> OpenFileAsync(Guid jobId, CancellationToken cancellationToken = default)
         => OpenDownloadedPathAsync(
