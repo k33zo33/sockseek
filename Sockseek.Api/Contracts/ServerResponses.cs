@@ -88,6 +88,18 @@ public sealed record PlayerCodecCapabilityDto(
     string Notes);
 
 /// <summary>
+/// Capability snapshot for an external playlist or metadata provider.
+/// </summary>
+public sealed record ProviderCapabilityDto(
+    string ProviderId,
+    string DisplayName,
+    bool SupportsPlaylistImport,
+    bool SupportsMetadataLookup,
+    bool SupportsAccountConnection,
+    bool SupportsPublicUrlImport,
+    IReadOnlyList<string> Capabilities);
+
+/// <summary>
 /// Current local player state.
 /// </summary>
 public sealed record PlayerStateDto(

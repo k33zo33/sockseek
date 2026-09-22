@@ -156,6 +156,102 @@
         }
       }
     },
+    "/api/v1/providers": {
+      "get": {
+        "tags": [
+          "Providers"
+        ],
+        "summary": "Lists external playlist and metadata provider capabilities.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderCapabilityDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/{providerId}/capabilities": {
+      "get": {
+        "tags": [
+          "Providers"
+        ],
+        "summary": "Gets capability flags for a single external provider.",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCapabilityDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player": {
       "get": {
         "tags": [
@@ -5958,6 +6054,44 @@
           }
         }
       },
+      "ProviderCapabilityDto": {
+        "required": [
+          "providerId",
+          "displayName",
+          "supportsPlaylistImport",
+          "supportsMetadataLookup",
+          "supportsAccountConnection",
+          "supportsPublicUrlImport",
+          "capabilities"
+        ],
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "supportsPlaylistImport": {
+            "type": "boolean"
+          },
+          "supportsMetadataLookup": {
+            "type": "boolean"
+          },
+          "supportsAccountConnection": {
+            "type": "boolean"
+          },
+          "supportsPublicUrlImport": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "RegexFieldsDto": {
         "required": [
           "title",
@@ -7735,6 +7869,9 @@
     },
     {
       "name": "Server"
+    },
+    {
+      "name": "Providers"
     },
     {
       "name": "Player"

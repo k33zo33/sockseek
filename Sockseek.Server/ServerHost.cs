@@ -8,12 +8,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Sockseek.Application.Providers;
 using Sockseek.Api;
 using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
+using Sockseek.Integrations.Abstractions;
 using Sockseek.Player;
 
 namespace Sockseek.Server;
@@ -71,6 +73,7 @@ public static class ServerHost
         builder.Services.AddSingleton(sp => sp.GetRequiredService<EngineSupervisor>().StateStore);
         builder.Services.AddSingleton<ISoulseekEngineGateway, ServerSoulseekEngineGateway>();
         builder.Services.AddSingleton<ServerSessionTokenProvider>();
+        builder.Services.AddSingleton(ProviderCapabilityRegistry.CreateDefault());
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddSingleton<ServerDatabaseMigrationService>();
@@ -244,6 +247,28 @@ public static class ServerHost
             .WithTags("System")
             .WithSummary("Gets the versioned application API capability snapshot.")
             .Produces<SystemCapabilitiesDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/providers", (ProviderCapabilityRegistry providers) =>
+                Results.Ok(providers.List().Select(ToProviderCapabilityDto).ToArray()))
+            .WithTags("Providers")
+            .WithSummary("Lists external playlist and metadata provider capabilities.")
+            .Produces<IReadOnlyList<ProviderCapabilityDto>>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/providers/{providerId}/capabilities", (string providerId, ProviderCapabilityRegistry providers) =>
+            {
+                var provider = providers.Find(providerId);
+                return provider is null
+                    ? Results.NotFound()
+                    : Results.Ok(ToProviderCapabilityDto(provider));
+            })
+            .WithTags("Providers")
+            .WithSummary("Gets capability flags for a single external provider.")
+            .Produces<ProviderCapabilityDto>()
+            .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
@@ -980,6 +1005,19 @@ public static class ServerHost
         LocalArtworkCache artworkCache,
         CancellationToken cancellationToken)
         => ToPlayerStateDtoAsync(player, dbContext, artworkCache, player.Snapshot, cancellationToken);
+
+    private static ProviderCapabilityDto ToProviderCapabilityDto(ProviderCapabilities provider)
+        => new(
+            provider.ProviderId,
+            provider.DisplayName,
+            provider.SupportsPlaylistImport,
+            provider.SupportsMetadataLookup,
+            provider.SupportsAccountConnection,
+            provider.SupportsPublicUrlImport,
+            Enum.GetValues<PlaylistProviderCapabilities>()
+                .Where(capability => capability != PlaylistProviderCapabilities.None && provider.Supports(capability))
+                .Select(capability => capability.ToString())
+                .ToArray());
 
     private static async Task<PlayerStateDto> ToSavedPlayerStateDtoAsync(
         PlaybackCoordinator player,

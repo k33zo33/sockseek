@@ -119,6 +119,23 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SystemCapabilitiesDto>(response, ct);
     }
 
+    public async Task<IReadOnlyList<ProviderCapabilityDto>> GetProvidersAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/providers", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ProviderCapabilityDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<ProviderCapabilityDto?> GetProviderCapabilitiesAsync(string providerId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerId);
+        using var response = await http.GetAsync($"api/v1/providers/{Uri.EscapeDataString(providerId)}/capabilities", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<ProviderCapabilityDto>(response, ct);
+    }
+
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/player", ct);

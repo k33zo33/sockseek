@@ -11,6 +11,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(SystemCapabilitiesDto))]
 [JsonSerializable(typeof(PlayerCapabilitiesDto))]
 [JsonSerializable(typeof(PlayerCodecCapabilityDto))]
+[JsonSerializable(typeof(ProviderCapabilityDto))]
 [JsonSerializable(typeof(PlayerStateDto))]
 [JsonSerializable(typeof(PlayerBufferDto))]
 [JsonSerializable(typeof(PlayerNowPlayingDto))]
@@ -172,6 +173,7 @@ namespace Sockseek.Api;
 
 [JsonSerializable(typeof(IReadOnlyList<ProfileSummaryDto>))]
 [JsonSerializable(typeof(IReadOnlyList<PlayerCodecCapabilityDto>))]
+[JsonSerializable(typeof(IReadOnlyList<ProviderCapabilityDto>))]
 [JsonSerializable(typeof(IReadOnlyList<PlayerQueueItemDto>))]
 [JsonSerializable(typeof(IReadOnlyList<ServerEventDescriptorDto>))]
 [JsonSerializable(typeof(IReadOnlyList<JobSummaryDto>))]
