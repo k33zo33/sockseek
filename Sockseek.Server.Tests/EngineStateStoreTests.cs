@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Core;
 using Sockseek.Core.Jobs;
 using Sockseek.Core.Models;
+using Sockseek.Core.Settings;
 using Sockseek.Api;
 using Sockseek.Server;
 using Soulseek;
@@ -44,6 +45,105 @@ public class EngineStateStoreTests
         var payload = store.GetJobDetail(song.Id)?.Payload as SongJobPayloadDto;
         Assert.IsNotNull(payload);
         Assert.AreEqual(ServerSongDownloadSource.Fallback, payload.DownloadSource);
+    }
+
+    [TestMethod]
+    public void GetActiveProgressiveDownloadSnapshot_ActiveSoulseekDownload_ReturnsIncompleteMediaSource()
+    {
+        var store = new EngineStateStore();
+        var tempDir = System.IO.Directory.CreateTempSubdirectory("sockseek-progressive-");
+        var finalPath = Path.Combine(tempDir.FullName, "track.mp3");
+        var incompletePath = finalPath + ".incomplete";
+
+        try
+        {
+            System.IO.File.WriteAllBytes(incompletePath, new byte[1234]);
+            var song = ActiveDownloadSong(finalPath);
+            Register(store, song);
+
+            var snapshot = store.GetActiveProgressiveDownloadSnapshot(song.Id, progressivePlaybackEnabled: true);
+
+            Assert.IsNotNull(snapshot);
+            Assert.AreEqual(song.Id, snapshot.JobId);
+            Assert.AreEqual(song.WorkflowId, snapshot.WorkflowId);
+            Assert.AreEqual(incompletePath, snapshot.Source.Path);
+            Assert.AreEqual(finalPath, snapshot.Source.FinalPath);
+            Assert.AreEqual(".mp3", snapshot.Source.CodecExtension);
+            Assert.AreEqual(960_000, snapshot.Source.ExpectedBytes);
+            Assert.AreEqual(128, snapshot.Source.BitrateKbps);
+            Assert.AreEqual(TimeSpan.FromSeconds(60), snapshot.Source.Duration);
+            Assert.IsTrue(snapshot.Source.ProgressivePlaybackEnabled);
+            Assert.AreEqual(1234, snapshot.Buffer.AvailableBytes);
+            Assert.AreEqual(960_000, snapshot.Buffer.ExpectedBytes);
+            Assert.IsFalse(snapshot.Buffer.DownloadCompleted);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void GetActiveProgressiveDownloadSnapshot_NoIncompleteExtension_ReturnsNull()
+    {
+        var store = new EngineStateStore();
+        var song = ActiveDownloadSong(@"C:\music\track.mp3");
+        song.Config = new DownloadSettings
+        {
+            Transfer = new TransferSettings { NoIncompleteExt = true },
+        };
+        Register(store, song);
+
+        var snapshot = store.GetActiveProgressiveDownloadSnapshot(song.Id, progressivePlaybackEnabled: true);
+
+        Assert.IsNull(snapshot);
+    }
+
+    [TestMethod]
+    public void GetActiveProgressiveDownloadSnapshot_TerminalSong_ReturnsNull()
+    {
+        var store = new EngineStateStore();
+        var song = ActiveDownloadSong(@"C:\music\track.mp3");
+        song.SetDone(@"C:\music\track.mp3", song.ResolvedTarget);
+        Register(store, song);
+
+        var snapshot = store.GetActiveProgressiveDownloadSnapshot(song.Id, progressivePlaybackEnabled: true);
+
+        Assert.IsNull(snapshot);
+    }
+
+    [TestMethod]
+    public void GetActiveProgressiveDownloadSnapshot_ProgressEventsEstimateDownloadSpeed()
+    {
+        var now = DateTimeOffset.Parse("2026-09-22T12:00:00Z");
+        var store = new EngineStateStore(() => now);
+        var song = ActiveDownloadSong(@"C:\music\track.mp3");
+        Register(store, song);
+
+        DownloadProgress(store, song, 1000, 960_000);
+        now = now.AddSeconds(2);
+        DownloadProgress(store, song, 3000, 960_000);
+
+        var snapshot = store.GetActiveProgressiveDownloadSnapshot(song.Id, progressivePlaybackEnabled: true);
+
+        Assert.IsNotNull(snapshot);
+        Assert.AreEqual(1000d, snapshot.Buffer.DownloadBytesPerSecond);
+    }
+
+    [TestMethod]
+    public void GetActiveProgressiveDownloadSnapshot_ProgressEventTotalFillsUnknownExpectedBytes()
+    {
+        var store = new EngineStateStore();
+        var song = ActiveDownloadSong(@"C:\music\track.mp3", size: 0);
+        Register(store, song);
+        DownloadProgress(store, song, 2048, 4096);
+
+        var snapshot = store.GetActiveProgressiveDownloadSnapshot(song.Id, progressivePlaybackEnabled: true);
+
+        Assert.IsNotNull(snapshot);
+        Assert.AreEqual(4096, snapshot.Source.ExpectedBytes);
+        Assert.AreEqual(4096, snapshot.Buffer.ExpectedBytes);
+        Assert.AreEqual(2048, snapshot.Buffer.AvailableBytes);
     }
 
     [TestMethod]
@@ -428,6 +528,39 @@ public class EngineStateStoreTests
         typeof(EngineStateStore)
             .GetMethod("OnDownloadStateChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(store, [song, state]);
+    }
+
+    private static void DownloadProgress(EngineStateStore store, SongJob song, long bytesTransferred, long totalBytes)
+    {
+        typeof(EngineStateStore)
+            .GetMethod("OnDownloadProgress", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(store, [song, bytesTransferred, totalBytes]);
+    }
+
+    private static SongJob ActiveDownloadSong(string downloadPath, long size = 960_000)
+    {
+        var response = new SearchResponse("peer", 1, true, 256, 0, []);
+        var file = new Soulseek.File(
+            1,
+            @"remote\Artist\Album\01. Track.mp3",
+            size,
+            ".mp3",
+            attributeList:
+            [
+                new FileAttribute(FileAttributeType.BitRate, 128),
+                new FileAttribute(FileAttributeType.Length, 60),
+            ]);
+
+        var song = new SongJob(new SongQuery { Artist = "Artist", Title = "Track", Length = 60 })
+        {
+            Config = new DownloadSettings(),
+            DownloadPath = downloadPath,
+            ResolvedTarget = new FileCandidate(response, file),
+            FileSize = size,
+            BytesTransferred = 512,
+        };
+        song.UpdateActivity(JobActivityPhase.Downloading);
+        return song;
     }
 
     private static void AssertWorkflowSummaryMatchesBruteForceSnapshot(EngineStateStore store, Guid workflowId)

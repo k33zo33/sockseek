@@ -5,12 +5,16 @@ using Sockseek.Core.Services;
 using Sockseek.Core.Settings;
 using Soulseek;
 using Sockseek.Api;
+using Sockseek.Player;
 
 namespace Sockseek.Server;
 
 public sealed class EngineStateStore
 {
+    private const string IncompleteDownloadSuffix = ".incomplete";
+
     private readonly Lock gate = new();
+    private readonly Func<DateTimeOffset> utcNow;
     // Keep records and workflow aggregate indexes in sync only through UpdateJobRecord.
     private readonly Dictionary<Guid, Job> jobs = [];
     private readonly Dictionary<Guid, JobRecord> records = [];
@@ -21,10 +25,14 @@ public sealed class EngineStateStore
     private readonly HashSet<Guid> infrastructureFailedJobs = [];
     private readonly HashSet<Guid> executionCompletedJobs = [];
     private readonly Dictionary<Guid, TransferStates> songTransferStates = [];
+    private readonly Dictionary<Guid, DownloadProgressSample> downloadProgressSamples = [];
 
     public event Action<JobSummaryDto>? JobUpserted;
     public event Action<WorkflowSummaryDto>? WorkflowUpserted;
     public event Action<SearchUpdatedDto>? SearchUpdated;
+
+    public EngineStateStore(Func<DateTimeOffset>? utcNow = null)
+        => this.utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
 
     public void AttachEngine(DownloadEngine engine)
     {
@@ -34,6 +42,7 @@ public sealed class EngineStateStore
         engine.Events.JobDiscoveryChanged += OnJobDiscoveryChanged;
         engine.Events.JobExecutionCompleted += OnJobExecutionCompleted;
         engine.Events.DownloadStarted += OnNestedSongDownloadStarted;
+        engine.Events.DownloadProgress += OnDownloadProgress;
         engine.Events.DownloadStateChanged += OnDownloadStateChanged;
     }
 
@@ -45,6 +54,7 @@ public sealed class EngineStateStore
         engine.Events.JobDiscoveryChanged -= OnJobDiscoveryChanged;
         engine.Events.JobExecutionCompleted -= OnJobExecutionCompleted;
         engine.Events.DownloadStarted -= OnNestedSongDownloadStarted;
+        engine.Events.DownloadProgress -= OnDownloadProgress;
         engine.Events.DownloadStateChanged -= OnDownloadStateChanged;
     }
 
@@ -63,6 +73,18 @@ public sealed class EngineStateStore
     {
         lock (gate)
             return jobs.TryGetValue(jobId, out var job) ? job as TJob : null;
+    }
+
+    public ActiveProgressiveDownloadSnapshot? GetActiveProgressiveDownloadSnapshot(
+        Guid jobId,
+        bool progressivePlaybackEnabled)
+    {
+        lock (gate)
+        {
+            return jobs.TryGetValue(jobId, out var job) && job is SongJob song
+                ? BuildActiveProgressiveDownloadSnapshot(song, progressivePlaybackEnabled)
+                : null;
+        }
     }
 
     public JobDetailDto? GetJobDetail(Guid jobId)
@@ -388,6 +410,21 @@ public sealed class EngineStateStore
     {
         lock (gate)
             songTransferStates[song.Id] = state;
+    }
+
+    private void OnDownloadProgress(SongJob song, long bytesTransferred, long totalBytes)
+    {
+        lock (gate)
+        {
+            var now = utcNow();
+            downloadProgressSamples.TryGetValue(song.Id, out var previous);
+            var bytesPerSecond = CalculateBytesPerSecond(previous, bytesTransferred, now);
+            downloadProgressSamples[song.Id] = new DownloadProgressSample(
+                bytesTransferred,
+                totalBytes,
+                now,
+                bytesPerSecond);
+        }
     }
 
 
@@ -769,6 +806,86 @@ public sealed class EngineStateStore
             ? DownloadSettingsPatchDtoMapper.FromDifference(inheritedConfig, effectiveConfig)
             : null;
 
+    private ActiveProgressiveDownloadSnapshot? BuildActiveProgressiveDownloadSnapshot(
+        SongJob song,
+        bool progressivePlaybackEnabled)
+    {
+        if (song.LifecycleState == JobLifecycleState.Terminal
+            || song.IsNotAudio
+            || song.Config?.Transfer.NoIncompleteExt == true
+            || string.IsNullOrWhiteSpace(song.DownloadPath)
+            || song.ResolvedTarget is not { } candidate)
+        {
+            return null;
+        }
+
+        if (!IsActiveDownloadState(song))
+            return null;
+
+        var finalPath = song.DownloadPath;
+        var incompletePath = finalPath.EndsWith(IncompleteDownloadSuffix, StringComparison.OrdinalIgnoreCase)
+            ? finalPath
+            : finalPath + IncompleteDownloadSuffix;
+        var sample = downloadProgressSamples.GetValueOrDefault(song.Id);
+        var expectedBytes = Positive(song.FileSize) ?? Positive(candidate.File.Size) ?? Positive(sample.TotalBytes);
+        var availableBytes = System.IO.File.Exists(incompletePath)
+            ? new FileInfo(incompletePath).Length
+            : Math.Max(Math.Max(0, song.BytesTransferred), sample.BytesTransferred);
+
+        var source = new ProgressiveMediaSource(
+            Path: incompletePath,
+            FinalPath: finalPath,
+            CodecExtension: CodecExtension(candidate, finalPath),
+            ExpectedBytes: expectedBytes,
+            BitrateKbps: Positive(candidate.File.BitRate),
+            Duration: candidate.File.Length is > 0 ? TimeSpan.FromSeconds(candidate.File.Length.Value) : null,
+            ProgressivePlaybackEnabled: progressivePlaybackEnabled);
+
+        var buffer = new ProgressiveBufferSnapshot(
+            AvailableBytes: availableBytes,
+            ExpectedBytes: expectedBytes,
+            DownloadBytesPerSecond: sample.BytesPerSecond,
+            PlaybackPosition: TimeSpan.Zero,
+            DownloadCompleted: false);
+
+        return new ActiveProgressiveDownloadSnapshot(song.Id, song.WorkflowId, source, buffer);
+    }
+
+    private bool IsActiveDownloadState(SongJob song)
+        => song.ActivityPhase == JobActivityPhase.Downloading
+        || songTransferStates.TryGetValue(song.Id, out var transferState)
+            && (transferState.HasFlag(TransferStates.InProgress)
+                || transferState.HasFlag(TransferStates.Queued));
+
+    private static double? CalculateBytesPerSecond(
+        DownloadProgressSample previous,
+        long bytesTransferred,
+        DateTimeOffset now)
+    {
+        if (previous.ObservedAtUtc == default)
+            return null;
+
+        var elapsed = now - previous.ObservedAtUtc;
+        var delta = bytesTransferred - previous.BytesTransferred;
+        return elapsed > TimeSpan.Zero && delta >= 0
+            ? delta / elapsed.TotalSeconds
+            : null;
+    }
+
+    private static long? Positive(long value)
+        => value > 0 ? value : null;
+
+    private static int? Positive(int? value)
+        => value is > 0 ? value : null;
+
+    private static string CodecExtension(FileCandidate candidate, string finalPath)
+    {
+        if (!string.IsNullOrWhiteSpace(candidate.File.Extension))
+            return candidate.File.Extension;
+
+        return Path.GetExtension(finalPath);
+    }
+
     private static DownloadBehaviorPolicyDto ToDownloadBehaviorPolicyDto(DownloadBehaviorPolicy policy)
         => new(policy.Default, policy.Song, policy.Album, policy.Aggregate, policy.AlbumAggregate);
 
@@ -1003,6 +1120,12 @@ public sealed class EngineStateStore
         Guid? ParentJobId,
         JobSummaryDto Summary,
         JobPayloadDto Payload);
+
+    private readonly record struct DownloadProgressSample(
+        long BytesTransferred,
+        long TotalBytes,
+        DateTimeOffset ObservedAtUtc,
+        double? BytesPerSecond);
 
     private readonly record struct WorkflowRecordRef(int DisplayId, Guid JobId);
 
