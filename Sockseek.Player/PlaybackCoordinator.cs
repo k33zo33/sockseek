@@ -6,6 +6,7 @@ public sealed class PlaybackCoordinator
 {
     private readonly IPlaybackSourceResolver sourceResolver;
     private readonly IMediaEngine mediaEngine;
+    private readonly ProgressiveBufferPolicy progressiveBufferPolicy;
 
     private PlaybackSnapshot snapshot = PlaybackSnapshot.Stopped;
     private List<PlaybackQueueItem> queueItems = [];
@@ -14,16 +15,23 @@ public sealed class PlaybackCoordinator
     private PlaybackRepeatMode repeatMode = PlaybackRepeatMode.None;
     private bool shuffleEnabled;
     private int shuffleSeed;
+    private ProgressiveMediaSource? progressiveSource;
+    private ProgressiveBufferDecision? progressiveBufferDecision;
+    private bool progressiveMediaLoaded;
 
     public PlaybackCoordinator(IPlaybackSourceResolver sourceResolver)
         : this(sourceResolver, new UnavailableMediaEngine())
     {
     }
 
-    public PlaybackCoordinator(IPlaybackSourceResolver sourceResolver, IMediaEngine mediaEngine)
+    public PlaybackCoordinator(
+        IPlaybackSourceResolver sourceResolver,
+        IMediaEngine mediaEngine,
+        ProgressiveBufferPolicy? progressiveBufferPolicy = null)
     {
         this.sourceResolver = sourceResolver;
         this.mediaEngine = mediaEngine;
+        this.progressiveBufferPolicy = progressiveBufferPolicy ?? new ProgressiveBufferPolicy();
     }
 
     public PlaybackSnapshot Snapshot => snapshot;
@@ -186,10 +194,14 @@ public sealed class PlaybackCoordinator
     {
         return await RunEngineCommandAsync(
             engine => engine.StopAsync(cancellationToken),
-            () => PlaybackSnapshot.Stopped with
+            () =>
             {
-                Volume = snapshot.Volume,
-                IsMuted = snapshot.IsMuted,
+                ClearProgressiveState();
+                return PlaybackSnapshot.Stopped with
+                {
+                    Volume = snapshot.Volume,
+                    IsMuted = snapshot.IsMuted,
+                };
             });
     }
 
@@ -197,6 +209,8 @@ public sealed class PlaybackCoordinator
     {
         if (position < TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(position), "Seek position cannot be negative.");
+        if (progressiveBufferDecision?.SeekLimit is { } seekLimit && position > seekLimit)
+            throw new ArgumentOutOfRangeException(nameof(position), "Seek position cannot exceed buffered range.");
         if (snapshot.State is not (PlaybackState.Playing or PlaybackState.Paused))
             return snapshot;
 
@@ -220,6 +234,31 @@ public sealed class PlaybackCoordinator
         return await RunEngineCommandAsync(
             engine => engine.SetMutedAsync(isMuted, cancellationToken),
             () => snapshot with { IsMuted = isMuted, ErrorMessage = null });
+    }
+
+    public Task<PlaybackSnapshot> PlayProgressiveAsync(
+        ProgressiveMediaSource source,
+        ProgressiveBufferSnapshot buffer,
+        Guid? canonicalTrackId = null,
+        Guid? playlistItemId = null,
+        Guid? localMediaFileId = null,
+        CancellationToken cancellationToken = default)
+        => ApplyProgressiveBufferAsync(source, buffer, canonicalTrackId, playlistItemId, localMediaFileId, cancellationToken);
+
+    public Task<PlaybackSnapshot> UpdateProgressiveBufferAsync(
+        ProgressiveBufferSnapshot buffer,
+        CancellationToken cancellationToken = default)
+    {
+        if (progressiveSource == null)
+            return Task.FromResult(snapshot);
+
+        return ApplyProgressiveBufferAsync(
+            progressiveSource,
+            buffer,
+            snapshot.CanonicalTrackId,
+            snapshot.PlaylistItemId,
+            snapshot.LocalMediaFileId,
+            cancellationToken);
     }
 
     private async Task<PlaybackSnapshot> PlayResolvedSourceAsync(
@@ -256,6 +295,7 @@ public sealed class PlaybackCoordinator
             return snapshot;
         }
 
+        await StopProgressiveSourceIfNeededAsync(cancellationToken);
         snapshot = new PlaybackSnapshot(
             PlaybackState.Loading,
             source.CanonicalTrackId,
@@ -272,6 +312,116 @@ public sealed class PlaybackCoordinator
             await mediaEngine.LoadAsync(source.Path, cancellationToken);
             await mediaEngine.PlayAsync(cancellationToken);
             snapshot = snapshot with { State = PlaybackState.Playing };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            snapshot = snapshot with
+            {
+                State = PlaybackState.Failed,
+                ErrorMessage = ex.Message,
+            };
+        }
+
+        return snapshot;
+    }
+
+    private async Task<PlaybackSnapshot> ApplyProgressiveBufferAsync(
+        ProgressiveMediaSource source,
+        ProgressiveBufferSnapshot buffer,
+        Guid? canonicalTrackId,
+        Guid? playlistItemId,
+        Guid? localMediaFileId,
+        CancellationToken cancellationToken)
+    {
+        if (IsNonFileUri(source.Path) || source.FinalPath != null && IsNonFileUri(source.FinalPath))
+        {
+            ClearProgressiveState();
+            snapshot = new PlaybackSnapshot(
+                PlaybackState.Failed,
+                canonicalTrackId,
+                playlistItemId,
+                localMediaFileId,
+                source.Path,
+                "Progressive playback source must be a local file path.",
+                TimeSpan.Zero,
+                snapshot.Volume,
+                snapshot.IsMuted);
+            return snapshot;
+        }
+
+        if (progressiveSource != null
+            && !string.Equals(progressiveSource.Path, source.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            await StopProgressiveSourceIfNeededAsync(cancellationToken);
+        }
+
+        progressiveSource = source;
+        var decision = progressiveBufferPolicy.Evaluate(source, buffer);
+        progressiveBufferDecision = decision;
+
+        if (decision.Status == ProgressiveBufferStatus.Cancelled)
+        {
+            await StopProgressiveSourceIfNeededAsync(cancellationToken);
+            snapshot = PlaybackSnapshot.Stopped with
+            {
+                Volume = snapshot.Volume,
+                IsMuted = snapshot.IsMuted,
+            };
+            return snapshot;
+        }
+
+        if (!decision.CanOpenMedia)
+        {
+            if (progressiveMediaLoaded)
+                await mediaEngine.PauseAsync(cancellationToken);
+
+            snapshot = new PlaybackSnapshot(
+                PlaybackState.Buffering,
+                canonicalTrackId,
+                playlistItemId,
+                localMediaFileId,
+                source.Path,
+                decision.Reason,
+                buffer.PlaybackPosition,
+                snapshot.Volume,
+                snapshot.IsMuted);
+            return snapshot;
+        }
+
+        var mediaPath = buffer.DownloadCompleted && !string.IsNullOrWhiteSpace(source.FinalPath)
+            ? source.FinalPath
+            : source.Path;
+        var previousPath = snapshot.Path;
+        snapshot = new PlaybackSnapshot(
+            PlaybackState.Loading,
+            canonicalTrackId,
+            playlistItemId,
+            localMediaFileId,
+            mediaPath,
+            null,
+            buffer.PlaybackPosition,
+            snapshot.Volume,
+            snapshot.IsMuted);
+
+        try
+        {
+            if (!progressiveMediaLoaded || !string.Equals(previousPath, mediaPath, StringComparison.OrdinalIgnoreCase))
+            {
+                await mediaEngine.LoadAsync(mediaPath, cancellationToken);
+                progressiveMediaLoaded = true;
+            }
+
+            await mediaEngine.PlayAsync(cancellationToken);
+            snapshot = snapshot with
+            {
+                State = PlaybackState.Playing,
+                Path = mediaPath,
+                ErrorMessage = null,
+            };
         }
         catch (OperationCanceledException)
         {
@@ -312,6 +462,22 @@ public sealed class PlaybackCoordinator
         }
 
         return snapshot;
+    }
+
+    private async Task StopProgressiveSourceIfNeededAsync(CancellationToken cancellationToken)
+    {
+        if (progressiveSource == null)
+            return;
+
+        await mediaEngine.StopAsync(cancellationToken);
+        ClearProgressiveState();
+    }
+
+    private void ClearProgressiveState()
+    {
+        progressiveSource = null;
+        progressiveBufferDecision = null;
+        progressiveMediaLoaded = false;
     }
 
     private static bool IsNonFileUri(string path)

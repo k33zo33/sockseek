@@ -7,5 +7,6 @@ public enum PlaybackState
     Loading = 2,
     Playing = 3,
     Paused = 4,
-    Failed = 5,
+    Buffering = 5,
+    Failed = 6,
 }

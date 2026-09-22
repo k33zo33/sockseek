@@ -7,6 +7,12 @@ namespace Sockseek.Player.Tests;
 [TestClass]
 public sealed class PlaybackCoordinatorTests
 {
+    private static readonly ProgressiveBufferPolicyOptions ProgressiveTestOptions = new(
+        InitialBufferDuration: TimeSpan.FromSeconds(5),
+        MinimumInitialBufferBytes: 64 * 1024,
+        ResumeBufferDuration: TimeSpan.FromSeconds(3),
+        MinimumResumeBufferBytes: 32 * 1024);
+
     [TestMethod]
     public async Task ResolveCanonicalTrackAsync_DelegatesToSourceResolver()
     {
@@ -309,6 +315,176 @@ public sealed class PlaybackCoordinatorTests
             Enumerable.Range(0, items.Length).ToArray(),
             firstQueue.PlaybackOrder.ToArray());
     }
+
+    [TestMethod]
+    public async Task PlayProgressiveAsync_BeforeInitialBuffer_EntersBufferingWithoutOpeningEngine()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = ProgressiveCoordinator(engine);
+        var source = ProgressiveSource();
+
+        var result = await coordinator.PlayProgressiveAsync(source, ProgressiveBuffer(
+            availableBytes: 10_000,
+            downloadBytesPerSecond: 64_000,
+            playbackPosition: TimeSpan.Zero));
+
+        Assert.AreEqual(PlaybackState.Buffering, result.State);
+        Assert.AreEqual(source.Path, result.Path);
+        Assert.AreEqual("Initial buffer threshold has not been reached.", result.ErrorMessage);
+        Assert.AreEqual(0, engine.Calls.Count);
+
+        var resume = await coordinator.ResumeAsync();
+
+        Assert.AreEqual(PlaybackState.Buffering, resume.State);
+        Assert.AreEqual(0, engine.Calls.Count);
+    }
+
+    [TestMethod]
+    public async Task UpdateProgressiveBufferAsync_WhenReady_LoadsStartsAndLimitsSeek()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = ProgressiveCoordinator(engine);
+        var source = ProgressiveSource();
+        await coordinator.PlayProgressiveAsync(source, ProgressiveBuffer(10_000, 64_000, TimeSpan.Zero));
+
+        var result = await coordinator.UpdateProgressiveBufferAsync(ProgressiveBuffer(
+            availableBytes: 320_000,
+            downloadBytesPerSecond: 96_000,
+            playbackPosition: TimeSpan.Zero));
+
+        Assert.AreEqual(PlaybackState.Playing, result.State);
+        CollectionAssert.AreEqual(new[] { "Load:C:/Music/Track.mp3.incomplete", "Play" }, engine.Calls.ToArray());
+        await Assert.ThrowsExceptionAsync<ArgumentOutOfRangeException>(
+            () => coordinator.SeekAsync(TimeSpan.FromSeconds(21)));
+
+        var seeked = await coordinator.SeekAsync(TimeSpan.FromSeconds(10));
+
+        Assert.AreEqual(TimeSpan.FromSeconds(10), seeked.Position);
+        Assert.AreEqual("Seek:00:00:10", engine.Calls[^1]);
+    }
+
+    [TestMethod]
+    public async Task UpdateProgressiveBufferAsync_SlowUnderrun_PausesAndResumesWithoutReload()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = ProgressiveCoordinator(engine);
+        var source = ProgressiveSource();
+        await coordinator.PlayProgressiveAsync(source, ProgressiveBuffer(320_000, 96_000, TimeSpan.Zero));
+
+        var buffering = await coordinator.UpdateProgressiveBufferAsync(ProgressiveBuffer(
+            availableBytes: 192_000,
+            downloadBytesPerSecond: 8_000,
+            playbackPosition: TimeSpan.FromSeconds(11)));
+        var resumed = await coordinator.UpdateProgressiveBufferAsync(ProgressiveBuffer(
+            availableBytes: 512_000,
+            downloadBytesPerSecond: 96_000,
+            playbackPosition: TimeSpan.FromSeconds(11)));
+
+        Assert.AreEqual(PlaybackState.Buffering, buffering.State);
+        Assert.AreEqual(PlaybackState.Playing, resumed.State);
+        CollectionAssert.AreEqual(
+            new[] { "Load:C:/Music/Track.mp3.incomplete", "Play", "Pause", "Play" },
+            engine.Calls.ToArray());
+    }
+
+    [TestMethod]
+    public async Task UpdateProgressiveBufferAsync_CancelledDownload_StopsAndClearsProgressiveSource()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = ProgressiveCoordinator(engine);
+        var source = ProgressiveSource();
+        await coordinator.PlayProgressiveAsync(source, ProgressiveBuffer(320_000, 96_000, TimeSpan.Zero));
+
+        var stopped = await coordinator.UpdateProgressiveBufferAsync(ProgressiveBuffer(
+            availableBytes: 320_000,
+            downloadBytesPerSecond: null,
+            playbackPosition: TimeSpan.FromSeconds(5),
+            cancelled: true));
+        var ignored = await coordinator.UpdateProgressiveBufferAsync(ProgressiveBuffer(
+            availableBytes: 512_000,
+            downloadBytesPerSecond: 96_000,
+            playbackPosition: TimeSpan.FromSeconds(5)));
+
+        Assert.AreEqual(PlaybackState.Stopped, stopped.State);
+        Assert.AreEqual(stopped, ignored);
+        CollectionAssert.AreEqual(
+            new[] { "Load:C:/Music/Track.mp3.incomplete", "Play", "Stop" },
+            engine.Calls.ToArray());
+    }
+
+    [TestMethod]
+    public async Task PlayProgressiveAsync_DifferentSource_StopsPreviousSourceBeforeLoadingNext()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = ProgressiveCoordinator(engine);
+        var first = ProgressiveSource("C:/Music/First.mp3.incomplete", "C:/Music/First.mp3");
+        var second = ProgressiveSource("C:/Music/Second.mp3.incomplete", "C:/Music/Second.mp3");
+
+        await coordinator.PlayProgressiveAsync(first, ProgressiveBuffer(320_000, 96_000, TimeSpan.Zero));
+        var result = await coordinator.PlayProgressiveAsync(second, ProgressiveBuffer(320_000, 96_000, TimeSpan.Zero));
+
+        Assert.AreEqual(PlaybackState.Playing, result.State);
+        Assert.AreEqual(second.Path, result.Path);
+        CollectionAssert.AreEqual(
+            new[] { "Load:C:/Music/First.mp3.incomplete", "Play", "Stop", "Load:C:/Music/Second.mp3.incomplete", "Play" },
+            engine.Calls.ToArray());
+    }
+
+    [TestMethod]
+    public async Task PlayProgressiveAsync_UnsupportedCodec_WaitsForCompleteThenLoadsFinalPath()
+    {
+        var engine = new FakeMediaEngine();
+        var coordinator = ProgressiveCoordinator(engine);
+        var source = ProgressiveSource(progressiveEnabled: false);
+
+        var waiting = await coordinator.PlayProgressiveAsync(source, ProgressiveBuffer(
+            availableBytes: 900_000,
+            downloadBytesPerSecond: 128_000,
+            playbackPosition: TimeSpan.Zero));
+        var playing = await coordinator.UpdateProgressiveBufferAsync(ProgressiveBuffer(
+            availableBytes: 960_000,
+            downloadBytesPerSecond: null,
+            playbackPosition: TimeSpan.Zero,
+            downloadCompleted: true));
+
+        Assert.AreEqual(PlaybackState.Buffering, waiting.State);
+        Assert.AreEqual(PlaybackState.Playing, playing.State);
+        Assert.AreEqual(source.FinalPath, playing.Path);
+        CollectionAssert.AreEqual(new[] { "Load:C:/Music/Track.mp3", "Play" }, engine.Calls.ToArray());
+    }
+
+    private static PlaybackCoordinator ProgressiveCoordinator(FakeMediaEngine engine)
+        => new(
+            new FakePlaybackSourceResolver(PlaybackSourceResolution.PendingResolution(null, "pending")),
+            engine,
+            new ProgressiveBufferPolicy(ProgressiveTestOptions));
+
+    private static ProgressiveMediaSource ProgressiveSource(
+        string path = "C:/Music/Track.mp3.incomplete",
+        string finalPath = "C:/Music/Track.mp3",
+        bool progressiveEnabled = true)
+        => new(
+            Path: path,
+            FinalPath: finalPath,
+            CodecExtension: ".mp3",
+            ExpectedBytes: 960_000,
+            BitrateKbps: 128,
+            Duration: TimeSpan.FromSeconds(60),
+            ProgressivePlaybackEnabled: progressiveEnabled);
+
+    private static ProgressiveBufferSnapshot ProgressiveBuffer(
+        long availableBytes,
+        double? downloadBytesPerSecond,
+        TimeSpan playbackPosition,
+        bool downloadCompleted = false,
+        bool cancelled = false)
+        => new(
+            AvailableBytes: availableBytes,
+            ExpectedBytes: 960_000,
+            DownloadBytesPerSecond: downloadBytesPerSecond,
+            PlaybackPosition: playbackPosition,
+            DownloadCompleted: downloadCompleted,
+            Cancelled: cancelled);
 
     private sealed class FakePlaybackSourceResolver(PlaybackSourceResolution result) : IPlaybackSourceResolver
     {
