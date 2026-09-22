@@ -8,11 +8,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Sockseek.Application.Common;
 using Sockseek.Application.Providers;
 using Sockseek.Application.Security;
 using Sockseek.Api;
 using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
+using Sockseek.Infrastructure;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
@@ -76,6 +78,8 @@ public static class ServerHost
         builder.Services.AddSingleton<ISoulseekEngineGateway, ServerSoulseekEngineGateway>();
         builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton(ProviderCapabilityRegistry.CreateDefault());
+        builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<OAuthPkceCoordinator>();
         builder.Services.AddSingleton<ISecretStore>(sp =>
             new WindowsDpapiSecretStore(ResolveSecretStoreDirectory(sp.GetRequiredService<IOptions<ServerOptions>>().Value)));
         builder.Services.AddSingleton<ServerEventBroadcaster>();

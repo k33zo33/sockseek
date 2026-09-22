@@ -72,7 +72,10 @@ public sealed record ExternalAccountId(Guid Value);
 public sealed record AuthorizationRequest(
     string ProviderId,
     Uri RedirectUri,
-    IReadOnlyList<string> Scopes);
+    IReadOnlyList<string> Scopes,
+    string State,
+    string CodeChallenge,
+    string CodeChallengeMethod);
 
 public sealed record AuthorizationStartResult(
     Uri AuthorizationUri,
