@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Application.Common;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
+using Sockseek.Infrastructure.Tests.TestSupport;
 
 namespace Sockseek.Infrastructure.Tests.LocalLibrary;
 
@@ -36,7 +37,7 @@ public class LocalLibraryScanCoordinatorTests
             var scanner = new LocalLibraryScanner(context, new CanonicalTrackStore(context), metadataReader);
             var coordinator = new LocalLibraryScanCoordinator(rootStore, scanner);
 
-            var result = await coordinator.ScanEnabledRootsAsync(new Progress<LocalLibraryScanProgress>(progressSnapshots.Add));
+            var result = await coordinator.ScanEnabledRootsAsync(new SynchronousProgress<LocalLibraryScanProgress>(progressSnapshots.Add));
 
             CollectionAssert.AreEqual(new[] { enabledRootId }, result.RootIds.ToArray());
             Assert.AreEqual(1, result.ScanResult.DiscoveredFiles);

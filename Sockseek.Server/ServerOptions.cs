@@ -14,6 +14,7 @@ public sealed class ServerOptions
     public string? ConfigDir { get; set; }
     public string? DatabasePath { get; set; }
     public string? DatabaseBackupDir { get; set; }
+    public string? SecretStoreDir { get; set; }
     public Func<EngineSettings, ISoulseekClient>? ClientFactory { get; set; }
     public string? SessionToken { get; set; }
     public bool ExperimentalProgressivePlayback { get; set; }

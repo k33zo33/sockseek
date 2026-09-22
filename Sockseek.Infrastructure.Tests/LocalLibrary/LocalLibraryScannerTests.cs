@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Domain.Tracks;
+using Sockseek.Infrastructure.Tests.TestSupport;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
 
@@ -194,7 +195,7 @@ public class LocalLibraryScannerTests
 
         var result = await scanner.ScanAsync(
             new LocalLibraryScanRequest([temp.Path]),
-            new Progress<LocalLibraryScanProgress>(progressSnapshots.Add));
+            new SynchronousProgress<LocalLibraryScanProgress>(progressSnapshots.Add));
 
         Assert.AreEqual(2, result.DiscoveredFiles);
         Assert.AreEqual(1, result.ImportedFiles);

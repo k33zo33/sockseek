@@ -9,12 +9,14 @@ using Microsoft.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sockseek.Application.Providers;
+using Sockseek.Application.Security;
 using Sockseek.Api;
 using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
+using Sockseek.Infrastructure.Security;
 using Sockseek.Integrations.Abstractions;
 using Sockseek.Player;
 
@@ -74,6 +76,8 @@ public static class ServerHost
         builder.Services.AddSingleton<ISoulseekEngineGateway, ServerSoulseekEngineGateway>();
         builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton(ProviderCapabilityRegistry.CreateDefault());
+        builder.Services.AddSingleton<ISecretStore>(sp =>
+            new WindowsDpapiSecretStore(ResolveSecretStoreDirectory(sp.GetRequiredService<IOptions<ServerOptions>>().Value)));
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddSingleton<ServerDatabaseMigrationService>();
@@ -193,6 +197,18 @@ public static class ServerHost
             : Path.GetDirectoryName(ResolveDatabasePath(options))
                 ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
         return Path.GetFullPath(Path.Combine(baseDirectory, "artwork-cache"));
+    }
+
+    private static string ResolveSecretStoreDirectory(ServerOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.SecretStoreDir))
+            return Path.GetFullPath(options.SecretStoreDir);
+
+        string baseDirectory = !string.IsNullOrWhiteSpace(options.ConfigDir)
+            ? options.ConfigDir
+            : Path.GetDirectoryName(ResolveDatabasePath(options))
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
+        return Path.GetFullPath(Path.Combine(baseDirectory, "secrets"));
     }
 
     private static void EnsureParentDirectoryExists(string path)
