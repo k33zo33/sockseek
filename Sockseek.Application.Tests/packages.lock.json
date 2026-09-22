@@ -119,6 +119,13 @@
       },
       "sockseek.integrations.abstractions": {
         "type": "Project"
+      },
+      "sockseek.integrations.fake": {
+        "type": "Project",
+        "dependencies": {
+          "Sockseek.Application": "[3.0.5, )",
+          "Sockseek.Integrations.Abstractions": "[3.0.5, )"
+        }
       }
     }
   }
