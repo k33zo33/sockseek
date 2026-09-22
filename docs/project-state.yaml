@@ -12,10 +12,10 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 8
-  slug: play-while-downloading
-  file: docs/sprints/sprint-08-play-while-downloading.md
-  status: in_progress
+  id: 9
+  slug: provider-framework-secret-store
+  file: docs/sprints/sprint-09-provider-framework-secret-store.md
+  status: planned
 
 completed_sprints:
   - 0
@@ -26,6 +26,7 @@ completed_sprints:
   - 5
   - 6
   - 7
+  - 8
 blocked_by: []
 
 locked_decisions:
