@@ -78,6 +78,11 @@ public sealed class EngineStateStore
     public ActiveProgressiveDownloadSnapshot? GetActiveProgressiveDownloadSnapshot(
         Guid jobId,
         bool progressivePlaybackEnabled)
+        => GetActiveProgressiveDownloadSnapshot(jobId, _ => progressivePlaybackEnabled);
+
+    public ActiveProgressiveDownloadSnapshot? GetActiveProgressiveDownloadSnapshot(
+        Guid jobId,
+        Func<string, bool> progressivePlaybackEnabled)
     {
         lock (gate)
         {
@@ -808,7 +813,7 @@ public sealed class EngineStateStore
 
     private ActiveProgressiveDownloadSnapshot? BuildActiveProgressiveDownloadSnapshot(
         SongJob song,
-        bool progressivePlaybackEnabled)
+        Func<string, bool> progressivePlaybackEnabled)
     {
         if (song.LifecycleState == JobLifecycleState.Terminal
             || song.IsNotAudio
@@ -832,14 +837,15 @@ public sealed class EngineStateStore
             ? new FileInfo(incompletePath).Length
             : Math.Max(Math.Max(0, song.BytesTransferred), sample.BytesTransferred);
 
+        var codecExtension = CodecExtension(candidate, finalPath);
         var source = new ProgressiveMediaSource(
             Path: incompletePath,
             FinalPath: finalPath,
-            CodecExtension: CodecExtension(candidate, finalPath),
+            CodecExtension: codecExtension,
             ExpectedBytes: expectedBytes,
             BitrateKbps: Positive(candidate.File.BitRate),
             Duration: candidate.File.Length is > 0 ? TimeSpan.FromSeconds(candidate.File.Length.Value) : null,
-            ProgressivePlaybackEnabled: progressivePlaybackEnabled);
+            ProgressivePlaybackEnabled: progressivePlaybackEnabled(codecExtension));
 
         var buffer = new ProgressiveBufferSnapshot(
             AvailableBytes: availableBytes,

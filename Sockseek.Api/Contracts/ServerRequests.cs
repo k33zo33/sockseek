@@ -94,6 +94,8 @@ public sealed record PlayCanonicalTrackRequestDto(Guid CanonicalTrackId);
 
 public sealed record PlayPlaylistItemRequestDto(Guid PlaylistItemId);
 
+public sealed record PlayDownloadJobRequestDto(Guid JobId);
+
 public sealed record SeekPlaybackRequestDto(long PositionMs);
 
 public sealed record SetPlayerVolumeRequestDto(double Volume);

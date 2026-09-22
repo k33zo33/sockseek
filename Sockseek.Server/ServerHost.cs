@@ -283,6 +283,32 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/player/play/download-job", async (
+            PlayDownloadJobRequestDto request,
+            EngineStateStore stateStore,
+            IOptions<ServerOptions> serverOptions,
+            PlaybackCoordinator player,
+            SockseekDbContext db,
+            LocalArtworkCache artworkCache,
+            PlaybackQueuePersistenceService queuePersistence,
+            CancellationToken ct) =>
+        {
+            var download = stateStore.GetActiveProgressiveDownloadSnapshot(
+                request.JobId,
+                extension => IsProgressivePlaybackEnabledForCodec(serverOptions.Value, extension));
+            if (download == null)
+                return Results.NotFound();
+
+            var snapshot = await player.PlayProgressiveAsync(download.Source, download.Buffer, cancellationToken: ct);
+            return Results.Ok(await ToSavedPlayerStateDtoAsync(player, db, artworkCache, queuePersistence, snapshot, ct));
+        })
+            .WithTags("Player")
+            .WithSummary("Starts playback for an active Soulseek download when buffer policy permits it.")
+            .Produces<PlayerStateDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapPost("/api/v1/player/pause", async (PlaybackCoordinator player, SockseekDbContext db, LocalArtworkCache artworkCache, PlaybackQueuePersistenceService queuePersistence, CancellationToken ct) =>
                 Results.Ok(await ToSavedPlayerStateDtoAsync(player, db, artworkCache, queuePersistence, await player.PauseAsync(ct), ct)))
             .WithTags("Player")
@@ -999,6 +1025,10 @@ public static class ServerHost
                 buffer.ExpectedBytes,
                 buffer.DownloadBytesPerSecond,
                 buffer.Reason);
+
+    private static bool IsProgressivePlaybackEnabledForCodec(ServerOptions options, string extension)
+        => options.ExperimentalProgressivePlayback
+        && string.Equals(extension, ".mp3", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<PlayerNowPlayingDto?> ResolveNowPlayingAsync(
         SockseekDbContext dbContext,

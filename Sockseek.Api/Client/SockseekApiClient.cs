@@ -138,6 +138,12 @@ public sealed class SockseekApiClient
             new PlayPlaylistItemRequestDto(playlistItemId),
             ct);
 
+    public async Task<PlayerStateDto> PlayDownloadJobAsync(Guid jobId, CancellationToken ct = default)
+        => await PostRequiredAsync<PlayerStateDto, PlayDownloadJobRequestDto>(
+            "api/v1/player/play/download-job",
+            new PlayDownloadJobRequestDto(jobId),
+            ct);
+
     public async Task<PlayerStateDto> PausePlaybackAsync(CancellationToken ct = default)
         => await PostEmptyRequiredAsync<PlayerStateDto>("api/v1/player/pause", ct);
 

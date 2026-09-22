@@ -54,6 +54,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(SubmitJobListRequestDto))]
 [JsonSerializable(typeof(PlayCanonicalTrackRequestDto))]
 [JsonSerializable(typeof(PlayPlaylistItemRequestDto))]
+[JsonSerializable(typeof(PlayDownloadJobRequestDto))]
 [JsonSerializable(typeof(SeekPlaybackRequestDto))]
 [JsonSerializable(typeof(SetPlayerVolumeRequestDto))]
 [JsonSerializable(typeof(SetPlayerMutedRequestDto))]

@@ -296,6 +296,59 @@
         }
       }
     },
+    "/api/v1/player/play/download-job": {
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "summary": "Starts playback for an active Soulseek download when buffer policy permits it.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayDownloadJobRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerStateDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player/pause": {
       "post": {
         "tags": [
@@ -5440,6 +5493,18 @@
         "type": "object",
         "properties": {
           "canonicalTrackId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PlayDownloadJobRequestDto": {
+        "required": [
+          "jobId"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
             "type": "string",
             "format": "uuid"
           }

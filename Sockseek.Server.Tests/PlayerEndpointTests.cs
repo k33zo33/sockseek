@@ -1,11 +1,16 @@
+using System.Reflection;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
+using Sockseek.Core;
+using Sockseek.Core.Jobs;
+using Sockseek.Core.Models;
 using Sockseek.Core.Settings;
 using Sockseek.Domain.Tracks;
 using Sockseek.Infrastructure;
@@ -167,7 +172,48 @@ public sealed class PlayerEndpointTests
         }
     }
 
-    private static WebApplication CreateApp(string tempPath, string url, string sessionToken)
+    [TestMethod]
+    public async Task PlayDownloadJob_ActiveIncompleteDownload_ReturnsBufferState()
+    {
+        using var temp = TemporaryDirectory.Create();
+        var port = GetFreeTcpPort();
+        var url = $"http://127.0.0.1:{port}";
+        const string sessionToken = "player-progressive-token";
+        var app = CreateApp(temp.Path, url, sessionToken, experimentalProgressivePlayback: true);
+        var finalPath = Path.Combine(temp.Path, "Progressive.mp3");
+        await File.WriteAllBytesAsync(finalPath + ".incomplete", new byte[32 * 1024]);
+        var song = CreateActiveDownloadSong(finalPath);
+        Register(app.Services.GetRequiredService<EngineStateStore>(), song);
+
+        await app.StartAsync();
+        try
+        {
+            using var authorizedHttp = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(authorizedHttp);
+
+            var state = await client.PlayDownloadJobAsync(song.Id);
+
+            Assert.AreEqual("Buffering", state.State);
+            Assert.AreEqual(NormalizePath(finalPath + ".incomplete"), NormalizePath(state.Path));
+            Assert.IsNotNull(state.Buffer);
+            Assert.AreEqual("WaitingForInitialBuffer", state.Buffer.Status);
+            Assert.IsFalse(state.Buffer.CanOpenMedia);
+            Assert.AreEqual(32 * 1024, state.Buffer.AvailableBytes);
+            Assert.AreEqual(960_000, state.Buffer.ExpectedBytes);
+            Assert.AreEqual("Initial buffer threshold has not been reached.", state.Buffer.Reason);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
+    private static WebApplication CreateApp(
+        string tempPath,
+        string url,
+        string sessionToken,
+        bool experimentalProgressivePlayback = false)
         => ServerHost.Build([], new ServerOptions
         {
             DatabasePath = Path.Combine(tempPath, "sockseek.db"),
@@ -186,6 +232,7 @@ public sealed class PlayerEndpointTests
             },
             Profiles = ProfileCatalog.Empty,
             SessionToken = sessionToken,
+            ExperimentalProgressivePlayback = experimentalProgressivePlayback,
         }, url);
 
     private static async Task<(Guid TrackId, Guid FileId)> SeedTrackAsync(string tempPath, string audioPath, string codec = "flac")
@@ -254,6 +301,38 @@ public sealed class PlayerEndpointTests
                     null,
                     PlaybackQueueItemState.LocalFile),
             ]));
+    }
+
+    private static SongJob CreateActiveDownloadSong(string finalPath)
+    {
+        var response = new Soulseek.SearchResponse("peer", 1, true, 256, 0, []);
+        var file = new Soulseek.File(
+            1,
+            @"remote\Artist\Album\Progressive.mp3",
+            960_000,
+            ".mp3",
+            attributeList:
+            [
+                new Soulseek.FileAttribute(Soulseek.FileAttributeType.BitRate, 128),
+                new Soulseek.FileAttribute(Soulseek.FileAttributeType.Length, 60),
+            ]);
+        var song = new SongJob(new SongQuery { Artist = "Artist", Title = "Progressive", Length = 60 })
+        {
+            Config = new DownloadSettings(),
+            DownloadPath = finalPath,
+            ResolvedTarget = new FileCandidate(response, file),
+            FileSize = 960_000,
+            BytesTransferred = 32 * 1024,
+        };
+        song.UpdateActivity(JobActivityPhase.Downloading);
+        return song;
+    }
+
+    private static void Register(EngineStateStore store, SongJob song)
+    {
+        typeof(EngineStateStore)
+            .GetMethod("OnJobRegistered", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(store, [song, null]);
     }
 
     private static string? NormalizePath(string? path)
