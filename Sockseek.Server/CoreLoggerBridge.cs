@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Sockseek.Application.Security;
 using Sockseek.Core;
 
 namespace Sockseek.Server;
@@ -9,7 +10,7 @@ public static class CoreLoggerBridge
     {
         SockseekLog.RemoveNonFileOutputs();
         SockseekLog.AddSink(
-            (_, message) => Console.WriteLine(message),
+            (_, message) => Console.WriteLine(SensitiveLogRedactor.Redact(message)),
             minimumLevel,
             prependDate: true,
             prependLogLevel: true);
