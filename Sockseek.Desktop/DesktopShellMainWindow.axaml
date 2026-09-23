@@ -466,6 +466,54 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
+                  IsVisible="{Binding IsAccountsVisible}">
+            <StackPanel Spacing="12">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="Provider accounts" FontSize="20" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Accounts.RefreshCommand}" />
+              </DockPanel>
+              <TextBlock Text="{Binding Accounts.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding Accounts.ProviderCards}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:ProviderConnectionCardViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding PrimaryAction}" Opacity="0.75" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding ProviderId}" Opacity="0.65" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <ItemsControl ItemsSource="{Binding Accounts.Accounts}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopExternalAccountViewModel">
+                    <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                          <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding ProviderId}" Opacity="0.75" />
+                          <TextBlock Text="{Binding StatusSummary}" Opacity="0.75" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Disconnect"
+                                Command="{Binding DataContext.Accounts.DisconnectCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding AccountId}"
+                                IsEnabled="{Binding CanDisconnect}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
                   IsVisible="{Binding IsHomeSectionActive}">
             <StackPanel Spacing="14">
               <DockPanel>
