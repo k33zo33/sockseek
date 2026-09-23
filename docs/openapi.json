@@ -252,6 +252,103 @@
         }
       }
     },
+    "/api/v1/accounts": {
+      "get": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Lists connected external provider accounts without exposing secret references.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExternalAccountDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{accountId}/disconnect": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Disconnects an external account, deletes its stored secret and preserves local playlist data.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalAccountDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player": {
       "get": {
         "tags": [
@@ -3310,6 +3407,42 @@
                 "$ref": "#/components/schemas/PrintOption"
               }
             ]
+          }
+        }
+      },
+      "ExternalAccountDto": {
+        "required": [
+          "accountId",
+          "providerId",
+          "externalUserId",
+          "displayName",
+          "status",
+          "lastAuthorizedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "externalUserId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "lastAuthorizedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -7872,6 +8005,9 @@
     },
     {
       "name": "Providers"
+    },
+    {
+      "name": "Accounts"
     },
     {
       "name": "Player"

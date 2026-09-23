@@ -136,6 +136,22 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<ProviderCapabilityDto>(response, ct);
     }
 
+    public async Task<IReadOnlyList<ExternalAccountDto>> GetExternalAccountsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/accounts", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ExternalAccountDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<ExternalAccountDto?> DisconnectExternalAccountAsync(Guid accountId, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/v1/accounts/{accountId}/disconnect", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<ExternalAccountDto>(response, ct);
+    }
+
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/player", ct);

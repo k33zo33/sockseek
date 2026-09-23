@@ -14,6 +14,7 @@ using Sockseek.Application.Security;
 using Sockseek.Api;
 using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
+using Sockseek.Domain.Accounts;
 using Sockseek.Infrastructure;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
@@ -95,6 +96,7 @@ public static class ServerHost
             EnsureParentDirectoryExists(databasePath);
             db.UseSqlite($"Data Source={databasePath}");
         });
+        builder.Services.AddScoped<ExternalAccountStore>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
@@ -288,6 +290,52 @@ public static class ServerHost
             .WithTags("Providers")
             .WithSummary("Gets capability flags for a single external provider.")
             .Produces<ProviderCapabilityDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/accounts", async (
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            CancellationToken ct) =>
+            {
+                await databaseMigration.EnsureMigratedAsync(ct);
+                var accounts = await db.ExternalAccounts
+                    .AsNoTracking()
+                    .OrderBy(account => account.Provider)
+                    .ThenBy(account => account.DisplayName)
+                    .ThenBy(account => account.ExternalUserId)
+                    .ToListAsync(ct);
+
+                return Results.Ok(accounts.Select(ToExternalAccountDto).ToArray());
+            })
+            .WithTags("Accounts")
+            .WithSummary("Lists connected external provider accounts without exposing secret references.")
+            .Produces<IReadOnlyList<ExternalAccountDto>>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/accounts/{accountId:guid}/disconnect", async (
+            Guid accountId,
+            ExternalAccountStore accounts,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            ISecretStore secretStore,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var disconnected = await accounts.DisconnectAsync(accountId, secretStore, ct);
+            if (!disconnected)
+                return Results.NotFound();
+
+            var account = await db.ExternalAccounts
+                .AsNoTracking()
+                .SingleAsync(entity => entity.Id == accountId, ct);
+            return Results.Ok(ToExternalAccountDto(account));
+        })
+            .WithTags("Accounts")
+            .WithSummary("Disconnects an external account, deletes its stored secret and preserves local playlist data.")
+            .Produces<ExternalAccountDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
@@ -1038,6 +1086,32 @@ public static class ServerHost
                 .Where(capability => capability != PlaylistProviderCapabilities.None && provider.Supports(capability))
                 .Select(capability => capability.ToString())
                 .ToArray());
+
+    private static ExternalAccountDto ToExternalAccountDto(ExternalAccountEntity account)
+        => new(
+            account.Id,
+            ToProviderId(account.Provider),
+            account.ExternalUserId,
+            account.DisplayName,
+            ToExternalAccountStatus(account.Status),
+            account.LastAuthorizedAtUtc);
+
+    private static string ToProviderId(int provider)
+        => Enum.IsDefined(typeof(ExternalProvider), provider)
+            ? (ExternalProvider)provider switch
+            {
+                ExternalProvider.Spotify => ProviderIds.Spotify,
+                ExternalProvider.YouTube => ProviderIds.YouTube,
+                ExternalProvider.Bandcamp => ProviderIds.Bandcamp,
+                ExternalProvider.MusicBrainz => ProviderIds.MusicBrainz,
+                _ => ((ExternalProvider)provider).ToString().ToLowerInvariant(),
+            }
+            : $"unknown-{provider.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    private static string ToExternalAccountStatus(int status)
+        => Enum.IsDefined(typeof(ExternalAccountStatus), status)
+            ? ((ExternalAccountStatus)status).ToString()
+            : "Unknown";
 
     private static async Task<PlayerStateDto> ToSavedPlayerStateDtoAsync(
         PlaybackCoordinator player,

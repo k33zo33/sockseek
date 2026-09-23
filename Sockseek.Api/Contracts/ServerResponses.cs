@@ -100,6 +100,17 @@ public sealed record ProviderCapabilityDto(
     IReadOnlyList<string> Capabilities);
 
 /// <summary>
+/// Public account status for an external playlist or metadata provider. Secret references are intentionally not exposed.
+/// </summary>
+public sealed record ExternalAccountDto(
+    Guid AccountId,
+    string ProviderId,
+    string ExternalUserId,
+    string DisplayName,
+    string Status,
+    DateTimeOffset? LastAuthorizedAtUtc);
+
+/// <summary>
 /// Current local player state.
 /// </summary>
 public sealed record PlayerStateDto(
