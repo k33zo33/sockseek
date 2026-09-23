@@ -46,4 +46,18 @@ public sealed class ExternalAccountStore(SockseekDbContext dbContext)
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task<bool> MarkAuthorizationExpiredAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await dbContext.ExternalAccounts
+            .SingleOrDefaultAsync(entity => entity.Id == accountId, cancellationToken);
+        if (account == null)
+            return false;
+
+        account.Status = (int)ExternalAccountStatus.AuthorizationExpired;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
