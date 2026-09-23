@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 9
-  slug: provider-framework-secret-store
-  file: docs/sprints/sprint-09-provider-framework-secret-store.md
+  id: 10
+  slug: spotify-playlist-import
+  file: docs/sprints/sprint-10-spotify-playlist-import.md
   status: in_progress
 
 completed_sprints:
@@ -27,6 +27,7 @@ completed_sprints:
   - 6
   - 7
   - 8
+  - 9
 blocked_by: []
 
 locked_decisions:

@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Complete
 
 ## Required context
 
@@ -72,4 +72,78 @@ Ovisnosti: Sprintovi 1, 3 i 4.
 
 ## Completion report
 
-Report changed files, validation commands and results, migrations, security/license impact, known risks and every unmet acceptance criterion.
+Completed in local commits `43587af` through `6a45965`.
+
+Changed files and areas:
+
+- Provider abstractions and capability registry:
+  - `Sockseek.Integrations.Abstractions/ProviderCapabilities.cs`
+  - `Sockseek.Application/Providers/ProviderCapabilityRegistry.cs`
+  - `Sockseek.Application.Tests/Providers/ProviderCapabilityRegistryTests.cs`
+- Secret store and redaction:
+  - `Sockseek.Application/Security/ISecretStore.cs`
+  - `Sockseek.Application/Security/SensitiveLogRedactor.cs`
+  - `Sockseek.Infrastructure/Security/InMemorySecretStore.cs`
+  - `Sockseek.Infrastructure/Security/WindowsDpapiSecretStore.cs`
+  - `Sockseek.Infrastructure/Security/SecretStoreValidation.cs`
+  - `Sockseek.Application.Tests/Security/SensitiveLogRedactorTests.cs`
+  - `Sockseek.Infrastructure.Tests/Security/SecretStoreTests.cs`
+- OAuth PKCE/state/loopback and provider HTTP resilience:
+  - `Sockseek.Application/Providers/OAuthPkceCoordinator.cs`
+  - `Sockseek.Application/Providers/OAuthLoopbackCallbackListener.cs`
+  - `Sockseek.Application/Providers/ProviderHttpRetryHandler.cs`
+  - `Sockseek.Application.Tests/Providers/OAuthPkceCoordinatorTests.cs`
+  - `Sockseek.Application.Tests/Providers/OAuthLoopbackCallbackListenerTests.cs`
+  - `Sockseek.Application.Tests/Providers/ProviderHttpRetryHandlerTests.cs`
+- Fake provider and account lifecycle:
+  - `Sockseek.Integrations.Fake/*`
+  - `Sockseek.Infrastructure/Persistence/ExternalAccountStore.cs`
+  - `Sockseek.Infrastructure.Tests/Persistence/ExternalAccountStoreTests.cs`
+  - `Sockseek.Application.Tests/Providers/FakePlaylistSourceProviderTests.cs`
+- Server/API/Desktop account and provider surfaces:
+  - `Sockseek.Api/Client/SockseekApiClient.cs`
+  - `Sockseek.Api/Client/SockseekApiJsonContext.cs`
+  - `Sockseek.Api/Contracts/ServerResponses.cs`
+  - `Sockseek.Server/ServerHost.cs`
+  - `Sockseek.Server.Tests/ProviderEndpointTests.cs`
+  - `Sockseek.Desktop/ProviderConnectionCardViewModel.cs`
+  - `Sockseek.Desktop/DesktopAccountsViewModel.cs`
+  - `Sockseek.Desktop/DesktopShellMainWindow.axaml`
+  - `Sockseek.Desktop/DesktopShellWindowViewModel.cs`
+  - `Sockseek.Desktop.Tests/ProviderConnectionCardViewModelTests.cs`
+  - `Sockseek.Desktop.Tests/DesktopAccountsViewModelTests.cs`
+  - `docs/openapi.json`
+
+Validation commands and results:
+
+- `dotnet restore`: passed.
+- `dotnet build -c Release`: passed.
+- `dotnet test -c Release --no-build`: passed.
+- Targeted provider/security tests passed for Application, Infrastructure, Server and Desktop.
+- `git diff --check`: passed.
+- Provider-audio forbidden symbol scan for `IPlaybackProvider`, `GetAudioStreamAsync`, `DownloadTrackAsync`, provider audio URLs and stream URLs: no matches.
+
+Acceptance criteria:
+
+- Access and refresh token values are stored through `ISecretStore`; SQLite account rows store only opaque `SecretReference` values. Covered by secret store tests, fake provider tests and API response tests that reject secret/token leakage.
+- PKCE state mismatch, provider/redirect mismatch, expired state, missing code and reused state are rejected by OAuth adversarial tests.
+- Fake provider can authorize, import and sync playlist snapshots.
+- Disconnect deletes the secret reference through `ISecretStore`, clears `SecretReference`, marks the account disconnected and preserves local playlist/media data.
+- Expired authorization state can be marked without deleting local data or the opaque secret reference.
+- Bandcamp capabilities do not expose Connect account in registry, API DTOs or Desktop account cards.
+
+Migrations:
+
+- No new EF migration was required; existing `ExternalAccounts.SecretReference` and status fields cover Sprint 9.
+
+Security, privacy and license impact:
+
+- No provider playback, audio stream, audio URL or external download capability was introduced.
+- API and Desktop surfaces expose only provider/account status and capability metadata, never token material.
+- AGPL-3.0 posture is unchanged.
+
+Known risks and unmet criteria:
+
+- Real Spotify/YouTube provider adapters are intentionally out of scope until later sprints.
+- Windows DPAPI integration is implemented for the first target; Linux/macOS secret store adapters remain future target work.
+- Existing NuGet advisory warnings remain documented build output: AngleSharp moderate and SQLitePCLRaw high.
