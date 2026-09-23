@@ -15,5 +15,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Sockseek.Application\Sockseek.Application.csproj" />
     <ProjectReference Include="..\Sockseek.Integrations.Fake\Sockseek.Integrations.Fake.csproj" />
+    <ProjectReference Include="..\Sockseek.Integrations.Spotify\Sockseek.Integrations.Spotify.csproj" />
   </ItemGroup>
 </Project>

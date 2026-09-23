@@ -86,7 +86,8 @@ public sealed record AuthorizationCallback(
     Uri RedirectUri,
     string State,
     string? Code,
-    string? Error);
+    string? Error,
+    string? CodeVerifier = null);
 
 public sealed record ExternalAccountSnapshot(
     ExternalAccountId AccountId,

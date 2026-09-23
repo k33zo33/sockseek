@@ -109,6 +109,20 @@ public sealed record ExternalTrackSnapshot(
     string RawMetadataJson);
 ```
 
+Spotify-style PKCE providers need the locally held verifier when redeeming the
+authorization code. Provider callers pass it alongside the callback values; it
+must never be logged or exposed to the UI:
+
+```csharp
+public sealed record AuthorizationCallback(
+    string ProviderId,
+    Uri RedirectUri,
+    string State,
+    string? Code,
+    string? Error,
+    string? CodeVerifier = null);
+```
+
 ### 9.4. OAuth i tajne
 
 - Desktop OAuth koristi system browser, PKCE, state i loopback redirect.
