@@ -60,7 +60,67 @@ public class PlaylistLocalMatchResolverTests
         Assert.AreEqual((int)PlaylistItemStatus.Unresolved, item.Status);
     }
 
-    private static ExternalPlaylistSnapshotRecord CreateSnapshot(string providerItemId, string artist, string title, int? durationMs)
+    [TestMethod]
+    public async Task ResolveAsync_SnapshotIsrc_MatchesLocalTrackDeterministically()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        Guid playlistId;
+        Guid trackId;
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            playlistId = await new ExternalPlaylistSnapshotStore(context).UpsertAsync(
+                CreateSnapshot("item-1", "Imported Artist", "Imported Title", 180500, isrc: "USRC17607839"));
+            trackId = await new CanonicalTrackStore(context).UpsertAsync(
+                CreateTrack("Different Artist", "Different Title", 180000, LocalMediaAvailability.Available, isrc: "USRC17607839"));
+
+            var resolver = new PlaylistLocalMatchResolver(context, new TrackIdentityService());
+            var result = await resolver.ResolveAsync(playlistId);
+
+            Assert.AreEqual(1, result.MatchedItems);
+            Assert.AreEqual(0, result.UnresolvedItems);
+        }
+
+        await using var verify = new SockseekDbContext(database.Options);
+        var item = await verify.PlaylistItems.SingleAsync();
+        Assert.AreEqual(trackId, item.CanonicalTrackId);
+        Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_SnapshotMusicBrainzRecordingId_MatchesLocalTrackDeterministically()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        Guid playlistId;
+        Guid trackId;
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            playlistId = await new ExternalPlaylistSnapshotStore(context).UpsertAsync(
+                CreateSnapshot("item-1", "Imported Artist", "Imported Title", null, musicBrainzRecordingId: "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2"));
+            trackId = await new CanonicalTrackStore(context).UpsertAsync(
+                CreateTrack("Different Artist", "Different Title", null, LocalMediaAvailability.Available, musicBrainzRecordingId: "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2"));
+
+            var resolver = new PlaylistLocalMatchResolver(context, new TrackIdentityService());
+            var result = await resolver.ResolveAsync(playlistId);
+
+            Assert.AreEqual(1, result.MatchedItems);
+            Assert.AreEqual(0, result.UnresolvedItems);
+        }
+
+        await using var verify = new SockseekDbContext(database.Options);
+        var item = await verify.PlaylistItems.SingleAsync();
+        Assert.AreEqual(trackId, item.CanonicalTrackId);
+        Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
+    }
+
+    private static ExternalPlaylistSnapshotRecord CreateSnapshot(
+        string providerItemId,
+        string artist,
+        string title,
+        int? durationMs,
+        string? isrc = null,
+        string? musicBrainzRecordingId = null)
         => new(
             ExternalProvider.Spotify,
             "playlist-1",
@@ -70,21 +130,31 @@ public class PlaylistLocalMatchResolverTests
             new DateTimeOffset(2026, 9, 17, 20, 0, 0, TimeSpan.Zero),
             PlaylistImportMode.Copy,
             "Daily Mix",
-            [new ExternalPlaylistItemSnapshot(providerItemId, 1, title, artist, "Album", durationMs)],
+            [new ExternalPlaylistItemSnapshot(
+                providerItemId,
+                1,
+                title,
+                artist,
+                "Album",
+                durationMs,
+                Isrc: isrc,
+                MusicBrainzRecordingId: musicBrainzRecordingId)],
             null);
 
     private static CanonicalTrackRecord CreateTrack(
         string artist,
         string title,
         int? durationMs,
-        LocalMediaAvailability availability)
+        LocalMediaAvailability availability,
+        string? isrc = null,
+        string? musicBrainzRecordingId = null)
         => new(
             artist,
             title,
             null,
             durationMs,
-            null,
-            null,
+            isrc,
+            musicBrainzRecordingId,
             [],
             [new LocalMediaFileRecord(
                 $"C:/Music/{artist}/{title}.mp3",

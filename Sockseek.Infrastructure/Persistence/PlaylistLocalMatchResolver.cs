@@ -37,7 +37,13 @@ public sealed class PlaylistLocalMatchResolver(
             var snapshot = JsonSerializer.Deserialize<ExternalPlaylistItemSnapshot>(item.SnapshotJson)
                 ?? throw new InvalidOperationException("Playlist item snapshot could not be deserialized.");
 
-            var query = new TrackIdentityQuery(snapshot.Artist, snapshot.Title, snapshot.DurationMs, Album: snapshot.Album);
+            var query = new TrackIdentityQuery(
+                snapshot.Artist,
+                snapshot.Title,
+                snapshot.DurationMs,
+                snapshot.Isrc,
+                snapshot.MusicBrainzRecordingId,
+                Album: snapshot.Album);
             var bestMatch = FindBestMatch(candidates, query);
 
             if (bestMatch is { Result.Disposition: TrackMatchDisposition.AutoMatch })
