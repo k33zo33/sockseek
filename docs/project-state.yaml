@@ -12,10 +12,10 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 12
-  slug: bandcamp-metabrainz
-  file: docs/sprints/sprint-12-bandcamp-metabrainz.md
-  status: in_progress
+  id: 13
+  slug: unified-playlist-resolution
+  file: docs/sprints/sprint-13-unified-playlist-resolution.md
+  status: planned
 
 completed_sprints:
   - 0
@@ -30,6 +30,7 @@ completed_sprints:
   - 9
   - 10
   - 11
+  - 12
 blocked_by: []
 
 locked_decisions:
@@ -40,3 +41,4 @@ locked_decisions:
   - adr/0005-separate-local-daemon.md
   - adr/0006-sqlite-ef-core.md
   - adr/0007-libvlcsharp-local-player-engine.md
+  - adr/0008-listenbrainz-post-mvp.md

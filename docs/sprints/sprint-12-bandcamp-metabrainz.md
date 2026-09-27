@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Completed
 
 ## Required context
 
@@ -71,4 +71,57 @@ Ovisnosti: Sprintovi 3 i 9.
 
 ## Completion report
 
-Report changed files, validation commands and results, migrations, security/license impact, known risks and every unmet acceptance criterion.
+Completed in local commits:
+
+- `04f0be2` - playlist local matching now passes snapshot ISRC and MusicBrainz Recording MBID into `TrackIdentityService`.
+- `6d491bf` - Bandcamp public album/track URL parser and fixture tests.
+- `a593d3e` - `/api/v1/providers/{providerId}/public-playlists/import` API wiring for Bandcamp public URLs.
+- `93da793` - MusicBrainz metadata client with User-Agent, global limiter, cache, ISRC lookup, conservative fuzzy search and 503 retry/backoff tests.
+- `2903c00` - MusicBrainz enrichment queue/store persists MBID/ISRC and TrackSource metadata, then local matching uses it.
+- `08ffa1f` - ListenBrainz post-MVP ADR and MusicBrainz UI no-connect guard.
+- `169e108` - fixed a server gateway test cleanup race exposed by full validation.
+
+Changed areas:
+
+- `Sockseek.Integrations.Bandcamp`
+- `Sockseek.Integrations.MusicBrainz`
+- `Sockseek.Api`, `Sockseek.Server`, `docs/openapi.json`
+- `Sockseek.Infrastructure` persistence enrichment queue/store
+- `Sockseek.Application.Tests`, `Sockseek.Infrastructure.Tests`, `Sockseek.Server.Tests`, `Sockseek.Desktop.Tests`
+- `docs/adr/0008-listenbrainz-post-mvp.md`
+
+Validation:
+
+- `dotnet restore` - passed; existing NuGet advisory warnings remain for AngleSharp and SQLitePCLRaw.
+- `dotnet build -c Release` - passed; existing NuGet advisory warnings and Desktop test fake-event CS0067 warnings remain.
+- `dotnet test -c Release --no-build` - passed after `169e108`; project totals: Architecture 5, Application 53, Domain 26, Player 34, Core 578, Infrastructure 67, CLI 254, Desktop 216, Server 126.
+- `git diff --check` - passed.
+- Forbidden provider-audio symbol scan across production projects - passed.
+
+Targeted tests added or updated:
+
+- Bandcamp fixture parser/import tests.
+- Bandcamp server/API public URL import test.
+- MusicBrainz limiter/cache, ISRC lookup, fuzzy score and 503/backoff tests.
+- ISRC/MBID enrichment persistence and playlist local match tests.
+- MusicBrainz Desktop capability test proving no Connect account action.
+
+Migrations:
+
+- No EF migration. Existing `CanonicalTracks.Isrc`, `CanonicalTracks.MusicBrainzRecordingId` and `TrackSources` columns were sufficient.
+
+Security, privacy and license impact:
+
+- No Bandcamp credentials, cookies or authenticated scraping were added.
+- MusicBrainz remains metadata lookup/enrichment only.
+- ListenBrainz account/history support is explicitly deferred by ADR-0008.
+- No provider playback, provider audio URL or provider download capability was introduced.
+- AGPL-3.0 posture unchanged.
+
+Known risks:
+
+- Bandcamp parsing is fixture-backed and localized to public album/track import. If Bandcamp changes public page structured metadata, import fails locally with a provider error instead of affecting other providers.
+
+Unmet acceptance criteria:
+
+- None.
