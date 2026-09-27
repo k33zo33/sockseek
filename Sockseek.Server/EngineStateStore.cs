@@ -630,8 +630,8 @@ public sealed class EngineStateStore
         => container switch
         {
             AlbumJob albumJob => albumJob.TrackJobs
-                .Any(song => song.Id == jobId),
-            AggregateJob aggregateJob => aggregateJob.Songs.Any(song => song.Id == jobId),
+                .Any(song => song != null && song.Id == jobId),
+            AggregateJob aggregateJob => aggregateJob.Songs.Any(song => song != null && song.Id == jobId),
             JobList jobList => jobList.Jobs.Any(job => job.Id == jobId || ContainsNestedJob(job, jobId)),
             _ => false,
         };
@@ -1107,18 +1107,20 @@ public sealed class EngineStateStore
                 or JobTerminalOutcome.PartialSuccess
             || (job.TerminalOutcome == JobTerminalOutcome.Skipped && job.SkipReason != JobSkipReason.AlreadyExists);
 
-    private static bool IsTerminalSong(SongJob song)
-        => song.LifecycleState == JobLifecycleState.Terminal;
+    private static bool IsTerminalSong(SongJob? song)
+        => song?.LifecycleState == JobLifecycleState.Terminal;
 
-    private static bool IsSuccessfulSong(SongJob song)
-        => song.TerminalOutcome == JobTerminalOutcome.Succeeded
-            || (song.TerminalOutcome == JobTerminalOutcome.Skipped && song.SkipReason == JobSkipReason.AlreadyExists);
+    private static bool IsSuccessfulSong(SongJob? song)
+        => song != null
+            && (song.TerminalOutcome == JobTerminalOutcome.Succeeded
+                || (song.TerminalOutcome == JobTerminalOutcome.Skipped && song.SkipReason == JobSkipReason.AlreadyExists));
 
-    private static bool IsFailedOrSkippedSong(SongJob song)
-        => song.TerminalOutcome is JobTerminalOutcome.Failed
+    private static bool IsFailedOrSkippedSong(SongJob? song)
+        => song != null
+            && (song.TerminalOutcome is JobTerminalOutcome.Failed
                 or JobTerminalOutcome.Cancelled
                 or JobTerminalOutcome.PartialSuccess
-            || (song.TerminalOutcome == JobTerminalOutcome.Skipped && song.SkipReason != JobSkipReason.AlreadyExists);
+            || (song.TerminalOutcome == JobTerminalOutcome.Skipped && song.SkipReason != JobSkipReason.AlreadyExists));
 
     private sealed record JobRecord(
         Guid Id,
