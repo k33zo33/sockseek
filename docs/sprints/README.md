@@ -7,15 +7,15 @@ Only one sprint is active at a time. Read the active sprint file and only its re
 | 0 | [sprint-00-baseline-upstream-agpl.md](sprint-00-baseline-upstream-agpl.md) | Completed |
 | 1 | [sprint-01-architecture-foundation.md](sprint-01-architecture-foundation.md) | Completed |
 | 2 | [sprint-02-soulseek-gateway-local-api-security.md](sprint-02-soulseek-gateway-local-api-security.md) | Completed |
-| 3 | [sprint-03-domain-sqlite-persistence.md](sprint-03-domain-sqlite-persistence.md) | In Progress |
-| 4 | [sprint-04-avalonia-desktop-shell.md](sprint-04-avalonia-desktop-shell.md) | Planned |
-| 5 | [sprint-05-soulseek-search-download-ui.md](sprint-05-soulseek-search-download-ui.md) | Planned |
-| 6 | [sprint-06-local-library.md](sprint-06-local-library.md) | Planned |
-| 7 | [sprint-07-local-player-mvp.md](sprint-07-local-player-mvp.md) | Planned |
-| 8 | [sprint-08-play-while-downloading.md](sprint-08-play-while-downloading.md) | Planned |
-| 9 | [sprint-09-provider-framework-secret-store.md](sprint-09-provider-framework-secret-store.md) | Planned |
-| 10 | [sprint-10-spotify-playlist-import.md](sprint-10-spotify-playlist-import.md) | Planned |
-| 11 | [sprint-11-youtube-playlist-import.md](sprint-11-youtube-playlist-import.md) | Planned |
+| 3 | [sprint-03-domain-sqlite-persistence.md](sprint-03-domain-sqlite-persistence.md) | Completed |
+| 4 | [sprint-04-avalonia-desktop-shell.md](sprint-04-avalonia-desktop-shell.md) | Completed |
+| 5 | [sprint-05-soulseek-search-download-ui.md](sprint-05-soulseek-search-download-ui.md) | Completed |
+| 6 | [sprint-06-local-library.md](sprint-06-local-library.md) | Completed |
+| 7 | [sprint-07-local-player-mvp.md](sprint-07-local-player-mvp.md) | Completed |
+| 8 | [sprint-08-play-while-downloading.md](sprint-08-play-while-downloading.md) | Completed |
+| 9 | [sprint-09-provider-framework-secret-store.md](sprint-09-provider-framework-secret-store.md) | Completed |
+| 10 | [sprint-10-spotify-playlist-import.md](sprint-10-spotify-playlist-import.md) | Completed |
+| 11 | [sprint-11-youtube-playlist-import.md](sprint-11-youtube-playlist-import.md) | In Progress |
 | 12 | [sprint-12-bandcamp-metabrainz.md](sprint-12-bandcamp-metabrainz.md) | Planned |
 | 13 | [sprint-13-unified-playlist-resolution.md](sprint-13-unified-playlist-resolution.md) | Planned |
 | 14 | [sprint-14-packaging-legal-security.md](sprint-14-packaging-legal-security.md) | Planned |
