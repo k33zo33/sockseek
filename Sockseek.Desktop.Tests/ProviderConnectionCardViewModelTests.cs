@@ -28,6 +28,27 @@ public sealed class ProviderConnectionCardViewModelTests
     }
 
     [TestMethod]
+    public void FromCapability_HidesConnectAccountForMusicBrainz()
+    {
+        var capability = new ProviderCapabilityDto(
+            "musicbrainz",
+            "MusicBrainz",
+            SupportsPlaylistImport: false,
+            SupportsMetadataLookup: true,
+            SupportsAccountConnection: false,
+            SupportsPublicUrlImport: false,
+            ["LookupMetadata"]);
+
+        var card = ProviderConnectionCardViewModel.FromCapability(capability);
+
+        Assert.AreEqual("musicbrainz", card.ProviderId);
+        Assert.IsFalse(card.CanConnectAccount);
+        Assert.IsTrue(card.CanLookupMetadata);
+        Assert.AreEqual(ProviderConnectionPrimaryAction.LookupMetadata, card.PrimaryAction);
+        CollectionAssert.DoesNotContain(card.Capabilities.ToArray(), "ConnectAccount");
+    }
+
+    [TestMethod]
     public void FromCapability_ShowsConnectAccountForSpotify()
     {
         var capability = new ProviderCapabilityDto(
