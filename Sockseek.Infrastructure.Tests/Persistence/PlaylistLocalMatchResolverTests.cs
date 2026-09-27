@@ -114,6 +114,51 @@ public class PlaylistLocalMatchResolverTests
         Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
     }
 
+    [TestMethod]
+    public async Task ResolveAsync_AfterMusicBrainzEnrichment_UsesStoredIsrcAndMbid()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        Guid playlistId;
+        Guid trackId;
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            playlistId = await new ExternalPlaylistSnapshotStore(context).UpsertAsync(
+                CreateSnapshot(
+                    "item-1",
+                    "Imported Artist",
+                    "Imported Title",
+                    180000,
+                    isrc: "USRC17607839",
+                    musicBrainzRecordingId: "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2"));
+            trackId = await new CanonicalTrackStore(context).UpsertAsync(
+                CreateTrack("Different Artist", "Different Title", 180000, LocalMediaAvailability.Available));
+
+            var enrichmentQueue = new CanonicalTrackMetadataEnrichmentQueue(
+                new CanonicalTrackMetadataEnrichmentStore(context));
+            enrichmentQueue.Enqueue(new CanonicalTrackMetadataEnrichmentRecord(
+                trackId,
+                ExternalProvider.MusicBrainz,
+                "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2",
+                "https://musicbrainz.org/recording/2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2",
+                "USRC17607839",
+                "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2",
+                "{\"provider\":\"musicbrainz\"}"));
+            await enrichmentQueue.DrainAsync();
+
+            var resolver = new PlaylistLocalMatchResolver(context, new TrackIdentityService());
+            var result = await resolver.ResolveAsync(playlistId);
+
+            Assert.AreEqual(1, result.MatchedItems);
+            Assert.AreEqual(0, result.UnresolvedItems);
+        }
+
+        await using var verify = new SockseekDbContext(database.Options);
+        var item = await verify.PlaylistItems.SingleAsync();
+        Assert.AreEqual(trackId, item.CanonicalTrackId);
+        Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
+    }
+
     private static ExternalPlaylistSnapshotRecord CreateSnapshot(
         string providerItemId,
         string artist,

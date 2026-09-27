@@ -221,6 +221,58 @@ public class CanonicalTrackStoreTests
         }
     }
 
+    [TestMethod]
+    public async Task MetadataEnrichmentQueue_DrainsMusicBrainzIdsIntoCanonicalTrack()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.MigrateAsync();
+
+        Guid trackId;
+        await using (var context = new SockseekDbContext(options))
+        {
+            trackId = await new CanonicalTrackStore(context).UpsertAsync(new CanonicalTrackRecord(
+                "Fixture Artist",
+                "Fixture Song",
+                "Fixture Album",
+                180000,
+                null,
+                null,
+                [],
+                [new LocalMediaFileRecord("C:/Music/Fixture Artist/Fixture Song.flac", 4096, DateTimeOffset.UtcNow, 180000, "flac", null, 44100, 16, LocalMediaAvailability.Available)]));
+
+            var queue = new CanonicalTrackMetadataEnrichmentQueue(
+                new CanonicalTrackMetadataEnrichmentStore(context));
+            queue.Enqueue(new CanonicalTrackMetadataEnrichmentRecord(
+                trackId,
+                ExternalProvider.MusicBrainz,
+                "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2",
+                "https://musicbrainz.org/recording/2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2",
+                "usrc17607839",
+                "2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2",
+                "{\"provider\":\"musicbrainz\"}"));
+
+            var result = await queue.DrainAsync();
+
+            Assert.AreEqual(1, result.AppliedItems);
+            Assert.AreEqual(0, result.RemainingItems);
+        }
+
+        await using var verify = new SockseekDbContext(options);
+        var track = await verify.CanonicalTracks.Include(entity => entity.Sources).SingleAsync();
+        Assert.AreEqual("USRC17607839", track.Isrc);
+        Assert.AreEqual("2F4A8F0F-1FB5-4F7A-A8F7-9B3F37F91EE2", track.MusicBrainzRecordingId);
+        Assert.AreEqual(1, track.Sources.Count);
+        Assert.AreEqual((int)ExternalProvider.MusicBrainz, track.Sources[0].Provider);
+        Assert.AreEqual("2f4a8f0f-1fb5-4f7a-a8f7-9b3f37f91ee2", track.Sources[0].ExternalId);
+    }
+
     private static CanonicalTrackRecord CreateRecord(string path, long size, DateTimeOffset lastWrite)
         => new(
             "Artist",
