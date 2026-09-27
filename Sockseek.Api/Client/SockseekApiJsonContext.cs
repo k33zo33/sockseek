@@ -63,6 +63,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(ProviderAuthorizationStartRequestDto))]
 [JsonSerializable(typeof(ProviderAuthorizationCallbackRequestDto))]
 [JsonSerializable(typeof(ImportProviderPlaylistRequestDto))]
+[JsonSerializable(typeof(ImportProviderPublicUrlRequestDto))]
 [JsonSerializable(typeof(SeekPlaybackRequestDto))]
 [JsonSerializable(typeof(SetPlayerVolumeRequestDto))]
 [JsonSerializable(typeof(SetPlayerMutedRequestDto))]

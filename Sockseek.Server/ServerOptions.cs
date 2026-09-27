@@ -20,8 +20,14 @@ public sealed class ServerOptions
     public Func<ISecretStore>? SecretStoreFactory { get; set; }
     public string? SessionToken { get; set; }
     public bool ExperimentalProgressivePlayback { get; set; }
+    public BandcampServerOptions Bandcamp { get; set; } = new();
     public SpotifyServerOptions Spotify { get; set; } = new();
     public YouTubeServerOptions YouTube { get; set; } = new();
+}
+
+public sealed class BandcampServerOptions
+{
+    public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
 }
 
 public sealed class SpotifyServerOptions

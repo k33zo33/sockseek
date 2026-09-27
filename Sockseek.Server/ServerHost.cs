@@ -22,6 +22,7 @@ using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
 using Sockseek.Integrations.Abstractions;
+using Sockseek.Integrations.Bandcamp;
 using Sockseek.Integrations.Spotify;
 using Sockseek.Integrations.YouTube;
 using Sockseek.Player;
@@ -90,6 +91,8 @@ public static class ServerHost
             return serverOptions.SecretStoreFactory?.Invoke()
                 ?? new WindowsDpapiSecretStore(ResolveSecretStoreDirectory(serverOptions));
         });
+        builder.Services.AddSingleton(sp => CreateBandcampProvider(sp));
+        builder.Services.AddSingleton<IPlaylistSourceProvider>(sp => sp.GetRequiredService<BandcampPlaylistSourceProvider>());
         builder.Services.AddSingleton(sp => CreateSpotifyProvider(sp));
         builder.Services.AddSingleton<IPlaylistSourceProvider>(sp => sp.GetRequiredService<SpotifyPlaylistSourceProvider>());
         builder.Services.AddSingleton(sp => CreateYouTubeProvider(sp));
@@ -253,6 +256,14 @@ public static class ServerHost
             });
     }
 
+    private static BandcampPlaylistSourceProvider CreateBandcampProvider(IServiceProvider services)
+    {
+        var serverOptions = services.GetRequiredService<IOptions<ServerOptions>>().Value;
+        var handler = serverOptions.Bandcamp.HttpMessageHandlerFactory?.Invoke();
+        var httpClient = handler == null ? new HttpClient() : new HttpClient(handler);
+        return new BandcampPlaylistSourceProvider(httpClient);
+    }
+
     private static YouTubePlaylistSourceProvider CreateYouTubeProvider(IServiceProvider services)
     {
         var serverOptions = services.GetRequiredService<IOptions<ServerOptions>>().Value;
@@ -333,6 +344,7 @@ public static class ServerHost
 
     private static bool IsProviderFacingException(Exception ex)
         => ex is SpotifyProviderException
+            or BandcampProviderException
             or YouTubeProviderException
             or OAuthAuthorizationException
             or ArgumentException
@@ -362,6 +374,10 @@ public static class ServerHost
                 Results.Json(new AppErrorDto("provider_unauthorized", youtube.Message, correlationId), statusCode: StatusCodes.Status401Unauthorized),
             YouTubeProviderException youtube =>
                 Results.BadRequest(new AppErrorDto("provider_error", youtube.Message, correlationId)),
+            BandcampProviderException bandcamp when bandcamp.StatusCode == System.Net.HttpStatusCode.NotFound =>
+                Results.Json(new AppErrorDto("provider_resource_not_found", bandcamp.Message, correlationId), statusCode: StatusCodes.Status404NotFound),
+            BandcampProviderException bandcamp =>
+                Results.BadRequest(new AppErrorDto("provider_error", bandcamp.Message, correlationId)),
             OAuthAuthorizationException oauth =>
                 Results.BadRequest(new AppErrorDto("oauth_error", oauth.Message, correlationId)),
             ArgumentException argument =>
@@ -552,6 +568,57 @@ public static class ServerHost
             .WithTags("Providers")
             .WithSummary("Completes an external provider OAuth authorization flow and stores only an opaque secret reference.")
             .Produces<ExternalAccountDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/providers/{providerId}/public-playlists/import", async (
+            string providerId,
+            ImportProviderPublicUrlRequestDto request,
+            HttpContext context,
+            IEnumerable<IPlaylistSourceProvider> providers,
+            ServerDatabaseMigrationService databaseMigration,
+            ExternalPlaylistSnapshotStore snapshots,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Url))
+                return BadAppRequest(context, "invalid_public_url", "A public provider URL is required.");
+            if (!Enum.TryParse<PlaylistImportMode>(request.ImportMode, ignoreCase: true, out var importMode))
+                return BadAppRequest(context, "invalid_import_mode", "ImportMode must be Copy or Mirror.");
+
+            var provider = FindPlaylistProvider(providers, providerId);
+            if (provider == null || !provider.Capabilities.HasFlag(PlaylistProviderCapabilities.ImportPublicUrl))
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for public URL import.");
+
+            try
+            {
+                await databaseMigration.EnsureMigratedAsync(ct);
+                var playlist = await provider.GetPlaylistAsync(new ExternalPlaylistRequest(
+                    null,
+                    providerId,
+                    request.Url,
+                    request.Url), ct);
+                var record = ExternalPlaylistSnapshotRecordFactory.FromProviderSnapshot(
+                    playlist,
+                    importMode,
+                    playlistName: request.PlaylistName);
+                var playlistId = await snapshots.UpsertAsync(record, ct);
+                return Results.Ok(new ImportedPlaylistDto(
+                    playlistId,
+                    providerId,
+                    playlist.ExternalPlaylistId,
+                    playlist.Name,
+                    importMode.ToString(),
+                    playlist.Items.Count));
+            }
+            catch (Exception ex) when (IsProviderFacingException(ex))
+            {
+                return ProviderError(context, ex);
+            }
+        })
+            .WithTags("Providers")
+            .WithSummary("Imports a public provider playlist URL into the local playlist store.")
+            .Produces<ImportedPlaylistDto>()
             .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);

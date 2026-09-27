@@ -109,6 +109,11 @@ public sealed record ImportProviderPlaylistRequestDto(
     string ImportMode = "Copy",
     string? PlaylistName = null);
 
+public sealed record ImportProviderPublicUrlRequestDto(
+    string Url,
+    string ImportMode = "Copy",
+    string? PlaylistName = null);
+
 public sealed record SeekPlaybackRequestDto(long PositionMs);
 
 public sealed record SetPlayerVolumeRequestDto(double Volume);

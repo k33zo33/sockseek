@@ -307,7 +307,7 @@ public sealed class ProviderEndpointTests
             }
             """),
         ]);
-        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotify);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotifyHandler: spotify);
         await app.StartAsync();
         try
         {
@@ -387,7 +387,7 @@ public sealed class ProviderEndpointTests
             JsonResponse("""{ "id": "spotify-user-1", "display_name": "Spotify User" }"""),
             JsonResponse("""{ "error": { "status": 403, "message": "User not registered in the Developer Dashboard" } }""", HttpStatusCode.Forbidden),
         ]);
-        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotify);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotifyHandler: spotify);
         await app.StartAsync();
         try
         {
@@ -670,6 +670,89 @@ public sealed class ProviderEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task ImportProviderPublicUrl_BandcampAlbum_ImportsLocalPlaylistWithoutAccount()
+    {
+        var bandcamp = new QueueBandcampHandler(
+        [
+            HtmlResponse("""
+            <html>
+              <head>
+                <script type="application/ld+json">
+                {
+                  "@context": "https://schema.org",
+                  "@type": "MusicAlbum",
+                  "name": "Bandcamp Fixture",
+                  "url": "https://artist.bandcamp.com/album/bandcamp-fixture",
+                  "image": "https://f4.bcbits.com/img/a1.jpg",
+                  "byArtist": { "@type": "MusicGroup", "name": "Bandcamp Artist" },
+                  "track": {
+                    "@type": "ItemList",
+                    "itemListElement": [
+                      {
+                        "@type": "ListItem",
+                        "item": {
+                          "@type": "MusicRecording",
+                          "name": "First Bandcamp Track",
+                          "url": "https://artist.bandcamp.com/track/first-bandcamp-track",
+                          "duration": "PT2M"
+                        }
+                      },
+                      {
+                        "@type": "ListItem",
+                        "item": {
+                          "@type": "MusicRecording",
+                          "name": "Second Bandcamp Track",
+                          "url": "https://artist.bandcamp.com/track/second-bandcamp-track",
+                          "duration": "PT3M"
+                        }
+                      }
+                    ]
+                  }
+                }
+                </script>
+              </head>
+            </html>
+            """),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, bandcampHandler: bandcamp);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var imported = await client.ImportProviderPublicUrlAsync(
+                "bandcamp",
+                new ImportProviderPublicUrlRequestDto(
+                    "https://artist.bandcamp.com/album/bandcamp-fixture",
+                    "Copy"));
+
+            Assert.AreEqual("bandcamp", imported.ProviderId);
+            Assert.AreEqual("Bandcamp Fixture", imported.Name);
+            Assert.AreEqual(2, imported.ItemCount);
+            Assert.AreEqual(1, bandcamp.Requests.Count);
+            CollectionAssert.DoesNotContain(bandcamp.Requests[0].Headers.ToArray(), "Cookie");
+            CollectionAssert.DoesNotContain(bandcamp.Requests[0].Headers.ToArray(), "Authorization");
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            Assert.AreEqual(0, await db.ExternalAccounts.CountAsync());
+            Assert.AreEqual(1, await db.ExternalPlaylists.CountAsync());
+            Assert.AreEqual(1, await db.Playlists.CountAsync());
+            Assert.AreEqual(2, await db.PlaylistItems.CountAsync());
+            var firstItem = await db.PlaylistItems.SingleAsync(item => item.ProviderItemId == "https://artist.bandcamp.com/track/first-bandcamp-track");
+            StringAssert.Contains(firstItem.SnapshotJson, "\"ExternalUrl\":\"https://artist.bandcamp.com/track/first-bandcamp-track\"");
+            StringAssert.Contains(firstItem.SnapshotJson, "\"ArtworkUrl\":\"https://f4.bcbits.com/img/a1.jpg\"");
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedExternalAccountAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -707,6 +790,7 @@ public sealed class ProviderEndpointTests
         out string url,
         out string sessionToken,
         out string tempRoot,
+        QueueBandcampHandler? bandcampHandler = null,
         QueueSpotifyHandler? spotifyHandler = null,
         QueueYouTubeHandler? youtubeHandler = null)
     {
@@ -735,6 +819,10 @@ public sealed class ProviderEndpointTests
             Profiles = ProfileCatalog.Empty,
             SecretStoreFactory = () => new InMemorySecretStore(),
             SessionToken = sessionToken,
+            Bandcamp = new BandcampServerOptions
+            {
+                HttpMessageHandlerFactory = bandcampHandler == null ? null : () => bandcampHandler,
+            },
             Spotify = new SpotifyServerOptions
             {
                 ClientId = spotifyHandler == null ? null : "spotify-client",
@@ -760,6 +848,39 @@ public sealed class ProviderEndpointTests
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
+
+    private static HttpResponseMessage HtmlResponse(string html)
+        => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(html, Encoding.UTF8, "text/html"),
+        };
+
+    private sealed class QueueBandcampHandler(IReadOnlyList<HttpResponseMessage> responses) : HttpMessageHandler
+    {
+        private int index;
+
+        public List<RecordedBandcampRequest> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(new RecordedBandcampRequest(
+                request.RequestUri ?? new Uri("about:blank"),
+                request.Method,
+                request.Headers.Select(header => header.Key).ToArray()));
+
+            if (index >= responses.Count)
+                throw new InvalidOperationException("No queued Bandcamp fixture response is available.");
+
+            return Task.FromResult(responses[index++]);
+        }
+    }
+
+    private sealed record RecordedBandcampRequest(
+        Uri Uri,
+        HttpMethod Method,
+        IReadOnlyList<string> Headers);
 
     private sealed class QueueSpotifyHandler(IReadOnlyList<HttpResponseMessage> responses) : HttpMessageHandler
     {

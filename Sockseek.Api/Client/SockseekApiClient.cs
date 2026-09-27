@@ -189,6 +189,15 @@ public sealed class SockseekApiClient
             request,
             ct);
 
+    public async Task<ImportedPlaylistDto> ImportProviderPublicUrlAsync(
+        string providerId,
+        ImportProviderPublicUrlRequestDto request,
+        CancellationToken ct = default)
+        => await PostRequiredAsync<ImportedPlaylistDto, ImportProviderPublicUrlRequestDto>(
+            $"api/v1/providers/{Uri.EscapeDataString(providerId)}/public-playlists/import",
+            request,
+            ct);
+
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/player", ct);
