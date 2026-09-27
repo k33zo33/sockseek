@@ -152,6 +152,43 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<ExternalAccountDto>(response, ct);
     }
 
+    public async Task<ProviderAuthorizationStartDto> StartProviderAuthorizationAsync(
+        string providerId,
+        ProviderAuthorizationStartRequestDto request,
+        CancellationToken ct = default)
+        => await PostRequiredAsync<ProviderAuthorizationStartDto, ProviderAuthorizationStartRequestDto>(
+            $"api/v1/providers/{Uri.EscapeDataString(providerId)}/authorization/start",
+            request,
+            ct);
+
+    public async Task<ExternalAccountDto> CompleteProviderAuthorizationAsync(
+        string providerId,
+        ProviderAuthorizationCallbackRequestDto request,
+        CancellationToken ct = default)
+        => await PostRequiredAsync<ExternalAccountDto, ProviderAuthorizationCallbackRequestDto>(
+            $"api/v1/providers/{Uri.EscapeDataString(providerId)}/authorization/complete",
+            request,
+            ct);
+
+    public async Task<IReadOnlyList<ExternalPlaylistSummaryDto>> GetProviderPlaylistsAsync(
+        Guid accountId,
+        CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/v1/accounts/{accountId}/provider-playlists", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<ExternalPlaylistSummaryDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<ImportedPlaylistDto> ImportProviderPlaylistAsync(
+        Guid accountId,
+        string externalPlaylistId,
+        ImportProviderPlaylistRequestDto request,
+        CancellationToken ct = default)
+        => await PostRequiredAsync<ImportedPlaylistDto, ImportProviderPlaylistRequestDto>(
+            $"api/v1/accounts/{accountId}/provider-playlists/{Uri.EscapeDataString(externalPlaylistId)}/import",
+            request,
+            ct);
+
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/player", ct);

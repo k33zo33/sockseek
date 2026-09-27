@@ -96,6 +96,19 @@ public sealed record PlayPlaylistItemRequestDto(Guid PlaylistItemId);
 
 public sealed record PlayDownloadJobRequestDto(Guid JobId);
 
+public sealed record ProviderAuthorizationStartRequestDto(
+    string RedirectUri);
+
+public sealed record ProviderAuthorizationCallbackRequestDto(
+    string RedirectUri,
+    string State,
+    string? Code = null,
+    string? Error = null);
+
+public sealed record ImportProviderPlaylistRequestDto(
+    string ImportMode = "Copy",
+    string? PlaylistName = null);
+
 public sealed record SeekPlaybackRequestDto(long PositionMs);
 
 public sealed record SetPlayerVolumeRequestDto(double Volume);

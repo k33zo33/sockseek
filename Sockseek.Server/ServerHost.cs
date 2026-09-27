@@ -15,12 +15,14 @@ using Sockseek.Api;
 using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
 using Sockseek.Domain.Accounts;
+using Sockseek.Domain.Playlists;
 using Sockseek.Infrastructure;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
 using Sockseek.Integrations.Abstractions;
+using Sockseek.Integrations.Spotify;
 using Sockseek.Player;
 
 namespace Sockseek.Server;
@@ -82,7 +84,13 @@ public static class ServerHost
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<OAuthPkceCoordinator>();
         builder.Services.AddSingleton<ISecretStore>(sp =>
-            new WindowsDpapiSecretStore(ResolveSecretStoreDirectory(sp.GetRequiredService<IOptions<ServerOptions>>().Value)));
+        {
+            var serverOptions = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
+            return serverOptions.SecretStoreFactory?.Invoke()
+                ?? new WindowsDpapiSecretStore(ResolveSecretStoreDirectory(serverOptions));
+        });
+        builder.Services.AddSingleton(sp => CreateSpotifyProvider(sp));
+        builder.Services.AddSingleton<IPlaylistSourceProvider>(sp => sp.GetRequiredService<SpotifyPlaylistSourceProvider>());
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddSingleton<ServerDatabaseMigrationService>();
@@ -97,6 +105,7 @@ public static class ServerHost
             db.UseSqlite($"Data Source={databasePath}");
         });
         builder.Services.AddScoped<ExternalAccountStore>();
+        builder.Services.AddScoped<ExternalPlaylistSnapshotStore>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
@@ -224,6 +233,101 @@ public static class ServerHost
             Directory.CreateDirectory(directory);
     }
 
+    private static SpotifyPlaylistSourceProvider CreateSpotifyProvider(IServiceProvider services)
+    {
+        var serverOptions = services.GetRequiredService<IOptions<ServerOptions>>().Value;
+        var spotify = serverOptions.Spotify;
+        var handler = spotify.HttpMessageHandlerFactory?.Invoke();
+        var httpClient = handler == null ? new HttpClient() : new HttpClient(handler);
+        return new SpotifyPlaylistSourceProvider(
+            httpClient,
+            services.GetRequiredService<ISecretStore>(),
+            new SpotifyPlaylistSourceOptions
+            {
+                ClientId = string.IsNullOrWhiteSpace(spotify.ClientId) ? "__unconfigured_spotify_client__" : spotify.ClientId,
+                AccountsBaseUri = new Uri(spotify.AccountsBaseUri, UriKind.Absolute),
+                ApiBaseUri = new Uri(spotify.ApiBaseUri, UriKind.Absolute),
+            });
+    }
+
+    private static bool IsProviderConfigured(string providerId, ServerOptions options)
+        => !StringComparer.Ordinal.Equals(providerId, ProviderIds.Spotify)
+            || !string.IsNullOrWhiteSpace(options.Spotify.ClientId);
+
+    private static bool TryCreateUri(string value, out Uri uri)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out uri!)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && (uri.IsLoopback || string.Equals(uri.Host, "127.0.0.1", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        uri = null!;
+        return false;
+    }
+
+    private static IPlaylistSourceProvider? FindPlaylistProvider(
+        IEnumerable<IPlaylistSourceProvider> providers,
+        string providerId)
+        => providers.FirstOrDefault(provider => StringComparer.Ordinal.Equals(provider.ProviderId, providerId));
+
+    private static void RememberProviderAccount(
+        IPlaylistSourceProvider provider,
+        ExternalAccountEntity account)
+    {
+        var snapshot = ToProviderAccountSnapshot(account);
+        if (provider is SpotifyPlaylistSourceProvider spotify)
+            spotify.RememberAccount(snapshot);
+    }
+
+    private static ExternalAccountSnapshot ToProviderAccountSnapshot(ExternalAccountEntity account)
+        => new(
+            new ExternalAccountId(account.Id),
+            ToProviderId(account.Provider),
+            account.ExternalUserId,
+            account.DisplayName,
+            account.SecretReference,
+            account.LastAuthorizedAtUtc ?? DateTimeOffset.UtcNow);
+
+    private static IResult BadAppRequest(
+        HttpContext context,
+        string code,
+        string message)
+        => Results.BadRequest(new AppErrorDto(code, message, GetCorrelationId(context)));
+
+    private static bool IsProviderFacingException(Exception ex)
+        => ex is SpotifyProviderException
+            or OAuthAuthorizationException
+            or ArgumentException
+            or InvalidOperationException
+            or KeyNotFoundException;
+
+    private static IResult ProviderError(HttpContext context, Exception exception)
+    {
+        var correlationId = GetCorrelationId(context);
+        return exception switch
+        {
+            SpotifyProviderException spotify when spotify.StatusCode == System.Net.HttpStatusCode.Forbidden =>
+                Results.Json(new AppErrorDto("provider_forbidden", spotify.Message, correlationId), statusCode: StatusCodes.Status403Forbidden),
+            SpotifyProviderException spotify when spotify.StatusCode == System.Net.HttpStatusCode.TooManyRequests =>
+                Results.Json(new AppErrorDto("provider_rate_limited", spotify.Message, correlationId), statusCode: StatusCodes.Status429TooManyRequests),
+            SpotifyProviderException spotify when spotify.StatusCode == System.Net.HttpStatusCode.Unauthorized =>
+                Results.Json(new AppErrorDto("provider_unauthorized", spotify.Message, correlationId), statusCode: StatusCodes.Status401Unauthorized),
+            SpotifyProviderException spotify =>
+                Results.BadRequest(new AppErrorDto("provider_error", spotify.Message, correlationId)),
+            OAuthAuthorizationException oauth =>
+                Results.BadRequest(new AppErrorDto("oauth_error", oauth.Message, correlationId)),
+            ArgumentException argument =>
+                Results.BadRequest(new AppErrorDto("invalid_provider_request", argument.Message, correlationId)),
+            InvalidOperationException invalid =>
+                Results.BadRequest(new AppErrorDto("provider_operation_failed", invalid.Message, correlationId)),
+            KeyNotFoundException missing =>
+                Results.Json(new AppErrorDto("provider_resource_not_found", missing.Message, correlationId), statusCode: StatusCodes.Status404NotFound),
+            _ => Results.BadRequest(new AppErrorDto("provider_error", exception.Message, correlationId)),
+        };
+    }
+
     private static string GetOpenApiVersion()
     {
         var assembly = typeof(ServerHost).Assembly;
@@ -294,6 +398,110 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/providers/{providerId}/authorization/start", async (
+            string providerId,
+            ProviderAuthorizationStartRequestDto request,
+            HttpContext context,
+            OAuthPkceCoordinator oauth,
+            IEnumerable<IPlaylistSourceProvider> providers,
+            IOptions<ServerOptions> serverOptions) =>
+        {
+            if (!TryCreateUri(request.RedirectUri, out var redirectUri))
+                return BadAppRequest(context, "invalid_redirect_uri", "A valid loopback redirect URI is required.");
+            if (!IsProviderConfigured(providerId, serverOptions.Value))
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for account authorization.");
+
+            var provider = FindPlaylistProvider(providers, providerId);
+            if (provider == null)
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for account authorization.");
+
+            var scopes = StringComparer.Ordinal.Equals(providerId, ProviderIds.Spotify)
+                ? SpotifyPlaylistSourceOptions.DefaultScopes
+                : Array.Empty<string>();
+            var session = oauth.CreateSession(providerId, redirectUri, scopes);
+            try
+            {
+                var start = await provider.StartAuthorizationAsync(session.ToAuthorizationRequest(), context.RequestAborted);
+                return Results.Ok(new ProviderAuthorizationStartDto(
+                    providerId,
+                    start.AuthorizationUri.ToString(),
+                    start.State,
+                    session.ExpiresAtUtc));
+            }
+            catch (Exception ex) when (IsProviderFacingException(ex))
+            {
+                return ProviderError(context, ex);
+            }
+        })
+            .WithTags("Providers")
+            .WithSummary("Starts an external provider OAuth authorization flow without exposing PKCE verifier state.")
+            .Produces<ProviderAuthorizationStartDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/providers/{providerId}/authorization/complete", async (
+            string providerId,
+            ProviderAuthorizationCallbackRequestDto request,
+            HttpContext context,
+            OAuthPkceCoordinator oauth,
+            IEnumerable<IPlaylistSourceProvider> providers,
+            IOptions<ServerOptions> serverOptions,
+            ExternalAccountStore accounts,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            CancellationToken ct) =>
+        {
+            if (!TryCreateUri(request.RedirectUri, out var redirectUri))
+                return BadAppRequest(context, "invalid_redirect_uri", "A valid loopback redirect URI is required.");
+            if (!IsProviderConfigured(providerId, serverOptions.Value))
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for account authorization.");
+
+            var provider = FindPlaylistProvider(providers, providerId);
+            if (provider == null)
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for account authorization.");
+
+            OAuthAuthorizationCompletion completion;
+            try
+            {
+                completion = oauth.Complete(new AuthorizationCallback(
+                    providerId,
+                    redirectUri,
+                    request.State,
+                    request.Code,
+                    request.Error));
+            }
+            catch (OAuthAuthorizationException ex)
+            {
+                return BadAppRequest(context, "oauth_state_invalid", ex.Message);
+            }
+
+            try
+            {
+                await databaseMigration.EnsureMigratedAsync(ct);
+                var providerAccount = await provider.CompleteAuthorizationAsync(
+                    completion.Callback with { CodeVerifier = completion.CodeVerifier },
+                    ct);
+                var externalProvider = ToExternalProvider(providerId);
+                if (externalProvider == null)
+                    return BadAppRequest(context, "provider_not_supported", $"Provider '{providerId}' cannot persist accounts.");
+
+                var accountId = await accounts.UpsertAuthorizedAsync(externalProvider.Value, providerAccount, ct);
+                var account = await db.ExternalAccounts.AsNoTracking().SingleAsync(entity => entity.Id == accountId, ct);
+                return Results.Ok(ToExternalAccountDto(account));
+            }
+            catch (Exception ex) when (IsProviderFacingException(ex))
+            {
+                return ProviderError(context, ex);
+            }
+        })
+            .WithTags("Providers")
+            .WithSummary("Completes an external provider OAuth authorization flow and stores only an opaque secret reference.")
+            .Produces<ExternalAccountDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapGet("/api/v1/accounts", async (
             ServerDatabaseMigrationService databaseMigration,
             SockseekDbContext db,
@@ -337,6 +545,112 @@ public static class ServerHost
             .WithSummary("Disconnects an external account, deletes its stored secret and preserves local playlist data.")
             .Produces<ExternalAccountDto>()
             .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/accounts/{accountId:guid}/provider-playlists", async (
+            Guid accountId,
+            HttpContext context,
+            IEnumerable<IPlaylistSourceProvider> providers,
+            IOptions<ServerOptions> serverOptions,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var account = await db.ExternalAccounts.AsNoTracking().SingleOrDefaultAsync(entity => entity.Id == accountId, ct);
+            if (account == null)
+                return Results.NotFound();
+            if (account.Status != (int)ExternalAccountStatus.Authorized)
+                return BadAppRequest(context, "account_not_authorized", "The external account is not authorized.");
+
+            var providerId = ToProviderId(account.Provider);
+            if (!IsProviderConfigured(providerId, serverOptions.Value))
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for playlist import.");
+            var provider = FindPlaylistProvider(providers, providerId);
+            if (provider == null)
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for playlist import.");
+
+            RememberProviderAccount(provider, account);
+            try
+            {
+                var playlists = await provider.GetPlaylistsAsync(new ExternalAccountId(account.Id), ct);
+                return Results.Ok(playlists.Select(ToExternalPlaylistSummaryDto).ToArray());
+            }
+            catch (Exception ex) when (IsProviderFacingException(ex))
+            {
+                return ProviderError(context, ex);
+            }
+        })
+            .WithTags("Accounts")
+            .WithSummary("Lists playlists visible to a connected external provider account.")
+            .Produces<IReadOnlyList<ExternalPlaylistSummaryDto>>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/accounts/{accountId:guid}/provider-playlists/{externalPlaylistId}/import", async (
+            Guid accountId,
+            string externalPlaylistId,
+            ImportProviderPlaylistRequestDto request,
+            HttpContext context,
+            IEnumerable<IPlaylistSourceProvider> providers,
+            IOptions<ServerOptions> serverOptions,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            ExternalPlaylistSnapshotStore snapshots,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var account = await db.ExternalAccounts.AsNoTracking().SingleOrDefaultAsync(entity => entity.Id == accountId, ct);
+            if (account == null)
+                return Results.NotFound();
+            if (account.Status != (int)ExternalAccountStatus.Authorized)
+                return BadAppRequest(context, "account_not_authorized", "The external account is not authorized.");
+            if (!Enum.TryParse<PlaylistImportMode>(request.ImportMode, ignoreCase: true, out var importMode))
+                return BadAppRequest(context, "invalid_import_mode", "ImportMode must be Copy or Mirror.");
+
+            var providerId = ToProviderId(account.Provider);
+            if (!IsProviderConfigured(providerId, serverOptions.Value))
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for playlist import.");
+            var provider = FindPlaylistProvider(providers, providerId);
+            if (provider == null)
+                return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for playlist import.");
+
+            RememberProviderAccount(provider, account);
+            try
+            {
+                var playlist = await provider.GetPlaylistAsync(new ExternalPlaylistRequest(
+                    new ExternalAccountId(account.Id),
+                    providerId,
+                    externalPlaylistId,
+                    null), ct);
+                var accountSnapshot = ToProviderAccountSnapshot(account);
+                var record = ExternalPlaylistSnapshotRecordFactory.FromProviderSnapshot(
+                    playlist,
+                    importMode,
+                    accountSnapshot,
+                    request.PlaylistName);
+                var playlistId = await snapshots.UpsertAsync(record, ct);
+                return Results.Ok(new ImportedPlaylistDto(
+                    playlistId,
+                    providerId,
+                    playlist.ExternalPlaylistId,
+                    playlist.Name,
+                    importMode.ToString(),
+                    playlist.Items.Count));
+            }
+            catch (Exception ex) when (IsProviderFacingException(ex))
+            {
+                return ProviderError(context, ex);
+            }
+        })
+            .WithTags("Accounts")
+            .WithSummary("Imports or syncs a provider playlist into the local playlist store.")
+            .Produces<ImportedPlaylistDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
@@ -1096,6 +1410,15 @@ public static class ServerHost
             ToExternalAccountStatus(account.Status),
             account.LastAuthorizedAtUtc);
 
+    private static ExternalPlaylistSummaryDto ToExternalPlaylistSummaryDto(ExternalPlaylistSummary playlist)
+        => new(
+            playlist.ProviderId,
+            playlist.ExternalPlaylistId,
+            playlist.Name,
+            playlist.Url,
+            playlist.ItemCount,
+            playlist.LastModifiedAtUtc);
+
     private static string ToProviderId(int provider)
         => Enum.IsDefined(typeof(ExternalProvider), provider)
             ? (ExternalProvider)provider switch
@@ -1107,6 +1430,16 @@ public static class ServerHost
                 _ => ((ExternalProvider)provider).ToString().ToLowerInvariant(),
             }
             : $"unknown-{provider.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    private static ExternalProvider? ToExternalProvider(string providerId)
+        => providerId switch
+        {
+            ProviderIds.Spotify => ExternalProvider.Spotify,
+            ProviderIds.YouTube => ExternalProvider.YouTube,
+            ProviderIds.Bandcamp => ExternalProvider.Bandcamp,
+            ProviderIds.MusicBrainz => ExternalProvider.MusicBrainz,
+            _ => null,
+        };
 
     private static string ToExternalAccountStatus(int status)
         => Enum.IsDefined(typeof(ExternalAccountStatus), status)

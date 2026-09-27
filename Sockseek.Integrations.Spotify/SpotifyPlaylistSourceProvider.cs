@@ -36,6 +36,22 @@ public sealed class SpotifyPlaylistSourceProvider : IPlaylistSourceProvider
         | PlaylistProviderCapabilities.IncrementalSync
         | PlaylistProviderCapabilities.RequiresManualAppApproval;
 
+    public void RememberAccount(ExternalAccountSnapshot account)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        ValidateProvider(account.ProviderId, nameof(account));
+
+        lock (gate)
+        {
+            accounts[account.AccountId.Value] = new SpotifyAccountRecord(
+                account.AccountId,
+                account.ExternalUserId,
+                account.DisplayName,
+                account.SecretReference,
+                account.AuthorizedAtUtc);
+        }
+    }
+
     public Task<AuthorizationStartResult> StartAuthorizationAsync(
         AuthorizationRequest request,
         CancellationToken cancellationToken)

@@ -110,6 +110,28 @@ public sealed record ExternalAccountDto(
     string Status,
     DateTimeOffset? LastAuthorizedAtUtc);
 
+public sealed record ProviderAuthorizationStartDto(
+    string ProviderId,
+    string AuthorizationUri,
+    string State,
+    DateTimeOffset ExpiresAtUtc);
+
+public sealed record ExternalPlaylistSummaryDto(
+    string ProviderId,
+    string ExternalPlaylistId,
+    string Name,
+    string? Url,
+    int? ItemCount,
+    DateTimeOffset? LastModifiedAtUtc);
+
+public sealed record ImportedPlaylistDto(
+    Guid PlaylistId,
+    string ProviderId,
+    string ExternalPlaylistId,
+    string Name,
+    string ImportMode,
+    int ItemCount);
+
 /// <summary>
 /// Current local player state.
 /// </summary>
