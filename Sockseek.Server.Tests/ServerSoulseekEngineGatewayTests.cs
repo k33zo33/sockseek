@@ -290,6 +290,8 @@ public class ServerSoulseekEngineGatewayTests
             Assert.AreEqual($"server-event-{envelope.Sequence}", envelope.CorrelationId);
             Assert.IsFalse(string.IsNullOrWhiteSpace(envelope.EventType));
             Assert.IsNotNull(envelope.Snapshot);
+
+            await WaitForSnapshotAsync(gateway, downloadHandle.EngineJobId, SoulseekJobState.Succeeded);
         }
         finally
         {
