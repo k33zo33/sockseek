@@ -370,6 +370,56 @@ public sealed class ProviderEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task GetProviderPlaylists_WhenSpotifyForbidden_ReturnsDevelopmentModeMessage()
+    {
+        var spotify = new QueueSpotifyHandler(
+        [
+            JsonResponse("""
+            {
+              "access_token": "access-1",
+              "refresh_token": "refresh-1",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "scope": "playlist-read-private playlist-read-collaborative"
+            }
+            """),
+            JsonResponse("""{ "id": "spotify-user-1", "display_name": "Spotify User" }"""),
+            JsonResponse("""{ "error": { "status": 403, "message": "User not registered in the Developer Dashboard" } }""", HttpStatusCode.Forbidden),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotify);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var start = await client.StartProviderAuthorizationAsync(
+                "spotify",
+                new ProviderAuthorizationStartRequestDto("http://127.0.0.1:49152/callback"));
+            var account = await client.CompleteProviderAuthorizationAsync(
+                "spotify",
+                new ProviderAuthorizationCallbackRequestDto(
+                    "http://127.0.0.1:49152/callback",
+                    start.State,
+                    "code-1"));
+
+            using var response = await http.GetAsync($"api/v1/accounts/{account.AccountId}/provider-playlists");
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode);
+            StringAssert.Contains(body, "provider_forbidden");
+            StringAssert.Contains(body, "development-mode");
+            StringAssert.Contains(body, "allowlist");
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedExternalAccountAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
