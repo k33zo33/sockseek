@@ -198,6 +198,22 @@ public sealed class SockseekApiClient
             request,
             ct);
 
+    public async Task<IReadOnlyList<PlaylistSummaryDto>> GetPlaylistsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/playlists", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<PlaylistSummaryDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<PlaylistDetailDto?> GetPlaylistAsync(Guid playlistId, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/v1/playlists/{playlistId}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<PlaylistDetailDto>(response, ct);
+    }
+
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/player", ct);

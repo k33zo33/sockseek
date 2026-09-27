@@ -708,6 +708,103 @@
         }
       }
     },
+    "/api/v1/playlists": {
+      "get": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Lists local playlists with resolution summary counts.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}": {
+      "get": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Gets a local playlist and its imported item metadata.",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player": {
       "get": {
         "tags": [
@@ -6579,6 +6676,344 @@
           }
         }
       },
+      "PlaylistDetailDto": {
+        "required": [
+          "playlistId",
+          "name",
+          "importMode",
+          "providerId",
+          "externalPlaylistId",
+          "externalUrl",
+          "createdAtUtc",
+          "updatedAtUtc",
+          "lastSyncedAtUtc",
+          "resolution",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "importMode": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalPlaylistId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSyncedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/PlaylistResolutionSummaryDto"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaylistItemDto"
+            }
+          }
+        }
+      },
+      "PlaylistItemDto": {
+        "required": [
+          "playlistItemId",
+          "position",
+          "providerItemId",
+          "canonicalTrackId",
+          "status",
+          "title",
+          "artists",
+          "album",
+          "durationMs",
+          "isrc",
+          "musicBrainzRecordingId",
+          "externalTrackId",
+          "externalUrl",
+          "artworkUrl",
+          "removedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "providerItemId": {
+            "type": "string"
+          },
+          "canonicalTrackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "album": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "durationMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isrc": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "musicBrainzRecordingId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalTrackId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "artworkUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "removedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PlaylistResolutionSummaryDto": {
+        "required": [
+          "totalItems",
+          "availableLocalItems",
+          "unresolvedItems",
+          "reviewRequiredItems",
+          "searchingItems",
+          "candidateFoundItems",
+          "downloadingItems",
+          "failedItems",
+          "skippedItems",
+          "removedItems"
+        ],
+        "type": "object",
+        "properties": {
+          "totalItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "availableLocalItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "unresolvedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reviewRequiredItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "searchingItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "candidateFoundItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "downloadingItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skippedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "removedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PlaylistSummaryDto": {
+        "required": [
+          "playlistId",
+          "name",
+          "importMode",
+          "providerId",
+          "externalPlaylistId",
+          "externalUrl",
+          "createdAtUtc",
+          "updatedAtUtc",
+          "lastSyncedAtUtc",
+          "resolution"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "importMode": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalPlaylistId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSyncedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/PlaylistResolutionSummaryDto"
+          }
+        }
+      },
       "PlayPlaylistItemRequestDto": {
         "required": [
           "playlistItemId"
@@ -8546,6 +8981,9 @@
     },
     {
       "name": "Accounts"
+    },
+    {
+      "name": "Playlists"
     },
     {
       "name": "Player"

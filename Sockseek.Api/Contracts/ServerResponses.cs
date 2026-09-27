@@ -132,6 +132,60 @@ public sealed record ImportedPlaylistDto(
     string ImportMode,
     int ItemCount);
 
+public sealed record PlaylistSummaryDto(
+    Guid PlaylistId,
+    string Name,
+    string ImportMode,
+    string? ProviderId,
+    string? ExternalPlaylistId,
+    string? ExternalUrl,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    DateTimeOffset? LastSyncedAtUtc,
+    PlaylistResolutionSummaryDto Resolution);
+
+public sealed record PlaylistDetailDto(
+    Guid PlaylistId,
+    string Name,
+    string ImportMode,
+    string? ProviderId,
+    string? ExternalPlaylistId,
+    string? ExternalUrl,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    DateTimeOffset? LastSyncedAtUtc,
+    PlaylistResolutionSummaryDto Resolution,
+    IReadOnlyList<PlaylistItemDto> Items);
+
+public sealed record PlaylistItemDto(
+    Guid PlaylistItemId,
+    int Position,
+    string ProviderItemId,
+    Guid? CanonicalTrackId,
+    string Status,
+    string Title,
+    IReadOnlyList<string> Artists,
+    string? Album,
+    int? DurationMs,
+    string? Isrc,
+    string? MusicBrainzRecordingId,
+    string? ExternalTrackId,
+    string? ExternalUrl,
+    string? ArtworkUrl,
+    DateTimeOffset? RemovedAtUtc);
+
+public sealed record PlaylistResolutionSummaryDto(
+    int TotalItems,
+    int AvailableLocalItems,
+    int UnresolvedItems,
+    int ReviewRequiredItems,
+    int SearchingItems,
+    int CandidateFoundItems,
+    int DownloadingItems,
+    int FailedItems,
+    int SkippedItems,
+    int RemovedItems);
+
 /// <summary>
 /// Current local player state.
 /// </summary>

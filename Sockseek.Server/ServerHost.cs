@@ -112,6 +112,7 @@ public static class ServerHost
         });
         builder.Services.AddScoped<ExternalAccountStore>();
         builder.Services.AddScoped<ExternalPlaylistSnapshotStore>();
+        builder.Services.AddScoped<PlaylistQueryStore>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
@@ -776,6 +777,40 @@ public static class ServerHost
             .Produces<ImportedPlaylistDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/playlists", async (
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+            {
+                await databaseMigration.EnsureMigratedAsync(ct);
+                var summaries = await playlists.GetSummariesAsync(ct);
+                return Results.Ok(summaries.Select(ToPlaylistSummaryDto).ToArray());
+            })
+            .WithTags("Playlists")
+            .WithSummary("Lists local playlists with resolution summary counts.")
+            .Produces<IReadOnlyList<PlaylistSummaryDto>>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/playlists/{playlistId:guid}", async (
+            Guid playlistId,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var playlist = await playlists.GetDetailAsync(playlistId, ct);
+            return playlist == null
+                ? Results.NotFound()
+                : Results.Ok(ToPlaylistDetailDto(playlist));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Gets a local playlist and its imported item metadata.")
+            .Produces<PlaylistDetailDto>()
+            .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
@@ -1543,6 +1578,64 @@ public static class ServerHost
             playlist.Url,
             playlist.ItemCount,
             playlist.LastModifiedAtUtc);
+
+    private static PlaylistSummaryDto ToPlaylistSummaryDto(PlaylistSummaryRecord playlist)
+        => new(
+            playlist.PlaylistId,
+            playlist.Name,
+            playlist.ImportMode,
+            playlist.ProviderId,
+            playlist.ExternalPlaylistId,
+            playlist.ExternalUrl,
+            playlist.CreatedAtUtc,
+            playlist.UpdatedAtUtc,
+            playlist.LastSyncedAtUtc,
+            ToPlaylistResolutionSummaryDto(playlist.Resolution));
+
+    private static PlaylistDetailDto ToPlaylistDetailDto(PlaylistDetailRecord playlist)
+        => new(
+            playlist.PlaylistId,
+            playlist.Name,
+            playlist.ImportMode,
+            playlist.ProviderId,
+            playlist.ExternalPlaylistId,
+            playlist.ExternalUrl,
+            playlist.CreatedAtUtc,
+            playlist.UpdatedAtUtc,
+            playlist.LastSyncedAtUtc,
+            ToPlaylistResolutionSummaryDto(playlist.Resolution),
+            playlist.Items.Select(ToPlaylistItemDto).ToArray());
+
+    private static PlaylistItemDto ToPlaylistItemDto(PlaylistItemRecord item)
+        => new(
+            item.PlaylistItemId,
+            item.Position,
+            item.ProviderItemId,
+            item.CanonicalTrackId,
+            item.Status,
+            item.Title,
+            item.Artists,
+            item.Album,
+            item.DurationMs,
+            item.Isrc,
+            item.MusicBrainzRecordingId,
+            item.ExternalTrackId,
+            item.ExternalUrl,
+            item.ArtworkUrl,
+            item.RemovedAtUtc);
+
+    private static PlaylistResolutionSummaryDto ToPlaylistResolutionSummaryDto(PlaylistResolutionSummaryRecord summary)
+        => new(
+            summary.TotalItems,
+            summary.AvailableLocalItems,
+            summary.UnresolvedItems,
+            summary.ReviewRequiredItems,
+            summary.SearchingItems,
+            summary.CandidateFoundItems,
+            summary.DownloadingItems,
+            summary.FailedItems,
+            summary.SkippedItems,
+            summary.RemovedItems);
 
     private static string ToProviderId(int provider)
         => Enum.IsDefined(typeof(ExternalProvider), provider)
