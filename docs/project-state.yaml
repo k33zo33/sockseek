@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 10
-  slug: spotify-playlist-import
-  file: docs/sprints/sprint-10-spotify-playlist-import.md
+  id: 11
+  slug: youtube-playlist-import
+  file: docs/sprints/sprint-11-youtube-playlist-import.md
   status: in_progress
 
 completed_sprints:
@@ -28,6 +28,7 @@ completed_sprints:
   - 7
   - 8
   - 9
+  - 10
 blocked_by: []
 
 locked_decisions:
