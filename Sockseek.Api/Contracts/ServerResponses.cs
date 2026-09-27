@@ -186,6 +186,13 @@ public sealed record PlaylistResolutionSummaryDto(
     int SkippedItems,
     int RemovedItems);
 
+public sealed record PlaylistLocalResolveResultDto(
+    int MatchedItems,
+    int ReviewItems,
+    int UnresolvedItems,
+    PlaylistResolutionSummaryDto Resolution,
+    PlaylistDetailDto Playlist);
+
 /// <summary>
 /// Current local player state.
 /// </summary>

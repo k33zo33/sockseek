@@ -9,6 +9,7 @@ using Sockseek.Api;
 using Sockseek.Core.Settings;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
+using Sockseek.Domain.Tracks;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
@@ -82,6 +83,40 @@ public sealed class PlaylistEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task ResolvePlaylistLocal_MatchesAvailableLocalFilesAndReturnsUpdatedSummary()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedUnresolvedPlaylistWithLocalMatchAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var result = await client.ResolvePlaylistLocalAsync(playlistId);
+            var missing = await client.ResolvePlaylistLocalAsync(Guid.NewGuid());
+
+            Assert.IsNotNull(result);
+            Assert.IsNull(missing);
+            Assert.AreEqual(1, result.MatchedItems);
+            Assert.AreEqual(0, result.ReviewItems);
+            Assert.AreEqual(1, result.UnresolvedItems);
+            Assert.AreEqual(2, result.Resolution.TotalItems);
+            Assert.AreEqual(1, result.Resolution.AvailableLocalItems);
+            Assert.AreEqual(1, result.Resolution.UnresolvedItems);
+            Assert.AreEqual("AvailableLocal", result.Playlist.Items[0].Status);
+            Assert.IsNotNull(result.Playlist.Items[0].CanonicalTrackId);
+            Assert.AreEqual("Unresolved", result.Playlist.Items[1].Status);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedPlaylistAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -136,6 +171,65 @@ public sealed class PlaylistEndpointTests
         items["item-2"].Status = (int)PlaylistItemStatus.Unresolved;
         items["item-3"].Status = (int)PlaylistItemStatus.RemovedFromSourcePlaylist;
         items["item-3"].RemovedAtUtc = new DateTimeOffset(2026, 9, 27, 12, 5, 0, TimeSpan.Zero);
+        await db.SaveChangesAsync();
+
+        return playlistId;
+    }
+
+    private static async Task<Guid> SeedUnresolvedPlaylistWithLocalMatchAsync(WebApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+        var playlistId = await new ExternalPlaylistSnapshotStore(db).UpsertAsync(new ExternalPlaylistSnapshotRecord(
+            ExternalProvider.Spotify,
+            "playlist-local-resolve",
+            "Local Resolve",
+            "https://example.test/playlist/local-resolve",
+            1,
+            new DateTimeOffset(2026, 9, 27, 13, 0, 0, TimeSpan.Zero),
+            PlaylistImportMode.Copy,
+            "Local Resolve",
+            [
+                new ExternalPlaylistItemSnapshot(
+                    "item-local",
+                    1,
+                    "Local Track",
+                    "Local Artist",
+                    "Local Album",
+                    200000,
+                    Isrc: "USRC17607839"),
+                new ExternalPlaylistItemSnapshot("item-missing", 2, "Missing Track", "Missing Artist", "Missing Album", 201000),
+            ],
+            null));
+
+        db.CanonicalTracks.Add(new CanonicalTrackEntity
+        {
+            Id = Guid.NewGuid(),
+            Artist = "Different Artist",
+            Title = "Different Title",
+            AlbumTitle = "Local Album",
+            DurationMs = 200000,
+            Isrc = "USRC17607839",
+            NormalizedArtist = "different artist",
+            NormalizedTitle = "different title",
+            LocalMediaFiles =
+            [
+                new LocalMediaFileEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Path = "C:/Music/Local Artist/Local Track.mp3",
+                    Size = 1234,
+                    LastWriteUtc = new DateTimeOffset(2026, 9, 27, 12, 55, 0, TimeSpan.Zero),
+                    DurationMs = 200000,
+                    Codec = "mp3",
+                    Bitrate = 320,
+                    SampleRate = 44100,
+                    BitDepth = 16,
+                    Availability = (int)LocalMediaAvailability.Available,
+                },
+            ],
+        });
         await db.SaveChangesAsync();
 
         return playlistId;

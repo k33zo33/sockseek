@@ -805,6 +805,60 @@
         }
       }
     },
+    "/api/v1/playlists/{playlistId}/resolve-local": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Resolves imported playlist items against locally available library files.",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistLocalResolveResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player": {
       "get": {
         "tags": [
@@ -6851,6 +6905,48 @@
               "string"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "PlaylistLocalResolveResultDto": {
+        "required": [
+          "matchedItems",
+          "reviewItems",
+          "unresolvedItems",
+          "resolution",
+          "playlist"
+        ],
+        "type": "object",
+        "properties": {
+          "matchedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "reviewItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "unresolvedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/PlaylistResolutionSummaryDto"
+          },
+          "playlist": {
+            "$ref": "#/components/schemas/PlaylistDetailDto"
           }
         }
       },

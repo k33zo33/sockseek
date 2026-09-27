@@ -16,6 +16,7 @@ using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
+using Sockseek.Domain.Tracks;
 using Sockseek.Infrastructure;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
@@ -84,6 +85,7 @@ public static class ServerHost
         builder.Services.AddSingleton<ServerSessionTokenProvider>();
         builder.Services.AddSingleton(ProviderCapabilityRegistry.CreateDefault());
         builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<TrackIdentityService>();
         builder.Services.AddSingleton<OAuthPkceCoordinator>();
         builder.Services.AddSingleton<ISecretStore>(sp =>
         {
@@ -113,6 +115,7 @@ public static class ServerHost
         builder.Services.AddScoped<ExternalAccountStore>();
         builder.Services.AddScoped<ExternalPlaylistSnapshotStore>();
         builder.Services.AddScoped<PlaylistQueryStore>();
+        builder.Services.AddScoped<PlaylistLocalMatchResolver>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
@@ -810,6 +813,36 @@ public static class ServerHost
             .WithTags("Playlists")
             .WithSummary("Gets a local playlist and its imported item metadata.")
             .Produces<PlaylistDetailDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/resolve-local", async (
+            Guid playlistId,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistQueryStore playlists,
+            PlaylistLocalMatchResolver resolver,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var existing = await playlists.GetDetailAsync(playlistId, ct);
+            if (existing == null)
+                return Results.NotFound();
+
+            var result = await resolver.ResolveAsync(playlistId, ct);
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during local resolution.");
+            var detail = ToPlaylistDetailDto(updated);
+            return Results.Ok(new PlaylistLocalResolveResultDto(
+                result.MatchedItems,
+                result.ReviewItems,
+                result.UnresolvedItems,
+                detail.Resolution,
+                detail));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Resolves imported playlist items against locally available library files.")
+            .Produces<PlaylistLocalResolveResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
