@@ -15,7 +15,7 @@ active_sprint:
   id: 13
   slug: unified-playlist-resolution
   file: docs/sprints/sprint-13-unified-playlist-resolution.md
-  status: planned
+  status: in_progress
 
 completed_sprints:
   - 0
