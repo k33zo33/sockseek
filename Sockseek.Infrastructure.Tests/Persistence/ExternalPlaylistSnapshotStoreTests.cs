@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
 using Sockseek.Infrastructure.Persistence;
+using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Integrations.Abstractions;
 
 namespace Sockseek.Infrastructure.Tests.Persistence;
@@ -86,6 +87,61 @@ public class ExternalPlaylistSnapshotStoreTests
             var removed = await verify.PlaylistItems.SingleAsync(item => item.ProviderItemId == "item-2");
             Assert.AreEqual(9, removed.Status);
             Assert.AreEqual(second.LastSyncedAtUtc, removed.RemovedAtUtc);
+        }
+    }
+
+    [TestMethod]
+    public async Task UpsertAsync_RepeatedMirrorSnapshot_PreservesResolvedLocalStatus()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.EnsureCreatedAsync();
+
+        var snapshot = CreateSnapshot();
+        var trackId = Guid.NewGuid();
+
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new ExternalPlaylistSnapshotStore(context);
+            await store.UpsertAsync(snapshot);
+
+            context.CanonicalTracks.Add(new CanonicalTrackEntity
+            {
+                Id = trackId,
+                Artist = "Artist",
+                Title = "Track One",
+                AlbumTitle = "Album",
+                DurationMs = 180000,
+                NormalizedArtist = "artist",
+                NormalizedTitle = "track one",
+            });
+
+            var item = await context.PlaylistItems.SingleAsync(entity => entity.ProviderItemId == "item-1");
+            item.CanonicalTrackId = trackId;
+            item.Status = (int)PlaylistItemStatus.AvailableLocal;
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new ExternalPlaylistSnapshotStore(context);
+            await store.UpsertAsync(snapshot with { LastSyncedAtUtc = snapshot.LastSyncedAtUtc.AddMinutes(5) });
+        }
+
+        await using (var verify = new SockseekDbContext(options))
+        {
+            var item = await verify.PlaylistItems.SingleAsync(entity => entity.ProviderItemId == "item-1");
+
+            Assert.AreEqual(trackId, item.CanonicalTrackId);
+            Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
+            Assert.IsNull(item.RemovedAtUtc);
+            Assert.AreEqual(2, await verify.PlaylistItems.CountAsync());
         }
     }
 
