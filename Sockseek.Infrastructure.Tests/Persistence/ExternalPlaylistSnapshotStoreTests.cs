@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
 using Sockseek.Infrastructure.Persistence;
+using Sockseek.Integrations.Abstractions;
 
 namespace Sockseek.Infrastructure.Tests.Persistence;
 
@@ -85,6 +86,74 @@ public class ExternalPlaylistSnapshotStoreTests
             var removed = await verify.PlaylistItems.SingleAsync(item => item.ProviderItemId == "item-2");
             Assert.AreEqual(9, removed.Status);
             Assert.AreEqual(second.LastSyncedAtUtc, removed.RemovedAtUtc);
+        }
+    }
+
+    [TestMethod]
+    public async Task UpsertAsync_ProviderSnapshot_PreservesSpotifyMetadataInSnapshotJson()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.EnsureCreatedAsync();
+
+        var providerSnapshot = new ExternalPlaylistSnapshot(
+            ProviderIds.Spotify,
+            "spotify-playlist-1",
+            "Spotify Mix",
+            "https://open.spotify.com/playlist/spotify-playlist-1",
+            42,
+            new DateTimeOffset(2026, 9, 23, 12, 0, 0, TimeSpan.Zero),
+            [
+                new ExternalTrackSnapshot(
+                    ProviderIds.Spotify,
+                    "spotify-track-1",
+                    "spotify:track:spotify-track-1",
+                    0,
+                    "Spotify Track",
+                    ["Artist One", "Artist Two"],
+                    "Spotify Album",
+                    194000,
+                    "USRC17607839",
+                    "https://open.spotify.com/track/spotify-track-1",
+                    "https://i.scdn.co/image/spotify-track-1",
+                    "mbid-1",
+                    "{\"spotify\":\"raw\"}"),
+            ]);
+        var account = new ExternalAccountSnapshot(
+            new ExternalAccountId(Guid.NewGuid()),
+            ProviderIds.Spotify,
+            "spotify-user-1",
+            "Spotify User",
+            "secret://spotify/1",
+            new DateTimeOffset(2026, 9, 23, 11, 55, 0, TimeSpan.Zero));
+
+        var record = ExternalPlaylistSnapshotRecordFactory.FromProviderSnapshot(
+            providerSnapshot,
+            PlaylistImportMode.Copy,
+            account);
+
+        await using (var context = new SockseekDbContext(options))
+            await new ExternalPlaylistSnapshotStore(context).UpsertAsync(record);
+
+        await using (var verify = new SockseekDbContext(options))
+        {
+            var playlistItem = await verify.PlaylistItems.SingleAsync();
+
+            StringAssert.Contains(playlistItem.SnapshotJson, "\"ExternalTrackId\":\"spotify-track-1\"");
+            StringAssert.Contains(playlistItem.SnapshotJson, "\"Isrc\":\"USRC17607839\"");
+            StringAssert.Contains(playlistItem.SnapshotJson, "\"ExternalUrl\":\"https://open.spotify.com/track/spotify-track-1\"");
+            StringAssert.Contains(playlistItem.SnapshotJson, "\"ArtworkUrl\":\"https://i.scdn.co/image/spotify-track-1\"");
+            StringAssert.Contains(playlistItem.SnapshotJson, "\"MusicBrainzRecordingId\":\"mbid-1\"");
+            StringAssert.Contains(playlistItem.SnapshotJson, "\"RawMetadataJson\":\"{\\u0022spotify\\u0022:\\u0022raw\\u0022}\"");
+            Assert.AreEqual(0, playlistItem.Position);
+            Assert.AreEqual((int)PlaylistImportMode.Copy, await verify.Playlists.Select(playlist => playlist.ImportMode).SingleAsync());
+            Assert.AreEqual("spotify-user-1", await verify.ExternalAccounts.Select(account => account.ExternalUserId).SingleAsync());
         }
     }
 
