@@ -15,8 +15,8 @@ Only one sprint is active at a time. Read the active sprint file and only its re
 | 8 | [sprint-08-play-while-downloading.md](sprint-08-play-while-downloading.md) | Completed |
 | 9 | [sprint-09-provider-framework-secret-store.md](sprint-09-provider-framework-secret-store.md) | Completed |
 | 10 | [sprint-10-spotify-playlist-import.md](sprint-10-spotify-playlist-import.md) | Completed |
-| 11 | [sprint-11-youtube-playlist-import.md](sprint-11-youtube-playlist-import.md) | In Progress |
-| 12 | [sprint-12-bandcamp-metabrainz.md](sprint-12-bandcamp-metabrainz.md) | Planned |
+| 11 | [sprint-11-youtube-playlist-import.md](sprint-11-youtube-playlist-import.md) | Completed |
+| 12 | [sprint-12-bandcamp-metabrainz.md](sprint-12-bandcamp-metabrainz.md) | In Progress |
 | 13 | [sprint-13-unified-playlist-resolution.md](sprint-13-unified-playlist-resolution.md) | Planned |
 | 14 | [sprint-14-packaging-legal-security.md](sprint-14-packaging-legal-security.md) | Planned |
 | 15 | [sprint-15-performance-compliance-beta.md](sprint-15-performance-compliance-beta.md) | Planned |

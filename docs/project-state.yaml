@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 11
-  slug: youtube-playlist-import
-  file: docs/sprints/sprint-11-youtube-playlist-import.md
+  id: 12
+  slug: bandcamp-metabrainz
+  file: docs/sprints/sprint-12-bandcamp-metabrainz.md
   status: in_progress
 
 completed_sprints:
@@ -29,6 +29,7 @@ completed_sprints:
   - 8
   - 9
   - 10
+  - 11
 blocked_by: []
 
 locked_decisions:
