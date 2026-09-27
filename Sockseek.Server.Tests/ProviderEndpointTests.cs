@@ -420,6 +420,256 @@ public sealed class ProviderEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task YouTubeAuthorizationListAndMirrorImport_UsesFixtureHttpAndPreservesLocalSnapshot()
+    {
+        var youtube = new QueueYouTubeHandler(
+        [
+            JsonResponse("""
+            {
+              "access_token": "access-1",
+              "refresh_token": "refresh-1",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "scope": "https://www.googleapis.com/auth/youtube.readonly"
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                { "id": "channel-1", "snippet": { "title": "Channel One" } }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "playlist-1",
+                  "snippet": { "title": "YouTube Mix", "publishedAt": "2026-01-01T00:00:00Z" },
+                  "contentDetails": { "itemCount": 2 }
+                }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "playlist-1",
+                  "snippet": { "title": "YouTube Mix", "publishedAt": "2026-01-01T00:00:00Z" },
+                  "contentDetails": { "itemCount": 2 }
+                }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "playlist-item-1",
+                  "snippet": {
+                    "title": "First Video",
+                    "position": 0,
+                    "videoOwnerChannelTitle": "Video Channel",
+                    "resourceId": { "kind": "youtube#video", "videoId": "video-1" },
+                    "thumbnails": { "high": { "url": "https://img.youtube.test/one.jpg" } }
+                  },
+                  "contentDetails": { "videoId": "video-1" },
+                  "status": { "privacyStatus": "public" }
+                },
+                {
+                  "id": "playlist-item-2",
+                  "snippet": {
+                    "title": "Private video",
+                    "position": 1,
+                    "resourceId": { "kind": "youtube#video", "videoId": "private-video" }
+                  },
+                  "contentDetails": { "videoId": "private-video" },
+                  "status": { "privacyStatus": "private" }
+                }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "video-1",
+                  "snippet": { "title": "First Video From Lookup", "channelTitle": "Video Channel" },
+                  "contentDetails": { "duration": "PT3M" },
+                  "status": { "privacyStatus": "public" }
+                }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "playlist-1",
+                  "snippet": { "title": "YouTube Mix", "publishedAt": "2026-01-02T00:00:00Z" },
+                  "contentDetails": { "itemCount": 1 }
+                }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "playlist-item-1",
+                  "snippet": {
+                    "title": "First Video",
+                    "position": 0,
+                    "videoOwnerChannelTitle": "Video Channel",
+                    "resourceId": { "kind": "youtube#video", "videoId": "video-1" },
+                    "thumbnails": { "high": { "url": "https://img.youtube.test/one.jpg" } }
+                  },
+                  "contentDetails": { "videoId": "video-1" },
+                  "status": { "privacyStatus": "public" }
+                }
+              ]
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                {
+                  "id": "video-1",
+                  "snippet": { "title": "First Video From Lookup", "channelTitle": "Video Channel" },
+                  "contentDetails": { "duration": "PT3M" },
+                  "status": { "privacyStatus": "public" }
+                }
+              ]
+            }
+            """),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, youtubeHandler: youtube);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var start = await client.StartProviderAuthorizationAsync(
+                "youtube",
+                new ProviderAuthorizationStartRequestDto("http://127.0.0.1:49152/callback"));
+            var account = await client.CompleteProviderAuthorizationAsync(
+                "youtube",
+                new ProviderAuthorizationCallbackRequestDto(
+                    "http://127.0.0.1:49152/callback",
+                    start.State,
+                    "code-1"));
+            var playlists = await client.GetProviderPlaylistsAsync(account.AccountId);
+            var firstImport = await client.ImportProviderPlaylistAsync(
+                account.AccountId,
+                "playlist-1",
+                new ImportProviderPlaylistRequestDto("Mirror"));
+            var secondImport = await client.ImportProviderPlaylistAsync(
+                account.AccountId,
+                "playlist-1",
+                new ImportProviderPlaylistRequestDto("Mirror"));
+
+            Assert.AreEqual("youtube", start.ProviderId);
+            StringAssert.Contains(start.AuthorizationUri, "youtube.readonly");
+            Assert.IsFalse(start.AuthorizationUri.Contains("streaming", StringComparison.Ordinal));
+            Assert.IsFalse(start.AuthorizationUri.Contains("download", StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual("channel-1", account.ExternalUserId);
+            Assert.AreEqual(1, playlists.Count);
+            Assert.AreEqual("YouTube Mix", playlists.Single().Name);
+            Assert.AreEqual(firstImport.PlaylistId, secondImport.PlaylistId);
+            Assert.AreEqual(2, firstImport.ItemCount);
+            Assert.AreEqual(1, secondImport.ItemCount);
+            StringAssert.Contains(youtube.Requests[0].Body!, "code_verifier=");
+
+            var rawAccounts = await http.GetStringAsync("api/v1/accounts");
+            Assert.IsFalse(rawAccounts.Contains("access-1", StringComparison.Ordinal));
+            Assert.IsFalse(rawAccounts.Contains("refresh-1", StringComparison.Ordinal));
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            Assert.AreEqual(1, await db.ExternalAccounts.CountAsync());
+            Assert.AreEqual(1, await db.ExternalPlaylists.CountAsync());
+            Assert.AreEqual(1, await db.Playlists.CountAsync());
+            Assert.AreEqual(2, await db.PlaylistItems.CountAsync());
+            var firstItem = await db.PlaylistItems.SingleAsync(item => item.ProviderItemId == "playlist-item-1");
+            var removedItem = await db.PlaylistItems.SingleAsync(item => item.ProviderItemId == "playlist-item-2");
+            StringAssert.Contains(firstItem.SnapshotJson, "\"ExternalTrackId\":\"video-1\"");
+            StringAssert.Contains(firstItem.SnapshotJson, "\"ExternalUrl\":\"https://www.youtube.com/watch?v=video-1\"");
+            StringAssert.Contains(firstItem.SnapshotJson, "\"ArtworkUrl\":\"https://img.youtube.test/one.jpg\"");
+            Assert.AreEqual((int)PlaylistItemStatus.RemovedFromSourcePlaylist, removedItem.Status);
+            Assert.IsNotNull(removedItem.RemovedAtUtc);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
+    public async Task GetProviderPlaylists_WhenYouTubeRefreshRevoked_MarksAccountAuthorizationExpired()
+    {
+        var youtube = new QueueYouTubeHandler(
+        [
+            JsonResponse("""
+            {
+              "access_token": "expired-access",
+              "refresh_token": "refresh-1",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "scope": "https://www.googleapis.com/auth/youtube.readonly"
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                { "id": "channel-1", "snippet": { "title": "Channel One" } }
+              ]
+            }
+            """),
+            JsonResponse("""{ "error": { "code": 401, "message": "Invalid Credentials" } }""", HttpStatusCode.Unauthorized),
+            JsonResponse("""{ "error": "invalid_grant", "error_description": "Token has been expired or revoked." }""", HttpStatusCode.BadRequest),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, youtubeHandler: youtube);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var start = await client.StartProviderAuthorizationAsync(
+                "youtube",
+                new ProviderAuthorizationStartRequestDto("http://127.0.0.1:49152/callback"));
+            var account = await client.CompleteProviderAuthorizationAsync(
+                "youtube",
+                new ProviderAuthorizationCallbackRequestDto(
+                    "http://127.0.0.1:49152/callback",
+                    start.State,
+                    "code-1"));
+
+            using var response = await http.GetAsync($"api/v1/accounts/{account.AccountId}/provider-playlists");
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            StringAssert.Contains(body, "provider_reauthorization_required");
+            StringAssert.Contains(body, "Reconnect YouTube");
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var stored = await db.ExternalAccounts.SingleAsync(entity => entity.Id == account.AccountId);
+            Assert.AreEqual((int)ExternalAccountStatus.AuthorizationExpired, stored.Status);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedExternalAccountAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -457,7 +707,8 @@ public sealed class ProviderEndpointTests
         out string url,
         out string sessionToken,
         out string tempRoot,
-        QueueSpotifyHandler? spotifyHandler = null)
+        QueueSpotifyHandler? spotifyHandler = null,
+        QueueYouTubeHandler? youtubeHandler = null)
     {
         tempRoot = Path.Combine(Path.GetTempPath(), "Sockseek-provider-test-" + Guid.NewGuid());
         var musicRoot = Path.Combine(tempRoot, "music");
@@ -490,6 +741,14 @@ public sealed class ProviderEndpointTests
                 AccountsBaseUri = "https://accounts.spotify.test/",
                 ApiBaseUri = "https://api.spotify.test/v1/",
                 HttpMessageHandlerFactory = spotifyHandler == null ? null : () => spotifyHandler,
+            },
+            YouTube = new YouTubeServerOptions
+            {
+                ClientId = youtubeHandler == null ? null : "youtube-client",
+                AuthorizationEndpointUri = "https://accounts.google.test/o/oauth2/v2/auth",
+                TokenEndpointUri = "https://oauth2.googleapis.test/token",
+                ApiBaseUri = "https://youtube.googleapis.test/youtube/v3/",
+                HttpMessageHandlerFactory = youtubeHandler == null ? null : () => youtubeHandler,
             },
         }, url);
     }
@@ -526,6 +785,35 @@ public sealed class ProviderEndpointTests
     }
 
     private sealed record RecordedSpotifyRequest(
+        Uri Uri,
+        HttpMethod Method,
+        string? AuthorizationParameter,
+        string? Body);
+
+    private sealed class QueueYouTubeHandler(IReadOnlyList<HttpResponseMessage> responses) : HttpMessageHandler
+    {
+        private int index;
+
+        public List<RecordedYouTubeRequest> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(new RecordedYouTubeRequest(
+                request.RequestUri ?? new Uri("about:blank"),
+                request.Method,
+                request.Headers.Authorization?.Parameter,
+                request.Content == null ? null : await request.Content.ReadAsStringAsync(cancellationToken)));
+
+            if (index >= responses.Count)
+                throw new InvalidOperationException("No queued YouTube fixture response is available.");
+
+            return responses[index++];
+        }
+    }
+
+    private sealed record RecordedYouTubeRequest(
         Uri Uri,
         HttpMethod Method,
         string? AuthorizationParameter,

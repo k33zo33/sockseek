@@ -23,6 +23,7 @@ using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
 using Sockseek.Integrations.Abstractions;
 using Sockseek.Integrations.Spotify;
+using Sockseek.Integrations.YouTube;
 using Sockseek.Player;
 
 namespace Sockseek.Server;
@@ -91,6 +92,8 @@ public static class ServerHost
         });
         builder.Services.AddSingleton(sp => CreateSpotifyProvider(sp));
         builder.Services.AddSingleton<IPlaylistSourceProvider>(sp => sp.GetRequiredService<SpotifyPlaylistSourceProvider>());
+        builder.Services.AddSingleton(sp => CreateYouTubeProvider(sp));
+        builder.Services.AddSingleton<IPlaylistSourceProvider>(sp => sp.GetRequiredService<YouTubePlaylistSourceProvider>());
         builder.Services.AddSingleton<ServerEventBroadcaster>();
         builder.Services.AddSingleton<ServerActivityLogReporter>();
         builder.Services.AddSingleton<ServerDatabaseMigrationService>();
@@ -250,9 +253,39 @@ public static class ServerHost
             });
     }
 
+    private static YouTubePlaylistSourceProvider CreateYouTubeProvider(IServiceProvider services)
+    {
+        var serverOptions = services.GetRequiredService<IOptions<ServerOptions>>().Value;
+        var youtube = serverOptions.YouTube;
+        var handler = youtube.HttpMessageHandlerFactory?.Invoke();
+        var httpClient = handler == null ? new HttpClient() : new HttpClient(handler);
+        return new YouTubePlaylistSourceProvider(
+            httpClient,
+            services.GetRequiredService<ISecretStore>(),
+            new YouTubePlaylistSourceOptions
+            {
+                ClientId = string.IsNullOrWhiteSpace(youtube.ClientId) ? "__unconfigured_youtube_client__" : youtube.ClientId,
+                AuthorizationEndpointUri = new Uri(youtube.AuthorizationEndpointUri, UriKind.Absolute),
+                TokenEndpointUri = new Uri(youtube.TokenEndpointUri, UriKind.Absolute),
+                ApiBaseUri = new Uri(youtube.ApiBaseUri, UriKind.Absolute),
+            });
+    }
+
     private static bool IsProviderConfigured(string providerId, ServerOptions options)
-        => !StringComparer.Ordinal.Equals(providerId, ProviderIds.Spotify)
-            || !string.IsNullOrWhiteSpace(options.Spotify.ClientId);
+        => providerId switch
+        {
+            ProviderIds.Spotify => !string.IsNullOrWhiteSpace(options.Spotify.ClientId),
+            ProviderIds.YouTube => !string.IsNullOrWhiteSpace(options.YouTube.ClientId),
+            _ => true,
+        };
+
+    private static IReadOnlyList<string> GetProviderDefaultScopes(string providerId)
+        => providerId switch
+        {
+            ProviderIds.Spotify => SpotifyPlaylistSourceOptions.DefaultScopes,
+            ProviderIds.YouTube => YouTubePlaylistSourceOptions.DefaultScopes,
+            _ => [],
+        };
 
     private static bool TryCreateUri(string value, out Uri uri)
     {
@@ -279,6 +312,8 @@ public static class ServerHost
         var snapshot = ToProviderAccountSnapshot(account);
         if (provider is SpotifyPlaylistSourceProvider spotify)
             spotify.RememberAccount(snapshot);
+        if (provider is YouTubePlaylistSourceProvider youtube)
+            youtube.RememberAccount(snapshot);
     }
 
     private static ExternalAccountSnapshot ToProviderAccountSnapshot(ExternalAccountEntity account)
@@ -298,6 +333,7 @@ public static class ServerHost
 
     private static bool IsProviderFacingException(Exception ex)
         => ex is SpotifyProviderException
+            or YouTubeProviderException
             or OAuthAuthorizationException
             or ArgumentException
             or InvalidOperationException
@@ -316,6 +352,16 @@ public static class ServerHost
                 Results.Json(new AppErrorDto("provider_unauthorized", spotify.Message, correlationId), statusCode: StatusCodes.Status401Unauthorized),
             SpotifyProviderException spotify =>
                 Results.BadRequest(new AppErrorDto("provider_error", spotify.Message, correlationId)),
+            YouTubeProviderException youtube when youtube.ReauthorizationRequired =>
+                Results.Json(new AppErrorDto("provider_reauthorization_required", youtube.Message, correlationId), statusCode: StatusCodes.Status401Unauthorized),
+            YouTubeProviderException youtube when youtube.StatusCode == System.Net.HttpStatusCode.Forbidden =>
+                Results.Json(new AppErrorDto("provider_forbidden", youtube.Message, correlationId), statusCode: StatusCodes.Status403Forbidden),
+            YouTubeProviderException youtube when youtube.StatusCode == System.Net.HttpStatusCode.TooManyRequests =>
+                Results.Json(new AppErrorDto("provider_rate_limited", youtube.Message, correlationId), statusCode: StatusCodes.Status429TooManyRequests),
+            YouTubeProviderException youtube when youtube.StatusCode == System.Net.HttpStatusCode.Unauthorized =>
+                Results.Json(new AppErrorDto("provider_unauthorized", youtube.Message, correlationId), statusCode: StatusCodes.Status401Unauthorized),
+            YouTubeProviderException youtube =>
+                Results.BadRequest(new AppErrorDto("provider_error", youtube.Message, correlationId)),
             OAuthAuthorizationException oauth =>
                 Results.BadRequest(new AppErrorDto("oauth_error", oauth.Message, correlationId)),
             ArgumentException argument =>
@@ -326,6 +372,16 @@ public static class ServerHost
                 Results.Json(new AppErrorDto("provider_resource_not_found", missing.Message, correlationId), statusCode: StatusCodes.Status404NotFound),
             _ => Results.BadRequest(new AppErrorDto("provider_error", exception.Message, correlationId)),
         };
+    }
+
+    private static async Task MarkProviderAuthorizationExpiredAsync(
+        Exception exception,
+        Guid accountId,
+        ExternalAccountStore accounts,
+        CancellationToken cancellationToken)
+    {
+        if (exception is YouTubeProviderException { ReauthorizationRequired: true })
+            await accounts.MarkAuthorizationExpiredAsync(accountId, cancellationToken);
     }
 
     private static string GetOpenApiVersion()
@@ -415,9 +471,7 @@ public static class ServerHost
             if (provider == null)
                 return BadAppRequest(context, "provider_not_configured", $"Provider '{providerId}' is not configured for account authorization.");
 
-            var scopes = StringComparer.Ordinal.Equals(providerId, ProviderIds.Spotify)
-                ? SpotifyPlaylistSourceOptions.DefaultScopes
-                : Array.Empty<string>();
+            var scopes = GetProviderDefaultScopes(providerId);
             var session = oauth.CreateSession(providerId, redirectUri, scopes);
             try
             {
@@ -555,6 +609,7 @@ public static class ServerHost
             IOptions<ServerOptions> serverOptions,
             ServerDatabaseMigrationService databaseMigration,
             SockseekDbContext db,
+            ExternalAccountStore accounts,
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
@@ -579,6 +634,7 @@ public static class ServerHost
             }
             catch (Exception ex) when (IsProviderFacingException(ex))
             {
+                await MarkProviderAuthorizationExpiredAsync(ex, account.Id, accounts, ct);
                 return ProviderError(context, ex);
             }
         })
@@ -600,6 +656,7 @@ public static class ServerHost
             ServerDatabaseMigrationService databaseMigration,
             SockseekDbContext db,
             ExternalPlaylistSnapshotStore snapshots,
+            ExternalAccountStore accounts,
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
@@ -643,6 +700,7 @@ public static class ServerHost
             }
             catch (Exception ex) when (IsProviderFacingException(ex))
             {
+                await MarkProviderAuthorizationExpiredAsync(ex, account.Id, accounts, ct);
                 return ProviderError(context, ex);
             }
         })

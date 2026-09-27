@@ -333,6 +333,13 @@
           "Sockseek.Integrations.Abstractions": "[3.0.5, )"
         }
       },
+      "sockseek.integrations.youtube": {
+        "type": "Project",
+        "dependencies": {
+          "Sockseek.Application": "[3.0.5, )",
+          "Sockseek.Integrations.Abstractions": "[3.0.5, )"
+        }
+      },
       "sockseek.player": {
         "type": "Project",
         "dependencies": {
@@ -354,6 +361,7 @@
           "Sockseek.Core": "[3.0.5, )",
           "Sockseek.Infrastructure": "[3.0.5, )",
           "Sockseek.Integrations.Spotify": "[3.0.5, )",
+          "Sockseek.Integrations.YouTube": "[3.0.5, )",
           "Sockseek.Player": "[3.0.5, )"
         }
       },

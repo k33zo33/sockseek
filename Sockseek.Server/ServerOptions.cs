@@ -21,6 +21,7 @@ public sealed class ServerOptions
     public string? SessionToken { get; set; }
     public bool ExperimentalProgressivePlayback { get; set; }
     public SpotifyServerOptions Spotify { get; set; } = new();
+    public YouTubeServerOptions YouTube { get; set; } = new();
 }
 
 public sealed class SpotifyServerOptions
@@ -28,5 +29,14 @@ public sealed class SpotifyServerOptions
     public string? ClientId { get; set; }
     public string AccountsBaseUri { get; set; } = "https://accounts.spotify.com/";
     public string ApiBaseUri { get; set; } = "https://api.spotify.com/v1/";
+    public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
+}
+
+public sealed class YouTubeServerOptions
+{
+    public string? ClientId { get; set; }
+    public string AuthorizationEndpointUri { get; set; } = "https://accounts.google.com/o/oauth2/v2/auth";
+    public string TokenEndpointUri { get; set; } = "https://oauth2.googleapis.com/token";
+    public string ApiBaseUri { get; set; } = "https://www.googleapis.com/youtube/v3/";
     public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
 }
