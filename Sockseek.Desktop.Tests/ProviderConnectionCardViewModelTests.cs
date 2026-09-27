@@ -45,4 +45,16 @@ public sealed class ProviderConnectionCardViewModelTests
         Assert.IsFalse(card.CanImportPublicUrl);
         Assert.AreEqual(ProviderConnectionPrimaryAction.ConnectAccount, card.PrimaryAction);
     }
+
+    [TestMethod]
+    public void ProviderConnectionActions_DoNotExposeExternalProviderPlayback()
+    {
+        var actionNames = Enum.GetNames<ProviderConnectionPrimaryAction>();
+
+        CollectionAssert.DoesNotContain(actionNames, "Play");
+        CollectionAssert.DoesNotContain(actionNames, "Playback");
+        CollectionAssert.DoesNotContain(actionNames, "Stream");
+        CollectionAssert.DoesNotContain(actionNames, "DownloadTrack");
+        CollectionAssert.DoesNotContain(actionNames, "GetAudioStream");
+    }
 }
