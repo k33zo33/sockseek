@@ -55,6 +55,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Integrations.YouTu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Integrations.Bandcamp", "Sockseek.Integrations.Bandcamp\Sockseek.Integrations.Bandcamp.csproj", "{F0E0B66F-2094-4A1D-9C28-2087B773C11F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sockseek.Integrations.MusicBrainz", "Sockseek.Integrations.MusicBrainz\Sockseek.Integrations.MusicBrainz.csproj", "{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -377,6 +379,18 @@ Global
 		{F0E0B66F-2094-4A1D-9C28-2087B773C11F}.Release|x64.Build.0 = Release|Any CPU
 		{F0E0B66F-2094-4A1D-9C28-2087B773C11F}.Release|x86.ActiveCfg = Release|Any CPU
 		{F0E0B66F-2094-4A1D-9C28-2087B773C11F}.Release|x86.Build.0 = Release|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Debug|x64.Build.0 = Debug|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Debug|x86.Build.0 = Debug|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Release|x64.ActiveCfg = Release|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Release|x64.Build.0 = Release|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Release|x86.ActiveCfg = Release|Any CPU
+		{E39C0F2B-EBDC-434E-8AAC-68D0770C2F2F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

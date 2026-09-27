@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Sockseek.Application\Sockseek.Application.csproj" />
     <ProjectReference Include="..\Sockseek.Integrations.Bandcamp\Sockseek.Integrations.Bandcamp.csproj" />
     <ProjectReference Include="..\Sockseek.Integrations.Fake\Sockseek.Integrations.Fake.csproj" />
+    <ProjectReference Include="..\Sockseek.Integrations.MusicBrainz\Sockseek.Integrations.MusicBrainz.csproj" />
     <ProjectReference Include="..\Sockseek.Integrations.Spotify\Sockseek.Integrations.Spotify.csproj" />
     <ProjectReference Include="..\Sockseek.Integrations.YouTube\Sockseek.Integrations.YouTube.csproj" />
   </ItemGroup>

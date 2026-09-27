@@ -133,6 +133,9 @@
           "Sockseek.Integrations.Abstractions": "[3.0.5, )"
         }
       },
+      "sockseek.integrations.musicbrainz": {
+        "type": "Project"
+      },
       "sockseek.integrations.spotify": {
         "type": "Project",
         "dependencies": {
