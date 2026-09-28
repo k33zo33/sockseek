@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Sockseek.Domain.Playlists;
 using Sockseek.Domain.Tracks;
+using Sockseek.Domain.Workflows;
 using Sockseek.Infrastructure.Persistence.Entities;
 
 namespace Sockseek.Infrastructure.Persistence;
@@ -27,6 +28,18 @@ public sealed class PlaylistLocalMatchResolver(
             .Include(track => track.Sources)
             .Where(track => track.LocalMediaFiles.Any(file => file.Availability == (int)LocalMediaAvailability.Available))
             .ToListAsync(cancellationToken);
+        var itemIds = items.Select(item => item.Id).ToArray();
+        var rejectedCandidates = await dbContext.ResolutionAttempts
+            .Where(attempt => itemIds.Contains(attempt.PlaylistItemId)
+                && attempt.Decision == (int)ResolutionDecision.UserRejected
+                && attempt.CandidateTrackId.HasValue)
+            .Select(attempt => new { attempt.PlaylistItemId, CandidateTrackId = attempt.CandidateTrackId!.Value })
+            .ToListAsync(cancellationToken);
+        var rejectedCandidatesByItem = rejectedCandidates
+            .GroupBy(attempt => attempt.PlaylistItemId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(attempt => attempt.CandidateTrackId).ToHashSet());
 
         int matchedItems = 0;
         int reviewItems = 0;
@@ -44,7 +57,8 @@ public sealed class PlaylistLocalMatchResolver(
                 snapshot.Isrc,
                 snapshot.MusicBrainzRecordingId,
                 Album: snapshot.Album);
-            var bestMatch = FindBestMatch(candidates, query);
+            rejectedCandidatesByItem.TryGetValue(item.Id, out var rejectedForItem);
+            var bestMatch = FindBestMatch(candidates, query, rejectedForItem);
 
             if (bestMatch is { Result.Disposition: TrackMatchDisposition.AutoMatch })
             {
@@ -70,11 +84,17 @@ public sealed class PlaylistLocalMatchResolver(
         return new PlaylistLocalMatchResult(matchedItems, reviewItems, unresolvedItems);
     }
 
-    private LocalMatchCandidate? FindBestMatch(IReadOnlyList<CanonicalTrackEntity> candidates, TrackIdentityQuery query)
+    private LocalMatchCandidate? FindBestMatch(
+        IReadOnlyList<CanonicalTrackEntity> candidates,
+        TrackIdentityQuery query,
+        IReadOnlySet<Guid>? rejectedCandidates)
     {
         LocalMatchCandidate? best = null;
         foreach (var candidate in candidates)
         {
+            if (rejectedCandidates?.Contains(candidate.Id) == true)
+                continue;
+
             var result = identityService.Match(ToDomain(candidate), query);
             if (best == null || result.Score > best.Result.Score)
                 best = new LocalMatchCandidate(candidate, result);

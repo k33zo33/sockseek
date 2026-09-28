@@ -10,6 +10,7 @@ using Sockseek.Core.Settings;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
 using Sockseek.Domain.Tracks;
+using Sockseek.Domain.Workflows;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
@@ -262,6 +263,52 @@ public sealed class PlaylistEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task ReviewLocalPlaylistItem_ApproveRejectAndRejectedCandidateStaysRejected()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var (playlistId, approvedItemId, rejectedItemId) = await SeedReviewPlaylistAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var approved = await client.ApprovePlaylistItemLocalMatchAsync(playlistId, approvedItemId);
+            var rejected = await client.RejectPlaylistItemLocalMatchAsync(playlistId, rejectedItemId);
+            var resolvedAgain = await client.ResolvePlaylistLocalAsync(playlistId);
+
+            Assert.IsNotNull(approved);
+            Assert.IsNotNull(rejected);
+            Assert.IsNotNull(resolvedAgain);
+            Assert.AreEqual("AvailableLocal", approved.Items.Single(item => item.PlaylistItemId == approvedItemId).Status);
+            Assert.AreEqual("Unresolved", rejected.Items.Single(item => item.PlaylistItemId == rejectedItemId).Status);
+            Assert.AreEqual("Unresolved", resolvedAgain.Playlist.Items.Single(item => item.PlaylistItemId == rejectedItemId).Status);
+            Assert.AreEqual(0, resolvedAgain.ReviewItems);
+            Assert.AreEqual(1, resolvedAgain.UnresolvedItems);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var attempts = await verifyDb.ResolutionAttempts
+                .AsNoTracking()
+                .Where(attempt => attempt.PlaylistItemId == approvedItemId || attempt.PlaylistItemId == rejectedItemId)
+                .ToListAsync();
+            Assert.AreEqual(2, attempts.Count);
+            Assert.AreEqual((int)ResolutionDecision.UserApproved, attempts.Single(attempt => attempt.PlaylistItemId == approvedItemId).Decision);
+            Assert.AreEqual((int)ResolutionDecision.UserRejected, attempts.Single(attempt => attempt.PlaylistItemId == rejectedItemId).Decision);
+            Assert.IsNull(await verifyDb.PlaylistItems
+                .Where(item => item.Id == rejectedItemId)
+                .Select(item => item.CanonicalTrackId)
+                .SingleAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedPlaylistAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -420,6 +467,63 @@ public sealed class PlaylistEndpointTests
         await db.SaveChangesAsync();
 
         return playlistId;
+    }
+
+    private static async Task<(Guid PlaylistId, Guid ApprovedItemId, Guid RejectedItemId)> SeedReviewPlaylistAsync(WebApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+        var playlistId = await new ExternalPlaylistSnapshotStore(db).UpsertAsync(new ExternalPlaylistSnapshotRecord(
+            ExternalProvider.Spotify,
+            "playlist-review",
+            "Review",
+            "https://example.test/playlist/review",
+            1,
+            new DateTimeOffset(2026, 9, 28, 14, 0, 0, TimeSpan.Zero),
+            PlaylistImportMode.Copy,
+            "Review",
+            [
+                new ExternalPlaylistItemSnapshot("review-approve", 1, "Review Track", "Review Artist", "Review Album", 180000),
+                new ExternalPlaylistItemSnapshot("review-reject", 2, "Review Track", "Review Artist", "Review Album", 180000),
+            ],
+            null));
+
+        var trackId = Guid.NewGuid();
+        db.CanonicalTracks.Add(new CanonicalTrackEntity
+        {
+            Id = trackId,
+            Artist = "Review Artist",
+            Title = "Review Track",
+            AlbumTitle = "Review Album",
+            DurationMs = 180000,
+            NormalizedArtist = "review artist",
+            NormalizedTitle = "review track",
+            LocalMediaFiles =
+            [
+                new LocalMediaFileEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Path = "C:/Music/Review Artist/Review Track.flac",
+                    Size = 1234,
+                    LastWriteUtc = new DateTimeOffset(2026, 9, 28, 13, 55, 0, TimeSpan.Zero),
+                    DurationMs = 180000,
+                    Codec = "flac",
+                    Bitrate = 900,
+                    SampleRate = 44100,
+                    BitDepth = 16,
+                    Availability = (int)LocalMediaAvailability.Available,
+                },
+            ],
+        });
+        var items = await db.PlaylistItems.ToDictionaryAsync(item => item.ProviderItemId);
+        items["review-approve"].CanonicalTrackId = trackId;
+        items["review-approve"].Status = (int)PlaylistItemStatus.ReviewRequired;
+        items["review-reject"].CanonicalTrackId = trackId;
+        items["review-reject"].Status = (int)PlaylistItemStatus.ReviewRequired;
+        await db.SaveChangesAsync();
+
+        return (playlistId, items["review-approve"].Id, items["review-reject"].Id);
     }
 
     private static WebApplication CreateApp(out string url, out string sessionToken, out string tempRoot)

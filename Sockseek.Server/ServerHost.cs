@@ -17,6 +17,7 @@ using Sockseek.Application.Soulseek;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
 using Sockseek.Domain.Tracks;
+using Sockseek.Domain.Workflows;
 using Sockseek.Infrastructure;
 using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
@@ -904,6 +905,94 @@ public static class ServerHost
         })
             .WithTags("Playlists")
             .WithSummary("Marks a local playlist item as skipped without deleting provider data or local files.")
+            .Produces<PlaylistDetailDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/approve-local", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var item = await db.PlaylistItems
+                .SingleOrDefaultAsync(entity => entity.Id == playlistItemId && entity.PlaylistId == playlistId, ct);
+            if (item == null)
+                return Results.NotFound();
+            if (item.RemovedAtUtc.HasValue)
+                return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot be approved.");
+            if (item.Status != (int)PlaylistItemStatus.ReviewRequired || !item.CanonicalTrackId.HasValue)
+                return BadAppRequest(context, "playlist_item_not_reviewable", "Only local review-required playlist items can be approved.");
+
+            db.ResolutionAttempts.Add(new ResolutionAttemptEntity
+            {
+                Id = Guid.NewGuid(),
+                PlaylistItemId = item.Id,
+                CandidateTrackId = item.CanonicalTrackId,
+                Method = (int)ResolutionMethod.ManualReview,
+                Score = 1d,
+                Decision = (int)ResolutionDecision.UserApproved,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+            });
+            item.Status = (int)PlaylistItemStatus.AvailableLocal;
+            await db.SaveChangesAsync(ct);
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during local match approval.");
+            return Results.Ok(ToPlaylistDetailDto(updated));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Approves a review-required local playlist item match.")
+            .Produces<PlaylistDetailDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/reject-local", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var item = await db.PlaylistItems
+                .SingleOrDefaultAsync(entity => entity.Id == playlistItemId && entity.PlaylistId == playlistId, ct);
+            if (item == null)
+                return Results.NotFound();
+            if (item.RemovedAtUtc.HasValue)
+                return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot be rejected.");
+            if (item.Status != (int)PlaylistItemStatus.ReviewRequired || !item.CanonicalTrackId.HasValue)
+                return BadAppRequest(context, "playlist_item_not_reviewable", "Only local review-required playlist items can be rejected.");
+
+            var rejectedTrackId = item.CanonicalTrackId.Value;
+            db.ResolutionAttempts.Add(new ResolutionAttemptEntity
+            {
+                Id = Guid.NewGuid(),
+                PlaylistItemId = item.Id,
+                CandidateTrackId = rejectedTrackId,
+                Method = (int)ResolutionMethod.ManualReview,
+                Score = 0d,
+                Decision = (int)ResolutionDecision.UserRejected,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+            });
+            item.CanonicalTrackId = null;
+            item.Status = (int)PlaylistItemStatus.Unresolved;
+            await db.SaveChangesAsync(ct);
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during local match rejection.");
+            return Results.Ok(ToPlaylistDetailDto(updated));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Rejects a review-required local playlist item match and keeps the decision for future resolves.")
             .Produces<PlaylistDetailDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
