@@ -878,6 +878,37 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/skip", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var item = await db.PlaylistItems
+                .SingleOrDefaultAsync(entity => entity.Id == playlistItemId && entity.PlaylistId == playlistId, ct);
+            if (item == null)
+                return Results.NotFound();
+            if (item.RemovedAtUtc.HasValue)
+                return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot be skipped.");
+
+            item.Status = (int)PlaylistItemStatus.Skipped;
+            await db.SaveChangesAsync(ct);
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during item skip.");
+            return Results.Ok(ToPlaylistDetailDto(updated));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Marks a local playlist item as skipped without deleting provider data or local files.")
+            .Produces<PlaylistDetailDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapGet("/api/v1/player", async (PlaybackCoordinator player, SockseekDbContext db, LocalArtworkCache artworkCache, CancellationToken ct) =>
                 Results.Ok(await ToPlayerStateDtoAsync(player, db, artworkCache, ct)))
             .WithTags("Player")

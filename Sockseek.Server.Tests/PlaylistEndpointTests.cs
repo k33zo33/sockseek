@@ -164,6 +164,52 @@ public sealed class PlaylistEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task SkipPlaylistItem_MarksItemSkippedWithoutDeletingRows()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            Guid itemId;
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+                itemId = await db.PlaylistItems
+                    .Where(item => item.PlaylistId == playlistId && item.ProviderItemId == "missing-1")
+                    .Select(item => item.Id)
+                    .SingleAsync();
+            }
+
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var skipped = await client.SkipPlaylistItemAsync(playlistId, itemId);
+            var missing = await client.SkipPlaylistItemAsync(playlistId, Guid.NewGuid());
+
+            Assert.IsNotNull(skipped);
+            Assert.IsNull(missing);
+            Assert.AreEqual(4, skipped.Items.Count);
+            Assert.AreEqual(1, skipped.Resolution.SkippedItems);
+            Assert.AreEqual("Skipped", skipped.Items.Single(item => item.PlaylistItemId == itemId).Status);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            Assert.AreEqual(4, await verifyDb.PlaylistItems.CountAsync(item => item.PlaylistId == playlistId));
+            Assert.AreEqual((int)PlaylistItemStatus.Skipped, await verifyDb.PlaylistItems
+                .Where(item => item.Id == itemId)
+                .Select(item => item.Status)
+                .SingleAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedPlaylistAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
