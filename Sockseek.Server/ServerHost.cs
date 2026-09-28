@@ -122,6 +122,7 @@ public static class ServerHost
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
         builder.Services.AddSingleton<PlaybackCoordinator>();
         builder.Services.AddSingleton<PlaybackQueuePersistenceService>();
+        builder.Services.AddSingleton<PlaylistWorkflowRecoveryService>();
         if (!IsOpenApiGenerationProcess())
         {
             builder.Services.AddHostedService<EngineRuntimeHostedService>();
