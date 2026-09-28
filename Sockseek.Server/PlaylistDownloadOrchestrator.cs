@@ -40,32 +40,7 @@ public sealed class PlaylistDownloadOrchestrator(
 
             try
             {
-                var snapshot = DeserializeSnapshot(item);
-                var handle = await gateway.StartTrackSearchAsync(
-                    new TrackSearchRequest(snapshot.Artist, snapshot.Title, snapshot.Album, null),
-                    cancellationToken);
-                var now = DateTimeOffset.UtcNow;
-
-                item.Status = (int)PlaylistItemStatus.Searching;
-                dbContext.DownloadWorkflows.Add(new DownloadWorkflowEntity
-                {
-                    Id = Guid.NewGuid(),
-                    WorkflowId = handle.WorkflowId,
-                    EngineJobId = handle.EngineJobId,
-                    PlaylistItemId = item.Id,
-                    Status = (int)DownloadWorkflowPersistenceStatus.Searching,
-                    CandidateJson = JsonSerializer.Serialize(new PlaylistSearchWorkflowRecord(
-                        item.ProviderItemId,
-                        snapshot.Artist,
-                        snapshot.Title,
-                        snapshot.Album,
-                        snapshot.DurationMs)),
-                    CreatedAtUtc = now,
-                    UpdatedAtUtc = now,
-                });
-
-                await dbContext.SaveChangesAsync(cancellationToken);
-                submissions.Add(new PlaylistDownloadSubmissionRecord(item.Id, handle.WorkflowId, handle.EngineJobId));
+                submissions.Add(await SubmitSearchAsync(item, cancellationToken));
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
@@ -81,6 +56,70 @@ public sealed class PlaylistDownloadOrchestrator(
             FailedItems: failedItems,
             SkippedItems: 0,
             Submissions: submissions);
+    }
+
+    public async Task<PlaylistItemRetryResult> RetryItemAsync(
+        Guid playlistId,
+        Guid playlistItemId,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await dbContext.PlaylistItems
+            .SingleOrDefaultAsync(entity => entity.Id == playlistItemId && entity.PlaylistId == playlistId, cancellationToken);
+        if (item == null)
+            return PlaylistItemRetryResult.NotFound;
+        if (item.RemovedAtUtc.HasValue)
+            return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.Removed, null);
+        if (item.CanonicalTrackId.HasValue || item.Status == (int)PlaylistItemStatus.AvailableLocal)
+            return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.AlreadyAvailable, null);
+        var status = Enum.IsDefined(typeof(PlaylistItemStatus), item.Status)
+            ? (PlaylistItemStatus)item.Status
+            : PlaylistItemStatus.Unresolved;
+        if (status is not (PlaylistItemStatus.Failed or PlaylistItemStatus.Skipped))
+            return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.NotRetryable, null);
+
+        try
+        {
+            var submission = await SubmitSearchAsync(item, cancellationToken);
+            return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.Submitted, submission);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            item.Status = (int)PlaylistItemStatus.Failed;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.FailedToSubmit, null);
+        }
+    }
+
+    private async Task<PlaylistDownloadSubmissionRecord> SubmitSearchAsync(
+        PlaylistItemEntity item,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = DeserializeSnapshot(item);
+        var handle = await gateway.StartTrackSearchAsync(
+            new TrackSearchRequest(snapshot.Artist, snapshot.Title, snapshot.Album, null),
+            cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        item.Status = (int)PlaylistItemStatus.Searching;
+        dbContext.DownloadWorkflows.Add(new DownloadWorkflowEntity
+        {
+            Id = Guid.NewGuid(),
+            WorkflowId = handle.WorkflowId,
+            EngineJobId = handle.EngineJobId,
+            PlaylistItemId = item.Id,
+            Status = (int)DownloadWorkflowPersistenceStatus.Searching,
+            CandidateJson = JsonSerializer.Serialize(new PlaylistSearchWorkflowRecord(
+                item.ProviderItemId,
+                snapshot.Artist,
+                snapshot.Title,
+                snapshot.Album,
+                snapshot.DurationMs)),
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now,
+        });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new PlaylistDownloadSubmissionRecord(item.Id, handle.WorkflowId, handle.EngineJobId);
     }
 
     private static ExternalPlaylistItemSnapshot DeserializeSnapshot(PlaylistItemEntity item)
@@ -116,6 +155,26 @@ public sealed record PlaylistDownloadSubmissionRecord(
     Guid PlaylistItemId,
     Guid WorkflowId,
     Guid EngineJobId);
+
+public enum PlaylistItemRetryOutcome
+{
+    Submitted,
+    FailedToSubmit,
+    Removed,
+    AlreadyAvailable,
+    NotRetryable,
+}
+
+public sealed record PlaylistItemRetryResult(
+    bool ItemFound,
+    PlaylistItemRetryOutcome Outcome,
+    PlaylistDownloadSubmissionRecord? Submission)
+{
+    public static PlaylistItemRetryResult NotFound { get; } = new(
+        ItemFound: false,
+        Outcome: PlaylistItemRetryOutcome.NotRetryable,
+        Submission: null);
+}
 
 public sealed record PlaylistSearchWorkflowRecord(
     string ProviderItemId,

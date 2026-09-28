@@ -210,6 +210,58 @@ public sealed class PlaylistEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task RetryPlaylistItem_SubmitsSkippedItemAndPersistsWorkflowLink()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            Guid itemId;
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+                itemId = await db.PlaylistItems
+                    .Where(item => item.PlaylistId == playlistId && item.ProviderItemId == "missing-1")
+                    .Select(item => item.Id)
+                    .SingleAsync();
+            }
+
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            Assert.IsNotNull(await client.SkipPlaylistItemAsync(playlistId, itemId));
+            var retried = await client.RetryPlaylistItemAsync(playlistId, itemId);
+            var missing = await client.RetryPlaylistItemAsync(playlistId, Guid.NewGuid());
+
+            Assert.IsNotNull(retried);
+            Assert.IsNull(missing);
+            Assert.AreEqual(1, retried.SubmittedItems);
+            Assert.AreEqual(0, retried.FailedItems);
+            Assert.AreEqual(1, retried.Submissions.Count);
+            Assert.AreEqual(itemId, retried.Submissions.Single().PlaylistItemId);
+            Assert.AreEqual("Searching", retried.Playlist.Items.Single(item => item.PlaylistItemId == itemId).Status);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var workflow = await verifyDb.DownloadWorkflows
+                .AsNoTracking()
+                .SingleAsync(workflow => workflow.PlaylistItemId == itemId);
+            Assert.AreEqual(retried.Submissions.Single().EngineJobId, workflow.EngineJobId);
+            Assert.AreEqual((int)PlaylistItemStatus.Searching, await verifyDb.PlaylistItems
+                .Where(item => item.Id == itemId)
+                .Select(item => item.Status)
+                .SingleAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedPlaylistAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();

@@ -909,6 +909,52 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/retry", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistDownloadOrchestrator downloads,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var result = await downloads.RetryItemAsync(playlistId, playlistItemId, ct);
+            if (!result.ItemFound)
+                return Results.NotFound();
+
+            switch (result.Outcome)
+            {
+                case PlaylistItemRetryOutcome.Removed:
+                    return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot be retried.");
+                case PlaylistItemRetryOutcome.AlreadyAvailable:
+                    return BadAppRequest(context, "playlist_item_available", "Available local playlist items do not need retry.");
+                case PlaylistItemRetryOutcome.NotRetryable:
+                    return BadAppRequest(context, "playlist_item_not_retryable", "Only failed or skipped playlist items can be retried.");
+            }
+
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during item retry.");
+            var detail = ToPlaylistDetailDto(updated);
+            PlaylistDownloadSubmissionDto[] submissions = result.Submission is { } submission
+                ? new[] { ToPlaylistDownloadSubmissionDto(submission) }
+                : Array.Empty<PlaylistDownloadSubmissionDto>();
+            return Results.Ok(new PlaylistDownloadMissingResultDto(
+                result.Outcome == PlaylistItemRetryOutcome.Submitted ? 1 : 0,
+                result.Outcome == PlaylistItemRetryOutcome.FailedToSubmit ? 1 : 0,
+                0,
+                detail.Resolution,
+                detail,
+                submissions));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Retries a failed or skipped playlist item by submitting a new Soulseek search workflow.")
+            .Produces<PlaylistDownloadMissingResultDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapGet("/api/v1/player", async (PlaybackCoordinator player, SockseekDbContext db, LocalArtworkCache artworkCache, CancellationToken ct) =>
                 Results.Ok(await ToPlayerStateDtoAsync(player, db, artworkCache, ct)))
             .WithTags("Player")
