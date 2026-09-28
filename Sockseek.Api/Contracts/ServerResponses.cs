@@ -193,6 +193,19 @@ public sealed record PlaylistLocalResolveResultDto(
     PlaylistResolutionSummaryDto Resolution,
     PlaylistDetailDto Playlist);
 
+public sealed record PlaylistDownloadMissingResultDto(
+    int SubmittedItems,
+    int FailedItems,
+    int SkippedItems,
+    PlaylistResolutionSummaryDto Resolution,
+    PlaylistDetailDto Playlist,
+    IReadOnlyList<PlaylistDownloadSubmissionDto> Submissions);
+
+public sealed record PlaylistDownloadSubmissionDto(
+    Guid PlaylistItemId,
+    Guid WorkflowId,
+    Guid EngineJobId);
+
 /// <summary>
 /// Current local player state.
 /// </summary>

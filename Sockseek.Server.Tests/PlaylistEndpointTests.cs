@@ -117,6 +117,53 @@ public sealed class PlaylistEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task DownloadMissingPlaylistItems_SubmitsSearchWorkflowsAndPersistsPlaylistLinks()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var result = await client.DownloadMissingPlaylistItemsAsync(playlistId);
+            var missing = await client.DownloadMissingPlaylistItemsAsync(Guid.NewGuid());
+
+            Assert.IsNotNull(result);
+            Assert.IsNull(missing);
+            Assert.AreEqual(2, result.SubmittedItems);
+            Assert.AreEqual(0, result.FailedItems);
+            Assert.AreEqual(2, result.Submissions.Count);
+            Assert.AreEqual(4, result.Resolution.TotalItems);
+            Assert.AreEqual(2, result.Resolution.SearchingItems);
+            Assert.AreEqual(1, result.Resolution.AvailableLocalItems);
+            Assert.AreEqual(1, result.Resolution.RemovedItems);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var workflows = await db.DownloadWorkflows
+                .AsNoTracking()
+                .ToListAsync();
+            workflows = workflows
+                .OrderBy(workflow => workflow.CreatedAtUtc)
+                .ToList();
+            Assert.AreEqual(2, workflows.Count);
+            CollectionAssert.AreEquivalent(
+                result.Submissions.Select(submission => submission.EngineJobId).ToArray(),
+                workflows.Select(workflow => workflow.EngineJobId).ToArray());
+            Assert.IsTrue(workflows.All(workflow => workflow.PlaylistItemId.HasValue));
+            Assert.IsTrue(await db.PlaylistItems.CountAsync(item => item.PlaylistId == playlistId && item.Status == (int)PlaylistItemStatus.Searching) == 2);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedPlaylistAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -171,6 +218,48 @@ public sealed class PlaylistEndpointTests
         items["item-2"].Status = (int)PlaylistItemStatus.Unresolved;
         items["item-3"].Status = (int)PlaylistItemStatus.RemovedFromSourcePlaylist;
         items["item-3"].RemovedAtUtc = new DateTimeOffset(2026, 9, 27, 12, 5, 0, TimeSpan.Zero);
+        await db.SaveChangesAsync();
+
+        return playlistId;
+    }
+
+    private static async Task<Guid> SeedMissingPlaylistAsync(WebApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+        var playlistId = await new ExternalPlaylistSnapshotStore(db).UpsertAsync(new ExternalPlaylistSnapshotRecord(
+            ExternalProvider.YouTube,
+            "playlist-download-missing",
+            "Download Missing",
+            "https://example.test/playlist/download-missing",
+            1,
+            new DateTimeOffset(2026, 9, 28, 9, 0, 0, TimeSpan.Zero),
+            PlaylistImportMode.Copy,
+            "Download Missing",
+            [
+                new ExternalPlaylistItemSnapshot("missing-1", 1, "First Missing", "Artist One", "Album One", 180000),
+                new ExternalPlaylistItemSnapshot("missing-2", 2, "Second Missing", "Artist Two", "Album Two", 181000),
+                new ExternalPlaylistItemSnapshot("available-1", 3, "Available", "Artist Three", "Album Three", 182000),
+                new ExternalPlaylistItemSnapshot("removed-1", 4, "Removed", "Artist Four", "Album Four", 183000),
+            ],
+            null));
+
+        var items = await db.PlaylistItems.ToDictionaryAsync(item => item.ProviderItemId);
+        db.CanonicalTracks.Add(new CanonicalTrackEntity
+        {
+            Id = Guid.NewGuid(),
+            Artist = "Artist Three",
+            Title = "Available",
+            AlbumTitle = "Album Three",
+            DurationMs = 182000,
+            NormalizedArtist = "artist three",
+            NormalizedTitle = "available",
+        });
+        items["available-1"].CanonicalTrackId = db.CanonicalTracks.Local.Single().Id;
+        items["available-1"].Status = (int)PlaylistItemStatus.AvailableLocal;
+        items["removed-1"].Status = (int)PlaylistItemStatus.RemovedFromSourcePlaylist;
+        items["removed-1"].RemovedAtUtc = new DateTimeOffset(2026, 9, 28, 9, 5, 0, TimeSpan.Zero);
         await db.SaveChangesAsync();
 
         return playlistId;

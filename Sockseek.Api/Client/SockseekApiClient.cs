@@ -223,6 +223,15 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<PlaylistLocalResolveResultDto>(response, ct);
     }
 
+    public async Task<PlaylistDownloadMissingResultDto?> DownloadMissingPlaylistItemsAsync(Guid playlistId, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/v1/playlists/{playlistId}/download-missing", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<PlaylistDownloadMissingResultDto>(response, ct);
+    }
+
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/player", ct);

@@ -116,6 +116,7 @@ public static class ServerHost
         builder.Services.AddScoped<ExternalPlaylistSnapshotStore>();
         builder.Services.AddScoped<PlaylistQueryStore>();
         builder.Services.AddScoped<PlaylistLocalMatchResolver>();
+        builder.Services.AddScoped<PlaylistDownloadOrchestrator>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
@@ -843,6 +844,36 @@ public static class ServerHost
             .WithTags("Playlists")
             .WithSummary("Resolves imported playlist items against locally available library files.")
             .Produces<PlaylistLocalResolveResultDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/download-missing", async (
+            Guid playlistId,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistDownloadOrchestrator downloads,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var result = await downloads.DownloadMissingAsync(playlistId, ct);
+            if (!result.PlaylistFound)
+                return Results.NotFound();
+
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during missing-item download submission.");
+            var detail = ToPlaylistDetailDto(updated);
+            return Results.Ok(new PlaylistDownloadMissingResultDto(
+                result.SubmittedItems,
+                result.FailedItems,
+                result.SkippedItems,
+                detail.Resolution,
+                detail,
+                result.Submissions.Select(ToPlaylistDownloadSubmissionDto).ToArray()));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Submits missing imported playlist items to Soulseek search workflows.")
+            .Produces<PlaylistDownloadMissingResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
@@ -1669,6 +1700,12 @@ public static class ServerHost
             summary.FailedItems,
             summary.SkippedItems,
             summary.RemovedItems);
+
+    private static PlaylistDownloadSubmissionDto ToPlaylistDownloadSubmissionDto(PlaylistDownloadSubmissionRecord submission)
+        => new(
+            submission.PlaylistItemId,
+            submission.WorkflowId,
+            submission.EngineJobId);
 
     private static string ToProviderId(int provider)
         => Enum.IsDefined(typeof(ExternalProvider), provider)

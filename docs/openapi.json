@@ -859,6 +859,60 @@
         }
       }
     },
+    "/api/v1/playlists/{playlistId}/download-missing": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Submits missing imported playlist items to Soulseek search workflows.",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDownloadMissingResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player": {
       "get": {
         "tags": [
@@ -6797,6 +6851,77 @@
             "items": {
               "$ref": "#/components/schemas/PlaylistItemDto"
             }
+          }
+        }
+      },
+      "PlaylistDownloadMissingResultDto": {
+        "required": [
+          "submittedItems",
+          "failedItems",
+          "skippedItems",
+          "resolution",
+          "playlist",
+          "submissions"
+        ],
+        "type": "object",
+        "properties": {
+          "submittedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skippedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/PlaylistResolutionSummaryDto"
+          },
+          "playlist": {
+            "$ref": "#/components/schemas/PlaylistDetailDto"
+          },
+          "submissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaylistDownloadSubmissionDto"
+            }
+          }
+        }
+      },
+      "PlaylistDownloadSubmissionDto": {
+        "required": [
+          "playlistItemId",
+          "workflowId",
+          "engineJobId"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "engineJobId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
