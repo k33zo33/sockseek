@@ -22,6 +22,8 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         PlayItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayItemAsync(playlistItemId));
         SkipItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => SkipItemAsync(playlistItemId));
         RetryItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => RetryItemAsync(playlistItemId));
+        ApproveLocalMatchCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => ApproveLocalMatchAsync(playlistItemId));
+        RejectLocalMatchCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => RejectLocalMatchAsync(playlistItemId));
     }
 
     public ICommand RefreshCommand { get; }
@@ -37,6 +39,10 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     public ICommand SkipItemCommand { get; }
 
     public ICommand RetryItemCommand { get; }
+
+    public ICommand ApproveLocalMatchCommand { get; }
+
+    public ICommand RejectLocalMatchCommand { get; }
 
     public IReadOnlyList<DesktopPlaylistSummaryViewModel> Playlists
     {
@@ -184,6 +190,36 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
             ApplyPlaylist(result.Playlist);
             OperationSummary = $"{result.SubmittedItems} retry submitted, {result.FailedItems} failed";
+            return true;
+        });
+
+    public async Task<bool> ApproveLocalMatchAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
+        => await ReviewLocalMatchAsync(
+            playlistItemId,
+            (playlistId, itemId) => apiClient.ApprovePlaylistItemLocalMatchAsync(playlistId, itemId, cancellationToken),
+            "Local match approved");
+
+    public async Task<bool> RejectLocalMatchAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
+        => await ReviewLocalMatchAsync(
+            playlistItemId,
+            (playlistId, itemId) => apiClient.RejectPlaylistItemLocalMatchAsync(playlistId, itemId, cancellationToken),
+            "Local match rejected");
+
+    private async Task<bool> ReviewLocalMatchAsync(
+        Guid playlistItemId,
+        Func<Guid, Guid, Task<PlaylistDetailDto?>> reviewAction,
+        string summary)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var playlist = await reviewAction(playlistId, playlistItemId);
+            if (playlist is null)
+            {
+                ErrorMessage = "Playlist item was not found.";
+                return false;
+            }
+
+            ApplyPlaylist(playlist);
+            OperationSummary = summary;
             return true;
         });
 
@@ -345,4 +381,6 @@ public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
 
     public bool CanRetry { get; } = string.Equals(item.Status, "Failed", StringComparison.Ordinal)
         || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+
+    public bool CanReviewLocal { get; } = string.Equals(item.Status, "ReviewRequired", StringComparison.Ordinal);
 }

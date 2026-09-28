@@ -443,6 +443,16 @@
                                       CommandParameter="{Binding PlaylistItemId}"
                                       IsEnabled="{Binding CanPlay}" />
                               <Button Margin="0,0,8,8"
+                                      Content="Approve"
+                                      Command="{Binding DataContext.Playlists.ApproveLocalMatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      CommandParameter="{Binding PlaylistItemId}"
+                                      IsEnabled="{Binding CanReviewLocal}" />
+                              <Button Margin="0,0,8,8"
+                                      Content="Reject"
+                                      Command="{Binding DataContext.Playlists.RejectLocalMatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      CommandParameter="{Binding PlaylistItemId}"
+                                      IsEnabled="{Binding CanReviewLocal}" />
+                              <Button Margin="0,0,8,8"
                                       Content="Skip"
                                       Command="{Binding DataContext.Playlists.SkipItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                       CommandParameter="{Binding PlaylistItemId}"

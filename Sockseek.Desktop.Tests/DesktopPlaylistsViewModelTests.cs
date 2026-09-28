@@ -53,15 +53,30 @@ public sealed class DesktopPlaylistsViewModelTests
                 return CreateDetail(playlistId, itemId, "Actions", "Skipped");
             if (request.Method == HttpMethod.Post && path.EndsWith("/retry", StringComparison.Ordinal))
                 return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, searching: 1), CreateDetail(playlistId, itemId, "Actions", "Searching"), [CreateSubmission(itemId)]);
+            if (request.Method == HttpMethod.Post && path.EndsWith("/approve-local", StringComparison.Ordinal))
+                return CreateDetail(playlistId, itemId, "Actions", "AvailableLocal", canonicalTrackId: Guid.NewGuid());
+            if (request.Method == HttpMethod.Post && path.EndsWith("/reject-local", StringComparison.Ordinal))
+                return CreateDetail(playlistId, itemId, "Actions", "Unresolved");
             if (request.Method == HttpMethod.Post && path.EndsWith("/player/play/playlist-item", StringComparison.Ordinal))
                 return new PlayerStateDto("Playing", Guid.NewGuid(), itemId, Guid.NewGuid(), "C:/Music/track.flac", null, 0, 1.0, false, new PlayerQueueDto([], -1, "None", false, 0, []));
 
-            return CreateDetail(playlistId, itemId, "Actions", "Unresolved");
+            return CreateDetail(playlistId, itemId, "Actions", "ReviewRequired", canonicalTrackId: Guid.NewGuid());
         });
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
         var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
 
         Assert.IsTrue(await viewModel.RefreshAsync());
+        Assert.AreEqual("ReviewRequired", viewModel.SelectedPlaylistItems[0].Status);
+        Assert.IsTrue(viewModel.SelectedPlaylistItems[0].CanReviewLocal);
+
+        Assert.IsTrue(await viewModel.ApproveLocalMatchAsync(itemId));
+        Assert.AreEqual("Local match approved", viewModel.OperationSummary);
+        Assert.AreEqual("AvailableLocal", viewModel.SelectedPlaylistItems[0].Status);
+
+        Assert.IsTrue(await viewModel.RejectLocalMatchAsync(itemId));
+        Assert.AreEqual("Local match rejected", viewModel.OperationSummary);
+        Assert.AreEqual("Unresolved", viewModel.SelectedPlaylistItems[0].Status);
+
         Assert.IsTrue(await viewModel.ResolveLocalAsync());
         Assert.AreEqual("1 matched, 0 review, 0 unresolved", viewModel.OperationSummary);
         Assert.AreEqual("AvailableLocal", viewModel.SelectedPlaylistItems[0].Status);
@@ -85,6 +100,8 @@ public sealed class DesktopPlaylistsViewModelTests
             {
                 "api/v1/playlists",
                 $"api/v1/playlists/{playlistId}",
+                $"api/v1/playlists/{playlistId}/items/{itemId}/approve-local",
+                $"api/v1/playlists/{playlistId}/items/{itemId}/reject-local",
                 $"api/v1/playlists/{playlistId}/resolve-local",
                 $"api/v1/playlists/{playlistId}/download-missing",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/skip",
@@ -111,6 +128,8 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "ItemsSource=\"{Binding Playlists.Playlists}\"");
         StringAssert.Contains(xaml, "Playlists.ResolveLocalCommand");
         StringAssert.Contains(xaml, "Playlists.DownloadMissingCommand");
+        StringAssert.Contains(xaml, "Playlists.ApproveLocalMatchCommand");
+        StringAssert.Contains(xaml, "Playlists.RejectLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.SkipItemCommand");
         StringAssert.Contains(xaml, "Playlists.RetryItemCommand");
     }
@@ -144,7 +163,13 @@ public sealed class DesktopPlaylistsViewModelTests
             new DateTimeOffset(2026, 9, 28, 8, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
-            CreateResolution(1, available: status == "AvailableLocal" ? 1 : 0, unresolved: status == "Unresolved" ? 1 : 0, searching: status == "Searching" ? 1 : 0, skipped: status == "Skipped" ? 1 : 0),
+            CreateResolution(
+                1,
+                available: status == "AvailableLocal" ? 1 : 0,
+                unresolved: status == "Unresolved" ? 1 : 0,
+                review: status == "ReviewRequired" ? 1 : 0,
+                searching: status == "Searching" ? 1 : 0,
+                skipped: status == "Skipped" ? 1 : 0),
             [
                 new PlaylistItemDto(
                     itemId,
