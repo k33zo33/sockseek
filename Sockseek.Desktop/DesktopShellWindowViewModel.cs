@@ -13,6 +13,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? searchHandshake;
     private DesktopDownloadQueueViewModel? downloads;
     private DesktopDaemonHandshake? downloadsHandshake;
+    private DesktopPlaylistsViewModel? playlists;
+    private DesktopDaemonHandshake? playlistsHandshake;
     private DesktopLibraryViewModel? library;
     private DesktopDaemonHandshake? libraryHandshake;
     private DesktopAccountsViewModel? accounts;
@@ -227,6 +229,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public bool IsDownloadsQueueVisible => CurrentSection == ShellSection.Downloads && IsDownloadsReady;
 
+    public bool IsPlaylistsVisible => CurrentSection == ShellSection.Playlists && IsPlaylistsReady;
+
     public bool IsLibraryVisible => CurrentSection == ShellSection.Library && IsLibraryReady;
 
     public bool IsAccountsVisible => CurrentSection == ShellSection.Accounts && IsAccountsReady;
@@ -285,6 +289,22 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     }
 
     public bool IsDownloadsReady => Downloads is not null;
+
+    public DesktopPlaylistsViewModel? Playlists
+    {
+        get
+        {
+            if (playlists is null && CurrentHandshake is not null)
+            {
+                playlists = new DesktopPlaylistsViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                playlistsHandshake = CurrentHandshake;
+            }
+
+            return playlists;
+        }
+    }
+
+    public bool IsPlaylistsReady => Playlists is not null;
 
     public DesktopLibraryViewModel? Library
     {
@@ -474,6 +494,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsHomeSectionActive));
                 OnPropertyChanged(nameof(IsSearchWorkspaceVisible));
                 OnPropertyChanged(nameof(IsDownloadsQueueVisible));
+                OnPropertyChanged(nameof(IsPlaylistsReady));
+                OnPropertyChanged(nameof(IsPlaylistsVisible));
                 OnPropertyChanged(nameof(IsLibraryReady));
                 OnPropertyChanged(nameof(IsLibraryVisible));
                 OnPropertyChanged(nameof(IsAccountsReady));
@@ -524,6 +546,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(Downloads));
                 OnPropertyChanged(nameof(IsDownloadsReady));
                 OnPropertyChanged(nameof(IsDownloadsQueueVisible));
+                OnPropertyChanged(nameof(Playlists));
+                OnPropertyChanged(nameof(IsPlaylistsReady));
+                OnPropertyChanged(nameof(IsPlaylistsVisible));
                 OnPropertyChanged(nameof(Library));
                 OnPropertyChanged(nameof(IsLibraryReady));
                 OnPropertyChanged(nameof(IsLibraryVisible));
@@ -626,6 +651,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             searchHandshake = null;
             downloads = null;
             downloadsHandshake = null;
+            playlists = null;
+            playlistsHandshake = null;
             library = null;
             libraryHandshake = null;
             accounts = null;
@@ -643,6 +670,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             downloads = null;
             downloadsHandshake = CurrentHandshake;
+        }
+
+        if (!Equals(playlistsHandshake, CurrentHandshake))
+        {
+            playlists = null;
+            playlistsHandshake = CurrentHandshake;
         }
 
         if (!Equals(libraryHandshake, CurrentHandshake))
