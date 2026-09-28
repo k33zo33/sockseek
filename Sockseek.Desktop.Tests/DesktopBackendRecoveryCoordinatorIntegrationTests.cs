@@ -9,43 +9,52 @@ public sealed class DesktopBackendRecoveryCoordinatorIntegrationTests
     public async Task RecoveryCoordinator_RelaunchesRealDaemon_AndReconnectsWithFreshHandshake()
     {
         var workspaceRoot = FindWorkspaceRoot();
-        var request = DesktopDevelopmentDaemonLaunchRequestFactory.Create(workspaceRoot);
-        await using var supervisor = new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher());
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+        var tempConfigDir = Path.Combine(Path.GetTempPath(), "Sockseek-desktop-recovery-" + Guid.NewGuid());
+        Directory.CreateDirectory(tempConfigDir);
+        try
+        {
+            var request = DesktopDevelopmentDaemonLaunchRequestFactory.Create(workspaceRoot, configDir: tempConfigDir);
+            await using var supervisor = new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher());
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
 
-        var launched = await supervisor.TryLaunchAsync(request, cts.Token);
-        Assert.IsTrue(launched);
-        Assert.IsNotNull(supervisor.CurrentHandshake);
+            var launched = await supervisor.TryLaunchAsync(request, cts.Token);
+            Assert.IsTrue(launched);
+            Assert.IsNotNull(supervisor.CurrentHandshake);
 
-        await using var coordinator = new DesktopBackendRecoveryCoordinator(supervisor);
-        var states = new List<DesktopBackendEventsConnectionState>();
-        coordinator.EventsStateChanged += (_, state) => states.Add(state);
+            await using var coordinator = new DesktopBackendRecoveryCoordinator(supervisor);
+            var states = new List<DesktopBackendEventsConnectionState>();
+            coordinator.EventsStateChanged += (_, state) => states.Add(state);
 
-        await WaitForAsync(
-            () => coordinator.EventsState == DesktopBackendEventsConnectionState.Connected,
-            TimeSpan.FromSeconds(30),
-            cts.Token);
+            await WaitForAsync(
+                () => coordinator.EventsState == DesktopBackendEventsConnectionState.Connected,
+                TimeSpan.FromSeconds(30),
+                cts.Token);
 
-        var firstHandshake = supervisor.CurrentHandshake;
-        var relaunchResult = await supervisor.TryLaunchAsync(request, cts.Token);
-        Assert.IsTrue(relaunchResult);
-        Assert.IsNotNull(supervisor.CurrentHandshake);
+            var firstHandshake = supervisor.CurrentHandshake;
+            var relaunchResult = await supervisor.TryLaunchAsync(request, cts.Token);
+            Assert.IsTrue(relaunchResult);
+            Assert.IsNotNull(supervisor.CurrentHandshake);
 
-        await WaitForAsync(
-            () => coordinator.EventsState == DesktopBackendEventsConnectionState.Connected,
-            TimeSpan.FromSeconds(30),
-            cts.Token);
+            await WaitForAsync(
+                () => coordinator.EventsState == DesktopBackendEventsConnectionState.Connected,
+                TimeSpan.FromSeconds(30),
+                cts.Token);
 
-        var secondHandshake = supervisor.CurrentHandshake;
-        Assert.IsNotNull(firstHandshake);
-        Assert.IsNotNull(secondHandshake);
-        Assert.AreNotEqual(firstHandshake.SessionToken, secondHandshake.SessionToken);
-        Assert.IsTrue(states.Contains(DesktopBackendEventsConnectionState.Disconnected));
-        Assert.IsTrue(states.Count(state => state == DesktopBackendEventsConnectionState.Connected) >= 2);
+            var secondHandshake = supervisor.CurrentHandshake;
+            Assert.IsNotNull(firstHandshake);
+            Assert.IsNotNull(secondHandshake);
+            Assert.AreNotEqual(firstHandshake.SessionToken, secondHandshake.SessionToken);
+            Assert.IsTrue(states.Contains(DesktopBackendEventsConnectionState.Disconnected));
+            Assert.IsTrue(states.Count(state => state == DesktopBackendEventsConnectionState.Connected) >= 2);
 
-        var apiClient = DesktopBackendClientFactory.CreateApiClient(secondHandshake);
-        var health = await apiClient.GetSystemHealthAsync(cts.Token);
-        Assert.AreEqual("ok", health.Status);
+            var apiClient = DesktopBackendClientFactory.CreateApiClient(secondHandshake);
+            var health = await apiClient.GetSystemHealthAsync(cts.Token);
+            Assert.AreEqual("ok", health.Status);
+        }
+        finally
+        {
+            DeleteTempRoot(tempConfigDir);
+        }
     }
 
     private static async Task WaitForAsync(Func<bool> predicate, TimeSpan timeout, CancellationToken cancellationToken)
@@ -76,5 +85,22 @@ public sealed class DesktopBackendRecoveryCoordinatorIntegrationTests
         }
 
         throw new DirectoryNotFoundException("Could not locate the Sockseek workspace root for desktop recovery integration tests.");
+    }
+
+    private static void DeleteTempRoot(string tempRoot)
+    {
+        if (!Directory.Exists(tempRoot))
+            return;
+
+        try
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 }

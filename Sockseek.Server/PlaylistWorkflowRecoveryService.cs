@@ -1,14 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Sockseek.Domain.Playlists;
 using Sockseek.Infrastructure.Persistence;
 
 namespace Sockseek.Server;
 
-public sealed class PlaylistWorkflowRecoveryService(IServiceScopeFactory scopeFactory)
+public sealed class PlaylistWorkflowRecoveryService(
+    IServiceScopeFactory scopeFactory,
+    IOptions<ServerOptions> options)
 {
     public async Task<int> MarkInterruptedPlaylistWorkflowsAsync(CancellationToken cancellationToken = default)
     {
+        if (UsesImplicitDatabasePathInTestProcess(options.Value))
+            return 0;
+
         await using var scope = scopeFactory.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync(cancellationToken);
         var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
@@ -46,4 +52,10 @@ public sealed class PlaylistWorkflowRecoveryService(IServiceScopeFactory scopeFa
         => Enum.IsDefined(typeof(PlaylistItemStatus), status)
             ? (PlaylistItemStatus)status
             : PlaylistItemStatus.Unresolved;
+
+    private static bool UsesImplicitDatabasePathInTestProcess(ServerOptions options)
+        => string.IsNullOrWhiteSpace(options.DatabasePath)
+            && string.IsNullOrWhiteSpace(options.ConfigDir)
+            && AppDomain.CurrentDomain.GetAssemblies()
+                .Any(assembly => assembly.GetName().Name?.EndsWith(".Tests", StringComparison.Ordinal) == true);
 }
