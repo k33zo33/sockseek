@@ -174,6 +174,45 @@ public sealed class DesktopPlaylistsViewModelTests
     }
 
     [TestMethod]
+    public async Task SelectedPlaylistItems_AppliesStatusFilterAndSearchText()
+    {
+        var playlistId = Guid.NewGuid();
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.EndsWith("/playlists", StringComparison.Ordinal))
+                return new[] { CreateSummary(playlistId, "Filters") };
+
+            return CreateMixedDetail(playlistId);
+        });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
+
+        Assert.IsTrue(await viewModel.RefreshAsync());
+        Assert.AreEqual(5, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("5/5 tracks", viewModel.SelectedPlaylistItemSummary);
+
+        viewModel.IsMissingFilter = true;
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Missing Track", viewModel.SelectedPlaylistItems[0].Title);
+        Assert.AreEqual("1/5 tracks", viewModel.SelectedPlaylistItemSummary);
+
+        viewModel.IsReviewFilter = true;
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Review Track", viewModel.SelectedPlaylistItems[0].Title);
+
+        viewModel.IsAllFilter = true;
+        viewModel.PlaylistSearchText = "broken";
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Broken Track", viewModel.SelectedPlaylistItems[0].Title);
+
+        viewModel.IsDownloadingFilter = true;
+        viewModel.PlaylistSearchText = string.Empty;
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Download Track", viewModel.SelectedPlaylistItems[0].Title);
+    }
+
+    [TestMethod]
     public void PlaylistsSurface_BindsListDetailAndCommands()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
@@ -197,6 +236,10 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.RejectLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.SkipItemCommand");
         StringAssert.Contains(xaml, "Playlists.RetryItemCommand");
+        StringAssert.Contains(xaml, "Playlists.IsAvailableFilter");
+        StringAssert.Contains(xaml, "Playlists.IsMissingFilter");
+        StringAssert.Contains(xaml, "Playlists.PlaylistSearchText");
+        StringAssert.Contains(xaml, "Playlists.SelectedPlaylistItemSummary");
     }
 
     private static PlaylistSummaryDto CreateSummary(Guid playlistId, string name)
@@ -255,6 +298,48 @@ public sealed class DesktopPlaylistsViewModelTests
                     null,
                     null),
             ]);
+
+    private static PlaylistDetailDto CreateMixedDetail(Guid playlistId)
+        => new(
+            playlistId,
+            "Filters",
+            "Mirror",
+            "spotify",
+            "external-playlist",
+            "https://example.test/playlist",
+            new DateTimeOffset(2026, 9, 28, 8, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
+            CreateResolution(5, available: 1, unresolved: 1, review: 1, downloading: 1, failed: 1),
+            [
+                CreateItem(1, "Ready Track", "AvailableLocal", canonicalTrackId: Guid.NewGuid()),
+                CreateItem(2, "Missing Track", "Unresolved"),
+                CreateItem(3, "Download Track", "Downloading"),
+                CreateItem(4, "Review Track", "ReviewRequired", canonicalTrackId: Guid.NewGuid()),
+                CreateItem(5, "Broken Track", "Failed"),
+            ]);
+
+    private static PlaylistItemDto CreateItem(
+        int position,
+        string title,
+        string status,
+        Guid? canonicalTrackId = null)
+        => new(
+            Guid.NewGuid(),
+            position,
+            $"provider-item-{position}",
+            canonicalTrackId,
+            status,
+            title,
+            ["Artist"],
+            "Album",
+            180000,
+            null,
+            null,
+            $"external-track-{position}",
+            $"https://example.test/track/{position}",
+            null,
+            null);
 
     private static PlaylistResolutionSummaryDto CreateResolution(
         int total,

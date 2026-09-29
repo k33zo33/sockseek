@@ -418,6 +418,18 @@
                     <Button Margin="0,0,8,8" Content="Download missing" Command="{Binding Playlists.DownloadMissingCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                     <Button Margin="0,0,8,8" Content="Cancel active" Command="{Binding Playlists.CancelActiveDownloadsCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                   </WrapPanel>
+                  <Grid ColumnDefinitions="*,220" ColumnSpacing="12">
+                    <WrapPanel Grid.Column="0">
+                      <RadioButton Margin="0,0,8,8" Content="All" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsAllFilter}" />
+                      <RadioButton Margin="0,0,8,8" Content="Available" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsAvailableFilter}" />
+                      <RadioButton Margin="0,0,8,8" Content="Missing" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsMissingFilter}" />
+                      <RadioButton Margin="0,0,8,8" Content="Downloading" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsDownloadingFilter}" />
+                      <RadioButton Margin="0,0,8,8" Content="Review" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsReviewFilter}" />
+                      <RadioButton Margin="0,0,8,8" Content="Failed" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsFailedFilter}" />
+                    </WrapPanel>
+                    <TextBox Grid.Column="1" Watermark="Search playlist" Text="{Binding Playlists.PlaylistSearchText}" />
+                  </Grid>
+                  <TextBlock Text="{Binding Playlists.SelectedPlaylistItemSummary}" Opacity="0.65" />
                   <ListBox ItemsSource="{Binding Playlists.SelectedPlaylistItems}"
                            MaxHeight="520"
                            Background="Transparent"
