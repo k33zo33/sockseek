@@ -94,6 +94,8 @@ public sealed record PlayCanonicalTrackRequestDto(Guid CanonicalTrackId);
 
 public sealed record PlayPlaylistItemRequestDto(Guid PlaylistItemId);
 
+public sealed record MapPlaylistItemLocalRequestDto(Guid CanonicalTrackId);
+
 public sealed record PlayDownloadJobRequestDto(Guid JobId);
 
 public sealed record ProviderAuthorizationStartRequestDto(

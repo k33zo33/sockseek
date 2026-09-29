@@ -286,6 +286,16 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<PlaylistDetailDto>(response, ct);
     }
 
+    public async Task<PlaylistDetailDto?> MapPlaylistItemToLocalTrackAsync(
+        Guid playlistId,
+        Guid playlistItemId,
+        MapPlaylistItemLocalRequestDto request,
+        CancellationToken ct = default)
+        => await PostOptionalAsync<PlaylistDetailDto, MapPlaylistItemLocalRequestDto>(
+            $"api/v1/playlists/{playlistId}/items/{playlistItemId}/map-local",
+            request,
+            ct);
+
     public async Task<PlaylistDownloadMissingResultDto?> RetryPlaylistItemAsync(Guid playlistId, Guid playlistItemId, CancellationToken ct = default)
     {
         using var response = await http.PostAsync($"api/v1/playlists/{playlistId}/items/{playlistItemId}/retry", null, ct);

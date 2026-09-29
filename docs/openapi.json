@@ -1323,6 +1323,89 @@
         }
       }
     },
+    "/api/v1/playlists/{playlistId}/items/{playlistItemId}/map-local": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Manually maps a playlist item to an available local library track.",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "playlistItemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapPlaylistItemLocalRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/playlists/{playlistId}/items/{playlistItemId}/retry": {
       "post": {
         "tags": [
@@ -6834,6 +6917,18 @@
           },
           "path": {
             "type": "string"
+          }
+        }
+      },
+      "MapPlaylistItemLocalRequestDto": {
+        "required": [
+          "canonicalTrackId"
+        ],
+        "type": "object",
+        "properties": {
+          "canonicalTrackId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

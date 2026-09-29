@@ -1110,6 +1110,67 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/map-local", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            MapPlaylistItemLocalRequestDto request,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var item = await db.PlaylistItems
+                .SingleOrDefaultAsync(entity => entity.Id == playlistItemId && entity.PlaylistId == playlistId, ct);
+            if (item == null)
+                return Results.NotFound();
+            if (item.RemovedAtUtc.HasValue)
+                return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot be manually mapped.");
+
+            var status = Enum.IsDefined(typeof(PlaylistItemStatus), item.Status)
+                ? (PlaylistItemStatus)item.Status
+                : PlaylistItemStatus.Unresolved;
+            if (status is PlaylistItemStatus.Searching
+                or PlaylistItemStatus.CandidateFound
+                or PlaylistItemStatus.Downloading)
+            {
+                return BadAppRequest(context, "playlist_item_active_workflow", "Active playlist resolution workflows must finish or be cancelled before manual mapping.");
+            }
+
+            var hasAvailableLocalFile = await db.CanonicalTracks
+                .AsNoTracking()
+                .AnyAsync(track => track.Id == request.CanonicalTrackId
+                    && track.LocalMediaFiles.Any(file => file.Availability == (int)LocalMediaAvailability.Available), ct);
+            if (!hasAvailableLocalFile)
+                return BadAppRequest(context, "local_track_unavailable", "Manual playlist mapping requires a local library track with an available media file.");
+
+            item.CanonicalTrackId = request.CanonicalTrackId;
+            item.Status = (int)PlaylistItemStatus.AvailableLocal;
+            db.ResolutionAttempts.Add(new ResolutionAttemptEntity
+            {
+                Id = Guid.NewGuid(),
+                PlaylistItemId = item.Id,
+                CandidateTrackId = request.CanonicalTrackId,
+                Method = (int)ResolutionMethod.ManualReview,
+                Score = 1d,
+                Decision = (int)ResolutionDecision.UserApproved,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync(ct);
+
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during manual local mapping.");
+            return Results.Ok(ToPlaylistDetailDto(updated));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Manually maps a playlist item to an available local library track.")
+            .Produces<PlaylistDetailDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/retry", async (
             Guid playlistId,
             Guid playlistItemId,

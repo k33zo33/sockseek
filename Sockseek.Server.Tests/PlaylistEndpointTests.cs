@@ -529,6 +529,58 @@ public sealed class PlaylistEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task MapPlaylistItemToLocalTrack_PreservesManualMappingAcrossProviderSync()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var (playlistId, itemId, trackId) = await SeedManualMappingPlaylistAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var mapped = await client.MapPlaylistItemToLocalTrackAsync(
+                playlistId,
+                itemId,
+                new MapPlaylistItemLocalRequestDto(trackId));
+            var missing = await client.MapPlaylistItemToLocalTrackAsync(
+                playlistId,
+                Guid.NewGuid(),
+                new MapPlaylistItemLocalRequestDto(trackId));
+
+            Assert.IsNotNull(mapped);
+            Assert.IsNull(missing);
+            Assert.AreEqual(1, mapped.Resolution.AvailableLocalItems);
+            Assert.AreEqual("AvailableLocal", mapped.Items.Single(item => item.PlaylistItemId == itemId).Status);
+            Assert.AreEqual(trackId, mapped.Items.Single(item => item.PlaylistItemId == itemId).CanonicalTrackId);
+
+            await UpsertManualMappingSnapshotAsync(app, "Manual Map Synced");
+            var synced = await client.GetPlaylistAsync(playlistId);
+
+            Assert.IsNotNull(synced);
+            var syncedItem = synced.Items.Single(item => item.PlaylistItemId == itemId);
+            Assert.AreEqual("AvailableLocal", syncedItem.Status);
+            Assert.AreEqual(trackId, syncedItem.CanonicalTrackId);
+            Assert.AreEqual("Manual Map Synced", synced.Name);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var attempt = await verifyDb.ResolutionAttempts
+                .AsNoTracking()
+                .SingleAsync(attempt => attempt.PlaylistItemId == itemId);
+            Assert.AreEqual(trackId, attempt.CandidateTrackId);
+            Assert.AreEqual((int)ResolutionMethod.ManualReview, attempt.Method);
+            Assert.AreEqual((int)ResolutionDecision.UserApproved, attempt.Decision);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedPlaylistAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -760,6 +812,70 @@ public sealed class PlaylistEndpointTests
         await db.SaveChangesAsync();
 
         return (playlistId, items["review-approve"].Id, items["review-reject"].Id);
+    }
+
+    private static async Task<(Guid PlaylistId, Guid ItemId, Guid TrackId)> SeedManualMappingPlaylistAsync(WebApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+        var playlistId = await UpsertManualMappingSnapshotAsync(app, "Manual Map");
+
+        var trackId = Guid.NewGuid();
+        db.CanonicalTracks.Add(new CanonicalTrackEntity
+        {
+            Id = trackId,
+            Artist = "Mapped Artist",
+            Title = "Mapped Local Track",
+            AlbumTitle = "Mapped Album",
+            DurationMs = 210000,
+            NormalizedArtist = "mapped artist",
+            NormalizedTitle = "mapped local track",
+            LocalMediaFiles =
+            [
+                new LocalMediaFileEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Path = "C:/Music/Mapped Artist/Mapped Local Track.flac",
+                    Size = 1234,
+                    LastWriteUtc = new DateTimeOffset(2026, 9, 28, 15, 5, 0, TimeSpan.Zero),
+                    DurationMs = 210000,
+                    Codec = "flac",
+                    Bitrate = 900,
+                    SampleRate = 44100,
+                    BitDepth = 16,
+                    Availability = (int)LocalMediaAvailability.Available,
+                },
+            ],
+        });
+        await db.SaveChangesAsync();
+
+        var itemId = await db.PlaylistItems
+            .Where(item => item.PlaylistId == playlistId && item.ProviderItemId == "manual-map")
+            .Select(item => item.Id)
+            .SingleAsync();
+
+        return (playlistId, itemId, trackId);
+    }
+
+    private static async Task<Guid> UpsertManualMappingSnapshotAsync(WebApplication app, string playlistName)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+        return await new ExternalPlaylistSnapshotStore(db).UpsertAsync(new ExternalPlaylistSnapshotRecord(
+            ExternalProvider.Spotify,
+            "playlist-manual-map",
+            playlistName,
+            "https://example.test/playlist/manual-map",
+            1,
+            new DateTimeOffset(2026, 9, 28, 15, 0, 0, TimeSpan.Zero),
+            PlaylistImportMode.Mirror,
+            playlistName,
+            [
+                new ExternalPlaylistItemSnapshot("manual-map", 1, "Provider Track", "Provider Artist", "Provider Album", 210000),
+            ],
+            null));
     }
 
     private static void SeedMockSoulseekFile(string tempRoot, string artist, string album, string filename)
