@@ -1156,6 +1156,54 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/download", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistDownloadOrchestrator downloads,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var result = await downloads.DownloadItemAsync(playlistId, playlistItemId, ct);
+            if (!result.ItemFound)
+                return Results.NotFound();
+
+            switch (result.Outcome)
+            {
+                case PlaylistItemDownloadOutcome.Removed:
+                    return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot be downloaded.");
+                case PlaylistItemDownloadOutcome.AlreadyAvailable:
+                    return BadAppRequest(context, "playlist_item_available", "Available local playlist items do not need download.");
+                case PlaylistItemDownloadOutcome.AlreadyActive:
+                    return BadAppRequest(context, "playlist_item_already_active", "Playlist item already has an active resolution workflow.");
+                case PlaylistItemDownloadOutcome.NotDownloadable:
+                    return BadAppRequest(context, "playlist_item_not_downloadable", "Only unresolved, failed or skipped playlist items can be downloaded.");
+            }
+
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during item download.");
+            var detail = ToPlaylistDetailDto(updated);
+            PlaylistDownloadSubmissionDto[] submissions = result.Submission is { } submission
+                ? new[] { ToPlaylistDownloadSubmissionDto(submission) }
+                : Array.Empty<PlaylistDownloadSubmissionDto>();
+            return Results.Ok(new PlaylistDownloadMissingResultDto(
+                result.Outcome == PlaylistItemDownloadOutcome.Submitted ? 1 : 0,
+                result.Outcome == PlaylistItemDownloadOutcome.FailedToSubmit ? 1 : 0,
+                0,
+                detail.Resolution,
+                detail,
+                submissions));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Submits one unresolved playlist item to a Soulseek download workflow.")
+            .Produces<PlaylistDownloadMissingResultDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapGet("/api/v1/player", async (PlaybackCoordinator player, SockseekDbContext db, LocalArtworkCache artworkCache, CancellationToken ct) =>
                 Results.Ok(await ToPlayerStateDtoAsync(player, db, artworkCache, ct)))
             .WithTags("Player")

@@ -59,6 +59,8 @@ public sealed class DesktopPlaylistsViewModelTests
                 return CreateDetail(playlistId, itemId, "Actions", "Skipped");
             if (request.Method == HttpMethod.Post && path.EndsWith("/retry", StringComparison.Ordinal))
                 return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, downloading: 1), CreateDetail(playlistId, itemId, "Actions", "Downloading"), [CreateSubmission(itemId)]);
+            if (request.Method == HttpMethod.Post && path.EndsWith("/download", StringComparison.Ordinal))
+                return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, downloading: 1), CreateDetail(playlistId, itemId, "Actions", "Downloading"), [CreateSubmission(itemId)]);
             if (request.Method == HttpMethod.Post && path.EndsWith("/approve-local", StringComparison.Ordinal))
                 return CreateDetail(playlistId, itemId, "Actions", "AvailableLocal", canonicalTrackId: Guid.NewGuid());
             if (request.Method == HttpMethod.Post && path.EndsWith("/reject-local", StringComparison.Ordinal))
@@ -110,7 +112,7 @@ public sealed class DesktopPlaylistsViewModelTests
         Assert.AreEqual("Downloading", viewModel.SelectedPlaylistItems[0].Status);
 
         Assert.IsTrue(await viewModel.PlayItemAsync(itemId));
-        Assert.AreEqual("Playback started", viewModel.OperationSummary);
+        Assert.AreEqual("Item is already resolving", viewModel.OperationSummary);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -125,7 +127,48 @@ public sealed class DesktopPlaylistsViewModelTests
                 $"api/v1/playlists/{playlistId}/items/{itemId}/play-from-here",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/skip",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/retry",
-                "api/v1/player/play/playlist-item",
+            },
+            handler.Requests.ToArray());
+    }
+
+    [TestMethod]
+    public async Task PlayItemAsync_UnresolvedItem_SubmitsItemDownloadWorkflow()
+    {
+        var playlistId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.EndsWith("/playlists", StringComparison.Ordinal))
+                return new[] { CreateSummary(playlistId, "Resolve Play") };
+            if (request.Method == HttpMethod.Post && path.EndsWith("/download", StringComparison.Ordinal))
+                return new PlaylistDownloadMissingResultDto(
+                    1,
+                    0,
+                    0,
+                    CreateResolution(1, downloading: 1),
+                    CreateDetail(playlistId, itemId, "Resolve Play", "Downloading"),
+                    [CreateSubmission(itemId)]);
+
+            return CreateDetail(playlistId, itemId, "Resolve Play", "Unresolved");
+        });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
+
+        Assert.IsTrue(await viewModel.RefreshAsync());
+        Assert.IsTrue(viewModel.SelectedPlaylistItems[0].CanPlay);
+        Assert.IsFalse(viewModel.SelectedPlaylistItems[0].CanPlayLocal);
+
+        Assert.IsTrue(await viewModel.PlayItemAsync(itemId));
+
+        Assert.AreEqual("1 download submitted for playback, 0 failed", viewModel.OperationSummary);
+        Assert.AreEqual("Downloading", viewModel.SelectedPlaylistItems[0].Status);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "api/v1/playlists",
+                $"api/v1/playlists/{playlistId}",
+                $"api/v1/playlists/{playlistId}/items/{itemId}/download",
             },
             handler.Requests.ToArray());
     }

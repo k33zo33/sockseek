@@ -188,10 +188,43 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         });
 
     public async Task<bool> PlayItemAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
-        => await ExecuteSelectedPlaylistAsync(async _ =>
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
         {
-            await apiClient.PlayPlaylistItemAsync(playlistItemId, cancellationToken);
-            OperationSummary = "Playback started";
+            var item = FindSelectedItem(playlistItemId);
+            if (item == null)
+            {
+                ErrorMessage = "Playlist item was not found.";
+                return false;
+            }
+
+            if (item.CanPlayLocal)
+            {
+                await apiClient.PlayPlaylistItemAsync(playlistItemId, cancellationToken);
+                OperationSummary = "Playback started";
+                return true;
+            }
+
+            if (item.IsResolutionActive)
+            {
+                OperationSummary = "Item is already resolving";
+                return true;
+            }
+
+            if (!item.CanStartResolution)
+            {
+                ErrorMessage = "Resolve or review this item before playback.";
+                return false;
+            }
+
+            var result = await apiClient.DownloadPlaylistItemAsync(playlistId, playlistItemId, cancellationToken);
+            if (result is null)
+            {
+                ErrorMessage = "Playlist item was not found.";
+                return false;
+            }
+
+            ApplyPlaylist(result.Playlist);
+            OperationSummary = $"{result.SubmittedItems} download submitted for playback, {result.FailedItems} failed";
             return true;
         });
 
@@ -208,6 +241,9 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             OperationSummary = $"{state.Queue.Items.Count} available queued from here";
             return true;
         });
+
+    private DesktopPlaylistItemViewModel? FindSelectedItem(Guid playlistItemId)
+        => SelectedPlaylistItems.SingleOrDefault(item => item.PlaylistItemId == playlistItemId);
 
     public async Task<bool> SkipItemAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
         => await ExecuteSelectedPlaylistAsync(async playlistId =>
@@ -421,7 +457,18 @@ public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
 
     public string SourceSummary { get; } = string.IsNullOrWhiteSpace(item.ExternalUrl) ? item.ProviderItemId : item.ExternalUrl;
 
-    public bool CanPlay { get; } = item.CanonicalTrackId.HasValue && string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+    public bool CanPlayLocal { get; } = item.CanonicalTrackId.HasValue && string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+
+    public bool CanStartResolution { get; } = string.Equals(item.Status, "Imported", StringComparison.Ordinal)
+        || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal)
+        || string.Equals(item.Status, "Failed", StringComparison.Ordinal)
+        || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+
+    public bool IsResolutionActive { get; } = string.Equals(item.Status, "Searching", StringComparison.Ordinal)
+        || string.Equals(item.Status, "CandidateFound", StringComparison.Ordinal)
+        || string.Equals(item.Status, "Downloading", StringComparison.Ordinal);
+
+    public bool CanPlay { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
 
     public bool CanPlayFromHere { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
 

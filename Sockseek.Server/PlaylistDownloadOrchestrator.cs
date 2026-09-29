@@ -90,6 +90,49 @@ public sealed class PlaylistDownloadOrchestrator(
         }
     }
 
+    public async Task<PlaylistItemDownloadResult> DownloadItemAsync(
+        Guid playlistId,
+        Guid playlistItemId,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await dbContext.PlaylistItems
+            .SingleOrDefaultAsync(entity => entity.Id == playlistItemId && entity.PlaylistId == playlistId, cancellationToken);
+        if (item == null)
+            return PlaylistItemDownloadResult.NotFound;
+        if (item.RemovedAtUtc.HasValue)
+            return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.Removed, null);
+        if (item.CanonicalTrackId.HasValue || item.Status == (int)PlaylistItemStatus.AvailableLocal)
+            return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.AlreadyAvailable, null);
+
+        var status = ToPlaylistItemStatus(item.Status);
+        if (status is PlaylistItemStatus.Searching
+            or PlaylistItemStatus.CandidateFound
+            or PlaylistItemStatus.Downloading)
+        {
+            return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.AlreadyActive, null);
+        }
+
+        if (status is not (PlaylistItemStatus.Imported
+            or PlaylistItemStatus.Unresolved
+            or PlaylistItemStatus.Failed
+            or PlaylistItemStatus.Skipped))
+        {
+            return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.NotDownloadable, null);
+        }
+
+        try
+        {
+            var submission = await SubmitDownloadAsync(item, cancellationToken);
+            return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.Submitted, submission);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            item.Status = (int)PlaylistItemStatus.Failed;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.FailedToSubmit, null);
+        }
+    }
+
     public async Task<PlaylistCancelDownloadsResult> CancelActiveDownloadsAsync(
         Guid playlistId,
         CancellationToken cancellationToken = default)
@@ -182,11 +225,14 @@ public sealed class PlaylistDownloadOrchestrator(
         => JsonSerializer.Deserialize<ExternalPlaylistItemSnapshot>(item.SnapshotJson)
             ?? throw new InvalidOperationException($"Playlist item '{item.Id}' snapshot could not be deserialized.");
 
-    private static bool IsActivePlaylistStatus(int status)
-    {
-        var playlistStatus = Enum.IsDefined(typeof(PlaylistItemStatus), status)
+    private static PlaylistItemStatus ToPlaylistItemStatus(int status)
+        => Enum.IsDefined(typeof(PlaylistItemStatus), status)
             ? (PlaylistItemStatus)status
             : PlaylistItemStatus.Unresolved;
+
+    private static bool IsActivePlaylistStatus(int status)
+    {
+        var playlistStatus = ToPlaylistItemStatus(status);
 
         return playlistStatus is PlaylistItemStatus.Searching
             or PlaylistItemStatus.CandidateFound
@@ -251,6 +297,27 @@ public sealed record PlaylistItemRetryResult(
     public static PlaylistItemRetryResult NotFound { get; } = new(
         ItemFound: false,
         Outcome: PlaylistItemRetryOutcome.NotRetryable,
+        Submission: null);
+}
+
+public enum PlaylistItemDownloadOutcome
+{
+    Submitted,
+    FailedToSubmit,
+    Removed,
+    AlreadyAvailable,
+    AlreadyActive,
+    NotDownloadable,
+}
+
+public sealed record PlaylistItemDownloadResult(
+    bool ItemFound,
+    PlaylistItemDownloadOutcome Outcome,
+    PlaylistDownloadSubmissionRecord? Submission)
+{
+    public static PlaylistItemDownloadResult NotFound { get; } = new(
+        ItemFound: false,
+        Outcome: PlaylistItemDownloadOutcome.NotDownloadable,
         Submission: null);
 }
 

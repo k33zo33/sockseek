@@ -49,6 +49,7 @@ Connect imported playlists to local-library matching, Soulseek search/download w
   - `GET /api/v1/playlists/{playlistId}`
   - `POST /api/v1/playlists/{playlistId}/resolve-local`
   - `POST /api/v1/playlists/{playlistId}/download-missing`
+  - `POST /api/v1/playlists/{playlistId}/items/{playlistItemId}/download`
   - item-level retry/skip/review endpoints if needed by the backend slice.
 - Expected DTOs include playlist summary/detail, item status, resolution summary and bulk operation result.
 - No schema change is expected for the first vertical slice if existing `PlaylistItems`, `ResolutionAttempts` and `DownloadWorkflows.PlaylistItemId` are enough.
@@ -63,7 +64,8 @@ Connect imported playlists to local-library matching, Soulseek search/download w
 5. Add bulk download-missing orchestration for unresolved items using existing track search/download pathways, preserving playlist item IDs in workflow persistence.
 6. Add retry/skip/review persistence where needed for partial success and user decisions.
 7. Add Desktop playlist detail view-model states and API calls for Resolve, Download missing and Play available.
-8. Run full validation, provider-audio scans and update Sprint 13 status only after acceptance criteria pass.
+8. Add item-level download/resolve-and-play trigger support for unresolved playlist rows.
+9. Run full validation, provider-audio scans and update Sprint 13 status only after acceptance criteria pass.
 
 ## Testing Strategy
 
