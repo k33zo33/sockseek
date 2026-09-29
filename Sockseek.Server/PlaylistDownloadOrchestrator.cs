@@ -40,7 +40,7 @@ public sealed class PlaylistDownloadOrchestrator(
 
             try
             {
-                submissions.Add(await SubmitSearchAsync(item, cancellationToken));
+                submissions.Add(await SubmitDownloadAsync(item, cancellationToken));
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
@@ -79,7 +79,7 @@ public sealed class PlaylistDownloadOrchestrator(
 
         try
         {
-            var submission = await SubmitSearchAsync(item, cancellationToken);
+            var submission = await SubmitDownloadAsync(item, cancellationToken);
             return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.Submitted, submission);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -145,24 +145,25 @@ public sealed class PlaylistDownloadOrchestrator(
             FailedItems: failedItems);
     }
 
-    private async Task<PlaylistDownloadSubmissionRecord> SubmitSearchAsync(
+    private async Task<PlaylistDownloadSubmissionRecord> SubmitDownloadAsync(
         PlaylistItemEntity item,
         CancellationToken cancellationToken)
     {
         var snapshot = DeserializeSnapshot(item);
-        var handle = await gateway.StartTrackSearchAsync(
+        var handle = await gateway.StartTrackDownloadAsync(
             new TrackSearchRequest(snapshot.Artist, snapshot.Title, snapshot.Album, null),
+            new DownloadOptions(OutputParentDir: null, ProfileName: null),
             cancellationToken);
         var now = DateTimeOffset.UtcNow;
 
-        item.Status = (int)PlaylistItemStatus.Searching;
+        item.Status = (int)PlaylistItemStatus.Downloading;
         dbContext.DownloadWorkflows.Add(new DownloadWorkflowEntity
         {
             Id = Guid.NewGuid(),
             WorkflowId = handle.WorkflowId,
             EngineJobId = handle.EngineJobId,
             PlaylistItemId = item.Id,
-            Status = (int)DownloadWorkflowPersistenceStatus.Searching,
+            Status = (int)DownloadWorkflowPersistenceStatus.Downloading,
             CandidateJson = JsonSerializer.Serialize(new PlaylistSearchWorkflowRecord(
                 item.ProviderItemId,
                 snapshot.Artist,

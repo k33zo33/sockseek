@@ -48,7 +48,7 @@ public sealed class DesktopPlaylistsViewModelTests
             if (request.Method == HttpMethod.Post && path.EndsWith("/resolve-local", StringComparison.Ordinal))
                 return new PlaylistLocalResolveResultDto(1, 0, 0, CreateResolution(1, 1, 0), CreateDetail(playlistId, itemId, "Actions", "AvailableLocal", canonicalTrackId: Guid.NewGuid()));
             if (request.Method == HttpMethod.Post && path.EndsWith("/download-missing", StringComparison.Ordinal))
-                return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, searching: 1), CreateDetail(playlistId, itemId, "Actions", "Searching"), [CreateSubmission(itemId)]);
+                return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, downloading: 1), CreateDetail(playlistId, itemId, "Actions", "Downloading"), [CreateSubmission(itemId)]);
             if (request.Method == HttpMethod.Post && path.EndsWith("/cancel-active-downloads", StringComparison.Ordinal))
                 return new PlaylistCancelDownloadsResultDto(1, 0, CreateResolution(1, failed: 1), CreateDetail(playlistId, itemId, "Actions", "Failed"));
             if (request.Method == HttpMethod.Post && path.EndsWith("/play-available", StringComparison.Ordinal))
@@ -58,7 +58,7 @@ public sealed class DesktopPlaylistsViewModelTests
             if (request.Method == HttpMethod.Post && path.EndsWith("/skip", StringComparison.Ordinal))
                 return CreateDetail(playlistId, itemId, "Actions", "Skipped");
             if (request.Method == HttpMethod.Post && path.EndsWith("/retry", StringComparison.Ordinal))
-                return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, searching: 1), CreateDetail(playlistId, itemId, "Actions", "Searching"), [CreateSubmission(itemId)]);
+                return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, downloading: 1), CreateDetail(playlistId, itemId, "Actions", "Downloading"), [CreateSubmission(itemId)]);
             if (request.Method == HttpMethod.Post && path.EndsWith("/approve-local", StringComparison.Ordinal))
                 return CreateDetail(playlistId, itemId, "Actions", "AvailableLocal", canonicalTrackId: Guid.NewGuid());
             if (request.Method == HttpMethod.Post && path.EndsWith("/reject-local", StringComparison.Ordinal))
@@ -89,7 +89,7 @@ public sealed class DesktopPlaylistsViewModelTests
 
         Assert.IsTrue(await viewModel.DownloadMissingAsync());
         Assert.AreEqual("1 submitted, 0 failed, 0 skipped", viewModel.OperationSummary);
-        Assert.AreEqual("Searching", viewModel.SelectedPlaylistItems[0].Status);
+        Assert.AreEqual("Downloading", viewModel.SelectedPlaylistItems[0].Status);
 
         Assert.IsTrue(await viewModel.CancelActiveDownloadsAsync());
         Assert.AreEqual("1 cancelled, 0 failed", viewModel.OperationSummary);
@@ -107,7 +107,7 @@ public sealed class DesktopPlaylistsViewModelTests
 
         Assert.IsTrue(await viewModel.RetryItemAsync(itemId));
         Assert.AreEqual("1 retry submitted, 0 failed", viewModel.OperationSummary);
-        Assert.AreEqual("Searching", viewModel.SelectedPlaylistItems[0].Status);
+        Assert.AreEqual("Downloading", viewModel.SelectedPlaylistItems[0].Status);
 
         Assert.IsTrue(await viewModel.PlayItemAsync(itemId));
         Assert.AreEqual("Playback started", viewModel.OperationSummary);
@@ -191,6 +191,7 @@ public sealed class DesktopPlaylistsViewModelTests
                 unresolved: status == "Unresolved" ? 1 : 0,
                 review: status == "ReviewRequired" ? 1 : 0,
                 searching: status == "Searching" ? 1 : 0,
+                downloading: status == "Downloading" ? 1 : 0,
                 failed: status == "Failed" ? 1 : 0,
                 skipped: status == "Skipped" ? 1 : 0),
             [

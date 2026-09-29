@@ -14,9 +14,11 @@ public class FakeSoulseekEngineGatewayTests
         var workflowId = Guid.NewGuid();
         var trackHandle = new SearchHandle(workflowId, Guid.NewGuid());
         var albumHandle = new SearchHandle(workflowId, Guid.NewGuid());
+        var trackDownloadHandle = new DownloadHandle(workflowId, Guid.NewGuid());
         var downloadHandle = new DownloadHandle(workflowId, Guid.NewGuid());
         gateway.EnqueueTrackSearchHandle(trackHandle);
         gateway.EnqueueAlbumSearchHandle(albumHandle);
+        gateway.EnqueueTrackDownloadHandle(trackDownloadHandle);
         gateway.EnqueueDownloadHandle(downloadHandle);
 
         var trackRequest = new TrackSearchRequest("Artist", "Track", "Album", "flac");
@@ -26,13 +28,18 @@ public class FakeSoulseekEngineGatewayTests
 
         var returnedTrackHandle = await gateway.StartTrackSearchAsync(trackRequest, CancellationToken.None);
         var returnedAlbumHandle = await gateway.StartAlbumSearchAsync(albumRequest, CancellationToken.None);
+        var returnedTrackDownloadHandle = await gateway.StartTrackDownloadAsync(trackRequest, options, CancellationToken.None);
         var returnedDownloadHandle = await gateway.StartDownloadAsync(candidate, options, CancellationToken.None);
 
         Assert.AreEqual(trackHandle, returnedTrackHandle);
         Assert.AreEqual(albumHandle, returnedAlbumHandle);
+        Assert.AreEqual(trackDownloadHandle, returnedTrackDownloadHandle);
         Assert.AreEqual(downloadHandle, returnedDownloadHandle);
         CollectionAssert.AreEqual(new[] { trackRequest }, gateway.TrackSearchRequests);
         CollectionAssert.AreEqual(new[] { albumRequest }, gateway.AlbumSearchRequests);
+        Assert.AreEqual(1, gateway.TrackDownloadRequests.Count);
+        Assert.AreEqual(trackRequest, gateway.TrackDownloadRequests[0].Request);
+        Assert.AreEqual(options, gateway.TrackDownloadRequests[0].Options);
         Assert.AreEqual(1, gateway.DownloadRequests.Count);
         Assert.AreEqual(candidate, gateway.DownloadRequests[0].Candidate);
         Assert.AreEqual(options, gateway.DownloadRequests[0].Options);

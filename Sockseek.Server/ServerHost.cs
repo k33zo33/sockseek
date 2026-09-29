@@ -874,7 +874,7 @@ public static class ServerHost
                 result.Submissions.Select(ToPlaylistDownloadSubmissionDto).ToArray()));
         })
             .WithTags("Playlists")
-            .WithSummary("Submits missing imported playlist items to Soulseek search workflows.")
+            .WithSummary("Submits missing imported playlist items to Soulseek download workflows.")
             .Produces<PlaylistDownloadMissingResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
@@ -1137,7 +1137,7 @@ public static class ServerHost
                 submissions));
         })
             .WithTags("Playlists")
-            .WithSummary("Retries a failed or skipped playlist item by submitting a new Soulseek search workflow.")
+            .WithSummary("Retries a failed or skipped playlist item by submitting a new Soulseek download workflow.")
             .Produces<PlaylistDownloadMissingResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)

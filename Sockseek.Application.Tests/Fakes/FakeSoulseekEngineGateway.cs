@@ -10,10 +10,12 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
     private readonly ConcurrentDictionary<Guid, List<EngineEventEnvelope>> eventsByWorkflow = new();
     private readonly Queue<SearchHandle> nextTrackSearchHandles = new();
     private readonly Queue<SearchHandle> nextAlbumSearchHandles = new();
+    private readonly Queue<DownloadHandle> nextTrackDownloadHandles = new();
     private readonly Queue<DownloadHandle> nextDownloadHandles = new();
     private readonly ConcurrentDictionary<Guid, bool> nextCandidateResults = new();
 
     public List<TrackSearchRequest> TrackSearchRequests { get; } = [];
+    public List<(TrackSearchRequest Request, DownloadOptions Options)> TrackDownloadRequests { get; } = [];
     public List<AlbumSearchRequest> AlbumSearchRequests { get; } = [];
     public List<(CandidateReference Candidate, DownloadOptions Options)> DownloadRequests { get; } = [];
     public List<Guid> CancelledJobIds { get; } = [];
@@ -21,6 +23,7 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
 
     public void EnqueueTrackSearchHandle(SearchHandle handle) => nextTrackSearchHandles.Enqueue(handle);
     public void EnqueueAlbumSearchHandle(SearchHandle handle) => nextAlbumSearchHandles.Enqueue(handle);
+    public void EnqueueTrackDownloadHandle(DownloadHandle handle) => nextTrackDownloadHandles.Enqueue(handle);
     public void EnqueueDownloadHandle(DownloadHandle handle) => nextDownloadHandles.Enqueue(handle);
     public void SetJob(JobSnapshot snapshot) => jobs[snapshot.EngineJobId] = snapshot;
     public void SetNextCandidateResult(Guid engineJobId, bool result) => nextCandidateResults[engineJobId] = result;
@@ -42,6 +45,12 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
     {
         AlbumSearchRequests.Add(request);
         return Task.FromResult(nextAlbumSearchHandles.Dequeue());
+    }
+
+    public Task<DownloadHandle> StartTrackDownloadAsync(TrackSearchRequest request, DownloadOptions options, CancellationToken cancellationToken)
+    {
+        TrackDownloadRequests.Add((request, options));
+        return Task.FromResult(nextTrackDownloadHandles.Dequeue());
     }
 
     public Task<DownloadHandle> StartDownloadAsync(CandidateReference candidate, DownloadOptions options, CancellationToken cancellationToken)

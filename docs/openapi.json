@@ -864,7 +864,7 @@
         "tags": [
           "Playlists"
         ],
-        "summary": "Submits missing imported playlist items to Soulseek search workflows.",
+        "summary": "Submits missing imported playlist items to Soulseek download workflows.",
         "parameters": [
           {
             "name": "playlistId",
@@ -1328,7 +1328,7 @@
         "tags": [
           "Playlists"
         ],
-        "summary": "Retries a failed or skipped playlist item by submitting a new Soulseek search workflow.",
+        "summary": "Retries a failed or skipped playlist item by submitting a new Soulseek download workflow.",
         "parameters": [
           {
             "name": "playlistId",

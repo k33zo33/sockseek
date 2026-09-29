@@ -37,6 +37,17 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
         return new SearchHandle(summary.WorkflowId, summary.JobId);
     }
 
+    public async Task<DownloadHandle> StartTrackDownloadAsync(TrackSearchRequest request, DownloadOptions options, CancellationToken cancellationToken)
+    {
+        var summary = await supervisor.SubmitSongJobAsync(
+            new SubmitSongJobRequestDto(
+                new SongQueryDto(request.Artist, request.Title, request.Album),
+                CreateSubmissionOptions(options)),
+            cancellationToken);
+
+        return new DownloadHandle(summary.WorkflowId, summary.JobId);
+    }
+
     public async Task<DownloadHandle> StartDownloadAsync(CandidateReference candidate, DownloadOptions options, CancellationToken cancellationToken)
     {
         var summaries = await supervisor.StartFileDownloadsAsync(

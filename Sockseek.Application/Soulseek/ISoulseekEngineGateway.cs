@@ -4,6 +4,7 @@ public interface ISoulseekEngineGateway
 {
     Task<SearchHandle> StartTrackSearchAsync(TrackSearchRequest request, CancellationToken cancellationToken);
     Task<SearchHandle> StartAlbumSearchAsync(AlbumSearchRequest request, CancellationToken cancellationToken);
+    Task<DownloadHandle> StartTrackDownloadAsync(TrackSearchRequest request, DownloadOptions options, CancellationToken cancellationToken);
     Task<DownloadHandle> StartDownloadAsync(CandidateReference candidate, DownloadOptions options, CancellationToken cancellationToken);
     Task CancelJobAsync(Guid engineJobId, CancellationToken cancellationToken);
     Task<bool> TryNextCandidateAsync(Guid engineJobId, CancellationToken cancellationToken);

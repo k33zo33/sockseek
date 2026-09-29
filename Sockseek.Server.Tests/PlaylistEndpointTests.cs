@@ -119,7 +119,7 @@ public sealed class PlaylistEndpointTests
     }
 
     [TestMethod]
-    public async Task DownloadMissingPlaylistItems_SubmitsSearchWorkflowsAndPersistsPlaylistLinks()
+    public async Task DownloadMissingPlaylistItems_SubmitsDownloadWorkflowsAndPersistsPlaylistLinks()
     {
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
         await app.StartAsync();
@@ -138,7 +138,7 @@ public sealed class PlaylistEndpointTests
             Assert.AreEqual(0, result.FailedItems);
             Assert.AreEqual(2, result.Submissions.Count);
             Assert.AreEqual(4, result.Resolution.TotalItems);
-            Assert.AreEqual(2, result.Resolution.SearchingItems);
+            Assert.AreEqual(2, result.Resolution.DownloadingItems);
             Assert.AreEqual(1, result.Resolution.AvailableLocalItems);
             Assert.AreEqual(1, result.Resolution.RemovedItems);
 
@@ -155,7 +155,8 @@ public sealed class PlaylistEndpointTests
                 result.Submissions.Select(submission => submission.EngineJobId).ToArray(),
                 workflows.Select(workflow => workflow.EngineJobId).ToArray());
             Assert.IsTrue(workflows.All(workflow => workflow.PlaylistItemId.HasValue));
-            Assert.IsTrue(await db.PlaylistItems.CountAsync(item => item.PlaylistId == playlistId && item.Status == (int)PlaylistItemStatus.Searching) == 2);
+            Assert.IsTrue(workflows.All(workflow => workflow.Status == (int)DownloadWorkflowPersistenceStatus.Downloading));
+            Assert.IsTrue(await db.PlaylistItems.CountAsync(item => item.PlaylistId == playlistId && item.Status == (int)PlaylistItemStatus.Downloading) == 2);
         }
         finally
         {
@@ -351,7 +352,7 @@ public sealed class PlaylistEndpointTests
             Assert.AreEqual(0, retried.FailedItems);
             Assert.AreEqual(1, retried.Submissions.Count);
             Assert.AreEqual(itemId, retried.Submissions.Single().PlaylistItemId);
-            Assert.AreEqual("Searching", retried.Playlist.Items.Single(item => item.PlaylistItemId == itemId).Status);
+            Assert.AreEqual("Downloading", retried.Playlist.Items.Single(item => item.PlaylistItemId == itemId).Status);
 
             await using var verifyScope = app.Services.CreateAsyncScope();
             var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
@@ -359,7 +360,7 @@ public sealed class PlaylistEndpointTests
                 .AsNoTracking()
                 .SingleAsync(workflow => workflow.PlaylistItemId == itemId);
             Assert.AreEqual(retried.Submissions.Single().EngineJobId, workflow.EngineJobId);
-            Assert.AreEqual((int)PlaylistItemStatus.Searching, await verifyDb.PlaylistItems
+            Assert.AreEqual((int)PlaylistItemStatus.Downloading, await verifyDb.PlaylistItems
                 .Where(item => item.Id == itemId)
                 .Select(item => item.Status)
                 .SingleAsync());
