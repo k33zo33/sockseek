@@ -908,6 +908,77 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/play-available", async (
+            Guid playlistId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            PlaybackCoordinator player,
+            LocalArtworkCache artworkCache,
+            PlaybackQueuePersistenceService queuePersistence,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var playlistExists = await db.Playlists
+                .AsNoTracking()
+                .AnyAsync(playlist => playlist.Id == playlistId, ct);
+            if (!playlistExists)
+                return Results.NotFound();
+
+            var queueItems = await GetAvailablePlaylistQueueItemsAsync(db, playlistId, startAfterPosition: null, ct);
+            if (queueItems.Count == 0)
+                return BadAppRequest(context, "playlist_no_available_items", "The playlist does not have any available local items to play.");
+
+            player.SetQueue(queueItems);
+            var snapshot = await player.PlayCurrentAsync(ct);
+            return Results.Ok(await ToSavedPlayerStateDtoAsync(player, db, artworkCache, queuePersistence, snapshot, ct));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Starts local playback for the available items in a playlist.")
+            .Produces<PlayerStateDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/play-from-here", async (
+            Guid playlistId,
+            Guid playlistItemId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            SockseekDbContext db,
+            PlaybackCoordinator player,
+            LocalArtworkCache artworkCache,
+            PlaybackQueuePersistenceService queuePersistence,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var startItem = await db.PlaylistItems
+                .AsNoTracking()
+                .Where(item => item.Id == playlistItemId && item.PlaylistId == playlistId)
+                .Select(item => new { item.Position, item.RemovedAtUtc })
+                .SingleOrDefaultAsync(ct);
+            if (startItem == null)
+                return Results.NotFound();
+            if (startItem.RemovedAtUtc.HasValue)
+                return BadAppRequest(context, "playlist_item_removed", "Removed provider playlist items cannot start playback.");
+
+            var queueItems = await GetAvailablePlaylistQueueItemsAsync(db, playlistId, startItem.Position, ct);
+            if (queueItems.Count == 0)
+                return BadAppRequest(context, "playlist_no_available_items", "No available local playlist items exist at or after the selected item.");
+
+            player.SetQueue(queueItems);
+            var snapshot = await player.PlayCurrentAsync(ct);
+            return Results.Ok(await ToSavedPlayerStateDtoAsync(player, db, artworkCache, queuePersistence, snapshot, ct));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Starts local playback from the selected playlist position, skipping unavailable items.")
+            .Produces<PlayerStateDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/skip", async (
             Guid playlistId,
             Guid playlistItemId,
@@ -1901,6 +1972,53 @@ public static class ServerHost
             submission.PlaylistItemId,
             submission.WorkflowId,
             submission.EngineJobId);
+
+    private static async Task<IReadOnlyList<PlaybackQueueItem>> GetAvailablePlaylistQueueItemsAsync(
+        SockseekDbContext db,
+        Guid playlistId,
+        int? startAfterPosition,
+        CancellationToken cancellationToken)
+    {
+        var rows = await db.PlaylistItems
+            .AsNoTracking()
+            .Where(item => item.PlaylistId == playlistId
+                && item.RemovedAtUtc == null
+                && item.Status == (int)PlaylistItemStatus.AvailableLocal
+                && item.CanonicalTrackId.HasValue
+                && (!startAfterPosition.HasValue || item.Position >= startAfterPosition.Value))
+            .SelectMany(
+                item => item.CanonicalTrack!.LocalMediaFiles
+                    .Where(file => file.Availability == (int)LocalMediaAvailability.Available),
+                (item, file) => new
+                {
+                    PlaylistItemId = item.Id,
+                    item.Position,
+                    item.ProviderItemId,
+                    CanonicalTrackId = item.CanonicalTrackId!.Value,
+                    LocalMediaFileId = file.Id,
+                    Bitrate = file.Bitrate ?? 0,
+                    SampleRate = file.SampleRate ?? 0,
+                    BitDepth = file.BitDepth ?? 0,
+                    file.Path,
+                })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.PlaylistItemId)
+            .Select(group => group
+                .OrderByDescending(row => row.Bitrate)
+                .ThenByDescending(row => row.SampleRate)
+                .ThenByDescending(row => row.BitDepth)
+                .ThenBy(row => row.Path)
+                .First())
+            .OrderBy(row => row.Position)
+            .ThenBy(row => row.ProviderItemId)
+            .Select(row => new PlaybackQueueItem(
+                Guid.NewGuid(),
+                row.CanonicalTrackId,
+                row.LocalMediaFileId))
+            .ToArray();
+    }
 
     private static string ToProviderId(int provider)
         => Enum.IsDefined(typeof(ExternalProvider), provider)

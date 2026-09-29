@@ -20,7 +20,9 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         ResolveLocalCommand = new DesktopAsyncCommand(() => ResolveLocalAsync());
         DownloadMissingCommand = new DesktopAsyncCommand(() => DownloadMissingAsync());
         CancelActiveDownloadsCommand = new DesktopAsyncCommand(() => CancelActiveDownloadsAsync());
+        PlayAvailableCommand = new DesktopAsyncCommand(() => PlayAvailableAsync());
         PlayItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayItemAsync(playlistItemId));
+        PlayFromHereCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayFromHereAsync(playlistItemId));
         SkipItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => SkipItemAsync(playlistItemId));
         RetryItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => RetryItemAsync(playlistItemId));
         ApproveLocalMatchCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => ApproveLocalMatchAsync(playlistItemId));
@@ -37,7 +39,11 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
     public ICommand CancelActiveDownloadsCommand { get; }
 
+    public ICommand PlayAvailableCommand { get; }
+
     public ICommand PlayItemCommand { get; }
+
+    public ICommand PlayFromHereCommand { get; }
 
     public ICommand SkipItemCommand { get; }
 
@@ -170,11 +176,36 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             return true;
         });
 
+    public async Task<bool> PlayAvailableAsync(CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var state = await apiClient.PlayAvailablePlaylistItemsAsync(playlistId, cancellationToken);
+            if (state is null)
+                return MissingSelectedPlaylist();
+
+            OperationSummary = $"{state.Queue.Items.Count} available queued";
+            return true;
+        });
+
     public async Task<bool> PlayItemAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
         => await ExecuteSelectedPlaylistAsync(async _ =>
         {
             await apiClient.PlayPlaylistItemAsync(playlistItemId, cancellationToken);
             OperationSummary = "Playback started";
+            return true;
+        });
+
+    public async Task<bool> PlayFromHereAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var state = await apiClient.PlayPlaylistFromItemAsync(playlistId, playlistItemId, cancellationToken);
+            if (state is null)
+            {
+                ErrorMessage = "Playlist item was not found.";
+                return false;
+            }
+
+            OperationSummary = $"{state.Queue.Items.Count} available queued from here";
             return true;
         });
 
@@ -391,6 +422,8 @@ public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
     public string SourceSummary { get; } = string.IsNullOrWhiteSpace(item.ExternalUrl) ? item.ProviderItemId : item.ExternalUrl;
 
     public bool CanPlay { get; } = item.CanonicalTrackId.HasValue && string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+
+    public bool CanPlayFromHere { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
 
     public bool CanSkip { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
 

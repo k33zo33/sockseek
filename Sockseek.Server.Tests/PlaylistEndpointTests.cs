@@ -217,6 +217,64 @@ public sealed class PlaylistEndpointTests
     }
 
     [TestMethod]
+    public async Task PlayAvailablePlaylistItems_QueuesOnlyAvailableLocalItems()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            Guid availableTrackId;
+            Guid availableFileId;
+            Guid missingItemId;
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+                missingItemId = await db.PlaylistItems
+                    .Where(item => item.PlaylistId == playlistId && item.ProviderItemId == "missing-1")
+                    .Select(item => item.Id)
+                    .SingleAsync();
+                var available = await db.PlaylistItems
+                    .Where(item => item.PlaylistId == playlistId && item.ProviderItemId == "available-1")
+                    .Select(item => new
+                    {
+                        CanonicalTrackId = item.CanonicalTrackId!.Value,
+                        LocalMediaFileId = item.CanonicalTrack!.LocalMediaFiles
+                            .Where(file => file.Availability == (int)LocalMediaAvailability.Available)
+                            .Select(file => file.Id)
+                            .Single(),
+                    })
+                    .SingleAsync();
+                availableTrackId = available.CanonicalTrackId;
+                availableFileId = available.LocalMediaFileId;
+            }
+
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var playAvailable = await client.PlayAvailablePlaylistItemsAsync(playlistId);
+            var playFromHere = await client.PlayPlaylistFromItemAsync(playlistId, missingItemId);
+            var missingPlaylist = await client.PlayAvailablePlaylistItemsAsync(Guid.NewGuid());
+
+            Assert.IsNotNull(playAvailable);
+            Assert.IsNotNull(playFromHere);
+            Assert.IsNull(missingPlaylist);
+            Assert.AreEqual(1, playAvailable.Queue.Items.Count);
+            Assert.AreEqual(0, playAvailable.Queue.CurrentIndex);
+            Assert.AreEqual(availableTrackId, playAvailable.Queue.Items.Single().CanonicalTrackId);
+            Assert.AreEqual(availableFileId, playAvailable.Queue.Items.Single().LocalMediaFileId);
+            Assert.AreEqual(1, playFromHere.Queue.Items.Count);
+            Assert.AreEqual(availableTrackId, playFromHere.Queue.Items.Single().CanonicalTrackId);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task SkipPlaylistItem_MarksItemSkippedWithoutDeletingRows()
     {
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
@@ -451,6 +509,22 @@ public sealed class PlaylistEndpointTests
             DurationMs = 182000,
             NormalizedArtist = "artist three",
             NormalizedTitle = "available",
+            LocalMediaFiles =
+            [
+                new LocalMediaFileEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Path = "C:/Music/Artist Three/Available.flac",
+                    Size = 1234,
+                    LastWriteUtc = new DateTimeOffset(2026, 9, 28, 8, 55, 0, TimeSpan.Zero),
+                    DurationMs = 182000,
+                    Codec = "flac",
+                    Bitrate = 900,
+                    SampleRate = 44100,
+                    BitDepth = 16,
+                    Availability = (int)LocalMediaAvailability.Available,
+                },
+            ],
         });
         items["available-1"].CanonicalTrackId = db.CanonicalTracks.Local.Single().Id;
         items["available-1"].Status = (int)PlaylistItemStatus.AvailableLocal;

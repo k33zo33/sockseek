@@ -51,6 +51,10 @@ public sealed class DesktopPlaylistsViewModelTests
                 return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, searching: 1), CreateDetail(playlistId, itemId, "Actions", "Searching"), [CreateSubmission(itemId)]);
             if (request.Method == HttpMethod.Post && path.EndsWith("/cancel-active-downloads", StringComparison.Ordinal))
                 return new PlaylistCancelDownloadsResultDto(1, 0, CreateResolution(1, failed: 1), CreateDetail(playlistId, itemId, "Actions", "Failed"));
+            if (request.Method == HttpMethod.Post && path.EndsWith("/play-available", StringComparison.Ordinal))
+                return CreatePlayerState(itemId, queueCount: 1);
+            if (request.Method == HttpMethod.Post && path.EndsWith("/play-from-here", StringComparison.Ordinal))
+                return CreatePlayerState(itemId, queueCount: 1);
             if (request.Method == HttpMethod.Post && path.EndsWith("/skip", StringComparison.Ordinal))
                 return CreateDetail(playlistId, itemId, "Actions", "Skipped");
             if (request.Method == HttpMethod.Post && path.EndsWith("/retry", StringComparison.Ordinal))
@@ -60,7 +64,7 @@ public sealed class DesktopPlaylistsViewModelTests
             if (request.Method == HttpMethod.Post && path.EndsWith("/reject-local", StringComparison.Ordinal))
                 return CreateDetail(playlistId, itemId, "Actions", "Unresolved");
             if (request.Method == HttpMethod.Post && path.EndsWith("/player/play/playlist-item", StringComparison.Ordinal))
-                return new PlayerStateDto("Playing", Guid.NewGuid(), itemId, Guid.NewGuid(), "C:/Music/track.flac", null, 0, 1.0, false, new PlayerQueueDto([], -1, "None", false, 0, []));
+                return CreatePlayerState(itemId, queueCount: 0);
 
             return CreateDetail(playlistId, itemId, "Actions", "ReviewRequired", canonicalTrackId: Guid.NewGuid());
         });
@@ -91,6 +95,12 @@ public sealed class DesktopPlaylistsViewModelTests
         Assert.AreEqual("1 cancelled, 0 failed", viewModel.OperationSummary);
         Assert.AreEqual("Failed", viewModel.SelectedPlaylistItems[0].Status);
 
+        Assert.IsTrue(await viewModel.PlayAvailableAsync());
+        Assert.AreEqual("1 available queued", viewModel.OperationSummary);
+
+        Assert.IsTrue(await viewModel.PlayFromHereAsync(itemId));
+        Assert.AreEqual("1 available queued from here", viewModel.OperationSummary);
+
         Assert.IsTrue(await viewModel.SkipItemAsync(itemId));
         Assert.AreEqual("Item skipped", viewModel.OperationSummary);
         Assert.AreEqual("Skipped", viewModel.SelectedPlaylistItems[0].Status);
@@ -111,6 +121,8 @@ public sealed class DesktopPlaylistsViewModelTests
                 $"api/v1/playlists/{playlistId}/resolve-local",
                 $"api/v1/playlists/{playlistId}/download-missing",
                 $"api/v1/playlists/{playlistId}/cancel-active-downloads",
+                $"api/v1/playlists/{playlistId}/play-available",
+                $"api/v1/playlists/{playlistId}/items/{itemId}/play-from-here",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/skip",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/retry",
                 "api/v1/player/play/playlist-item",
@@ -133,9 +145,11 @@ public sealed class DesktopPlaylistsViewModelTests
 
         StringAssert.Contains(xaml, "IsVisible=\"{Binding IsPlaylistsVisible}\"");
         StringAssert.Contains(xaml, "ItemsSource=\"{Binding Playlists.Playlists}\"");
+        StringAssert.Contains(xaml, "Playlists.PlayAvailableCommand");
         StringAssert.Contains(xaml, "Playlists.ResolveLocalCommand");
         StringAssert.Contains(xaml, "Playlists.DownloadMissingCommand");
         StringAssert.Contains(xaml, "Playlists.CancelActiveDownloadsCommand");
+        StringAssert.Contains(xaml, "Playlists.PlayFromHereCommand");
         StringAssert.Contains(xaml, "Playlists.ApproveLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.RejectLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.SkipItemCommand");
@@ -211,6 +225,24 @@ public sealed class DesktopPlaylistsViewModelTests
 
     private static PlaylistDownloadSubmissionDto CreateSubmission(Guid itemId)
         => new(itemId, Guid.NewGuid(), Guid.NewGuid());
+
+    private static PlayerStateDto CreatePlayerState(Guid itemId, int queueCount)
+    {
+        var queueItems = Enumerable.Range(0, queueCount)
+            .Select(_ => new PlayerQueueItemDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null))
+            .ToArray();
+        return new PlayerStateDto(
+            "Playing",
+            Guid.NewGuid(),
+            itemId,
+            Guid.NewGuid(),
+            "C:/Music/track.flac",
+            null,
+            0,
+            1.0,
+            false,
+            new PlayerQueueDto(queueItems, queueItems.Length == 0 ? -1 : 0, "None", false, 0, []));
+    }
 
     private sealed class RecordingHandler(
         Func<HttpRequestMessage, object> responseFactory,
