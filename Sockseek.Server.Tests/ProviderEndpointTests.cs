@@ -309,6 +309,7 @@ public sealed class ProviderEndpointTests
             """),
         ]);
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotifyHandler: spotify);
+        SeedMockSoulseekFile(tempRoot, "Artist One", "Album One", "01. Artist One - First Track.mp3");
         await app.StartAsync();
         try
         {
@@ -348,6 +349,20 @@ public sealed class ProviderEndpointTests
             var rawAccounts = await http.GetStringAsync("api/v1/accounts");
             Assert.IsFalse(rawAccounts.Contains("access-1", StringComparison.Ordinal));
             Assert.IsFalse(rawAccounts.Contains("refresh-1", StringComparison.Ordinal));
+
+            var submitted = await client.DownloadMissingPlaylistItemsAsync(secondImport.PlaylistId);
+            var synced = await WaitForPlaylistSummaryAsync(
+                client,
+                secondImport.PlaylistId,
+                detail => detail.Resolution.AvailableLocalItems == 1
+                    && detail.Resolution.DownloadingItems == 0,
+                timeoutMs: 10000);
+
+            Assert.IsNotNull(submitted);
+            Assert.AreEqual(1, submitted.SubmittedItems);
+            Assert.AreEqual(0, submitted.FailedItems);
+            Assert.AreEqual("AvailableLocal", synced.Items.Single(item => item.ProviderItemId == "spotify:track:track-1").Status);
+            Assert.IsNotNull(synced.Items.Single(item => item.ProviderItemId == "spotify:track:track-1").CanonicalTrackId);
 
             await using var verifyScope = app.Services.CreateAsyncScope();
             var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
@@ -547,6 +562,7 @@ public sealed class ProviderEndpointTests
             """),
         ]);
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot, youtubeHandler: youtube);
+        SeedMockSoulseekFile(tempRoot, "Video Channel", "YouTube Mix", "01. Video Channel - First Video From Lookup.mp3");
         await app.StartAsync();
         try
         {
@@ -587,6 +603,20 @@ public sealed class ProviderEndpointTests
             var rawAccounts = await http.GetStringAsync("api/v1/accounts");
             Assert.IsFalse(rawAccounts.Contains("access-1", StringComparison.Ordinal));
             Assert.IsFalse(rawAccounts.Contains("refresh-1", StringComparison.Ordinal));
+
+            var submitted = await client.DownloadMissingPlaylistItemsAsync(secondImport.PlaylistId);
+            var synced = await WaitForPlaylistSummaryAsync(
+                client,
+                secondImport.PlaylistId,
+                detail => detail.Resolution.AvailableLocalItems == 1
+                    && detail.Resolution.DownloadingItems == 0,
+                timeoutMs: 10000);
+
+            Assert.IsNotNull(submitted);
+            Assert.AreEqual(1, submitted.SubmittedItems);
+            Assert.AreEqual(0, submitted.FailedItems);
+            Assert.AreEqual("AvailableLocal", synced.Items.Single(item => item.ProviderItemId == "playlist-item-1").Status);
+            Assert.IsNotNull(synced.Items.Single(item => item.ProviderItemId == "playlist-item-1").CanonicalTrackId);
 
             await using var verifyScope = app.Services.CreateAsyncScope();
             var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
