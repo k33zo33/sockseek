@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
+using Sockseek.Domain.Workflows;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Integrations.Abstractions;
@@ -142,6 +143,115 @@ public class ExternalPlaylistSnapshotStoreTests
             Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
             Assert.IsNull(item.RemovedAtUtc);
             Assert.AreEqual(2, await verify.PlaylistItems.CountAsync());
+        }
+    }
+
+    [TestMethod]
+    public async Task UpsertAsync_RepeatedMirrorSnapshot_PreservesManualReviewDecisions()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<SockseekDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using (var setup = new SockseekDbContext(options))
+            await setup.Database.EnsureCreatedAsync();
+
+        var snapshot = CreateSnapshot();
+        var trackId = Guid.NewGuid();
+        Guid approvedItemId;
+        Guid rejectedItemId;
+
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new ExternalPlaylistSnapshotStore(context);
+            await store.UpsertAsync(snapshot);
+
+            context.CanonicalTracks.Add(new CanonicalTrackEntity
+            {
+                Id = trackId,
+                Artist = "Artist",
+                Title = "Track One",
+                AlbumTitle = "Album",
+                DurationMs = 180000,
+                NormalizedArtist = "artist",
+                NormalizedTitle = "track one",
+            });
+
+            var approved = await context.PlaylistItems.SingleAsync(entity => entity.ProviderItemId == "item-1");
+            approvedItemId = approved.Id;
+            approved.CanonicalTrackId = trackId;
+            approved.Status = (int)PlaylistItemStatus.AvailableLocal;
+            context.ResolutionAttempts.Add(new ResolutionAttemptEntity
+            {
+                Id = Guid.NewGuid(),
+                PlaylistItemId = approved.Id,
+                CandidateTrackId = trackId,
+                Method = (int)ResolutionMethod.ManualReview,
+                Score = 1d,
+                Decision = (int)ResolutionDecision.UserApproved,
+                CreatedAtUtc = snapshot.LastSyncedAtUtc.AddMinutes(1),
+            });
+
+            var rejected = await context.PlaylistItems.SingleAsync(entity => entity.ProviderItemId == "item-2");
+            rejectedItemId = rejected.Id;
+            rejected.CanonicalTrackId = null;
+            rejected.Status = (int)PlaylistItemStatus.Unresolved;
+            context.ResolutionAttempts.Add(new ResolutionAttemptEntity
+            {
+                Id = Guid.NewGuid(),
+                PlaylistItemId = rejected.Id,
+                CandidateTrackId = trackId,
+                Method = (int)ResolutionMethod.ManualReview,
+                Score = 0d,
+                Decision = (int)ResolutionDecision.UserRejected,
+                CreatedAtUtc = snapshot.LastSyncedAtUtc.AddMinutes(2),
+            });
+
+            await context.SaveChangesAsync();
+        }
+
+        var synced = snapshot with
+        {
+            LastSyncedAtUtc = snapshot.LastSyncedAtUtc.AddMinutes(10),
+            SnapshotVersion = snapshot.SnapshotVersion + 1,
+            Items = new[]
+            {
+                new ExternalPlaylistItemSnapshot("item-1", 2, "Track One Updated", "Artist", "Album", 180000),
+                new ExternalPlaylistItemSnapshot("item-2", 1, "Track Two Updated", "Artist", "Album", 181000),
+            },
+        };
+
+        await using (var context = new SockseekDbContext(options))
+        {
+            var store = new ExternalPlaylistSnapshotStore(context);
+            await store.UpsertAsync(synced);
+        }
+
+        await using (var verify = new SockseekDbContext(options))
+        {
+            var approved = await verify.PlaylistItems.SingleAsync(entity => entity.Id == approvedItemId);
+            var rejected = await verify.PlaylistItems.SingleAsync(entity => entity.Id == rejectedItemId);
+            var attempts = await verify.ResolutionAttempts
+                .AsNoTracking()
+                .Where(attempt => attempt.PlaylistItemId == approvedItemId || attempt.PlaylistItemId == rejectedItemId)
+                .ToListAsync();
+
+            Assert.AreEqual(trackId, approved.CanonicalTrackId);
+            Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, approved.Status);
+            Assert.AreEqual(2, approved.Position);
+            StringAssert.Contains(approved.SnapshotJson, "Track One Updated");
+
+            Assert.IsNull(rejected.CanonicalTrackId);
+            Assert.AreEqual((int)PlaylistItemStatus.Unresolved, rejected.Status);
+            Assert.AreEqual(1, rejected.Position);
+            StringAssert.Contains(rejected.SnapshotJson, "Track Two Updated");
+
+            Assert.AreEqual(2, attempts.Count);
+            Assert.AreEqual((int)ResolutionDecision.UserApproved, attempts.Single(attempt => attempt.PlaylistItemId == approvedItemId).Decision);
+            Assert.AreEqual((int)ResolutionDecision.UserRejected, attempts.Single(attempt => attempt.PlaylistItemId == rejectedItemId).Decision);
         }
     }
 
