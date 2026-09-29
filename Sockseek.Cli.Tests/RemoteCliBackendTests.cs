@@ -223,10 +223,8 @@ public class RemoteCliBackendTests
         finally
         {
             await app.StopAsync();
-            if (Directory.Exists(musicRoot))
-                Directory.Delete(musicRoot, true);
-            if (Directory.Exists(outputDir))
-                Directory.Delete(outputDir, true);
+            await DeleteDirectoryIfExistsWithRetryAsync(musicRoot);
+            await DeleteDirectoryIfExistsWithRetryAsync(outputDir);
         }
     }
 
@@ -827,10 +825,8 @@ public class RemoteCliBackendTests
         finally
         {
             await app.StopAsync();
-            if (Directory.Exists(musicRoot))
-                Directory.Delete(musicRoot, true);
-            if (Directory.Exists(outputDir))
-                Directory.Delete(outputDir, true);
+            await DeleteDirectoryIfExistsWithRetryAsync(musicRoot);
+            await DeleteDirectoryIfExistsWithRetryAsync(outputDir);
         }
     }
 
