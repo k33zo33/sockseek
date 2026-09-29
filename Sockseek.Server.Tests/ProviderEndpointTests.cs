@@ -10,6 +10,7 @@ using Sockseek.Api;
 using Sockseek.Core.Settings;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
+using Sockseek.Domain.Tracks;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
@@ -753,6 +754,99 @@ public sealed class ProviderEndpointTests
         }
     }
 
+    [TestMethod]
+    public async Task BandcampImportedPlaylist_DownloadMissingItemsBecomeLocalAvailable()
+    {
+        var bandcamp = new QueueBandcampHandler(
+        [
+            HtmlResponse("""
+            <html>
+              <head>
+                <script type="application/ld+json">
+                {
+                  "@context": "https://schema.org",
+                  "@type": "MusicAlbum",
+                  "name": "Bandcamp Fixture",
+                  "url": "https://artist.bandcamp.com/album/bandcamp-fixture",
+                  "image": "https://f4.bcbits.com/img/a1.jpg",
+                  "byArtist": { "@type": "MusicGroup", "name": "Bandcamp Artist" },
+                  "track": {
+                    "@type": "ItemList",
+                    "itemListElement": [
+                      {
+                        "@type": "ListItem",
+                        "item": {
+                          "@type": "MusicRecording",
+                          "name": "First Bandcamp Track",
+                          "url": "https://artist.bandcamp.com/track/first-bandcamp-track",
+                          "duration": "PT2M"
+                        }
+                      },
+                      {
+                        "@type": "ListItem",
+                        "item": {
+                          "@type": "MusicRecording",
+                          "name": "Second Bandcamp Track",
+                          "url": "https://artist.bandcamp.com/track/second-bandcamp-track",
+                          "duration": "PT3M"
+                        }
+                      }
+                    ]
+                  }
+                }
+                </script>
+              </head>
+            </html>
+            """),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, bandcampHandler: bandcamp);
+        SeedMockSoulseekFile(tempRoot, "Bandcamp Artist", "Bandcamp Fixture", "01. Bandcamp Artist - First Bandcamp Track.mp3");
+        SeedMockSoulseekFile(tempRoot, "Bandcamp Artist", "Bandcamp Fixture", "02. Bandcamp Artist - Second Bandcamp Track.mp3");
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var imported = await client.ImportProviderPublicUrlAsync(
+                "bandcamp",
+                new ImportProviderPublicUrlRequestDto(
+                    "https://artist.bandcamp.com/album/bandcamp-fixture",
+                    "Copy"));
+            var submitted = await client.DownloadMissingPlaylistItemsAsync(imported.PlaylistId);
+            var synced = await WaitForPlaylistSummaryAsync(
+                client,
+                imported.PlaylistId,
+                detail => detail.Resolution.AvailableLocalItems == 2
+                    && detail.Resolution.DownloadingItems == 0,
+                timeoutMs: 10000);
+
+            Assert.IsNotNull(submitted);
+            Assert.AreEqual(2, submitted.SubmittedItems);
+            Assert.AreEqual(0, submitted.FailedItems);
+            Assert.AreEqual("bandcamp", imported.ProviderId);
+            Assert.AreEqual("Bandcamp Fixture", synced.Name);
+            Assert.AreEqual(2, synced.Resolution.AvailableLocalItems);
+            Assert.IsTrue(synced.Items.All(item => item.Status == "AvailableLocal"));
+            Assert.IsTrue(synced.Items.All(item => item.CanonicalTrackId.HasValue));
+            Assert.AreEqual(1, bandcamp.Requests.Count);
+            CollectionAssert.DoesNotContain(bandcamp.Requests[0].Headers.ToArray(), "Cookie");
+            CollectionAssert.DoesNotContain(bandcamp.Requests[0].Headers.ToArray(), "Authorization");
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            Assert.AreEqual(0, await db.ExternalAccounts.CountAsync());
+            Assert.AreEqual(2, await db.DownloadWorkflows.CountAsync(workflow => workflow.PlaylistItemId.HasValue));
+            Assert.AreEqual(2, await db.LocalMediaFiles.CountAsync(file => file.Availability == (int)LocalMediaAvailability.Available));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static async Task<Guid> SeedExternalAccountAsync(WebApplication app)
     {
         await using var scope = app.Services.CreateAsyncScope();
@@ -854,6 +948,42 @@ public sealed class ProviderEndpointTests
         {
             Content = new StringContent(html, Encoding.UTF8, "text/html"),
         };
+
+    private static void SeedMockSoulseekFile(string tempRoot, string artist, string album, string filename)
+    {
+        var directory = Path.Combine(tempRoot, "music", artist, album);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, filename), new string('a', 4096));
+    }
+
+    private static async Task<PlaylistDetailDto> WaitForPlaylistSummaryAsync(
+        SockseekApiClient client,
+        Guid playlistId,
+        Func<PlaylistDetailDto, bool> predicate,
+        int timeoutMs = 5000)
+    {
+        using var timeout = new CancellationTokenSource(timeoutMs);
+        PlaylistDetailDto? last = null;
+
+        while (!timeout.IsCancellationRequested)
+        {
+            last = await client.GetPlaylistAsync(playlistId, timeout.Token);
+            if (last != null && predicate(last))
+                return last;
+
+            try
+            {
+                await Task.Delay(100, timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        Assert.Fail($"Timed out waiting for playlist {playlistId} to reach expected summary. Last detail: {last}.");
+        return null!;
+    }
 
     private sealed class QueueBandcampHandler(IReadOnlyList<HttpResponseMessage> responses) : HttpMessageHandler
     {
