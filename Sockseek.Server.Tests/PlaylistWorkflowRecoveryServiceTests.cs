@@ -80,6 +80,89 @@ public sealed class PlaylistWorkflowRecoveryServiceTests
         }
     }
 
+    [TestMethod]
+    public async Task MarkInterruptedPlaylistWorkflowsAsync_DoesNotDegradeAvailablePlaylistItem()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "Sockseek-playlist-recovery-test-" + Guid.NewGuid());
+        Directory.CreateDirectory(tempRoot);
+        var databasePath = Path.Combine(tempRoot, "sockseek.db");
+        await using var services = CreateServices(databasePath);
+        try
+        {
+            Guid itemId;
+            Guid trackId;
+            Guid workflowRowId;
+            await services.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+            await using (var scope = services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+                var playlistId = await new ExternalPlaylistSnapshotStore(db).UpsertAsync(new ExternalPlaylistSnapshotRecord(
+                    ExternalProvider.YouTube,
+                    "playlist-recovery-available",
+                    "Recovery",
+                    "https://example.test/playlist/recovery-available",
+                    1,
+                    new DateTimeOffset(2026, 9, 28, 10, 0, 0, TimeSpan.Zero),
+                    PlaylistImportMode.Copy,
+                    "Recovery",
+                    [new ExternalPlaylistItemSnapshot("item-recovery-available", 1, "Track", "Artist", "Album", 180000)],
+                    null));
+
+                trackId = Guid.NewGuid();
+                db.CanonicalTracks.Add(new CanonicalTrackEntity
+                {
+                    Id = trackId,
+                    Artist = "Artist",
+                    Title = "Track",
+                    AlbumTitle = "Album",
+                    DurationMs = 180000,
+                    NormalizedArtist = "artist",
+                    NormalizedTitle = "track",
+                });
+
+                var item = await db.PlaylistItems.SingleAsync(entity => entity.PlaylistId == playlistId);
+                itemId = item.Id;
+                item.CanonicalTrackId = trackId;
+                item.Status = (int)PlaylistItemStatus.AvailableLocal;
+                workflowRowId = Guid.NewGuid();
+                db.DownloadWorkflows.Add(new DownloadWorkflowEntity
+                {
+                    Id = workflowRowId,
+                    WorkflowId = Guid.NewGuid(),
+                    EngineJobId = Guid.NewGuid(),
+                    PlaylistItemId = itemId,
+                    Status = (int)DownloadWorkflowPersistenceStatus.Downloading,
+                    CandidateJson = "{}",
+                    CreatedAtUtc = new DateTimeOffset(2026, 9, 28, 10, 1, 0, TimeSpan.Zero),
+                    UpdatedAtUtc = new DateTimeOffset(2026, 9, 28, 10, 1, 0, TimeSpan.Zero),
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var recovered = await services.GetRequiredService<PlaylistWorkflowRecoveryService>()
+                .MarkInterruptedPlaylistWorkflowsAsync();
+
+            Assert.AreEqual(1, recovered);
+            await using var verifyScope = services.CreateAsyncScope();
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var workflow = await verifyDb.DownloadWorkflows.AsNoTracking().SingleAsync(entity => entity.Id == workflowRowId);
+            var itemState = await verifyDb.PlaylistItems
+                .AsNoTracking()
+                .Where(item => item.Id == itemId)
+                .Select(item => new { item.Status, item.CanonicalTrackId })
+                .SingleAsync();
+            Assert.AreEqual((int)DownloadWorkflowPersistenceStatus.Failed, workflow.Status);
+            Assert.AreEqual("interrupted_by_restart", workflow.ErrorCode);
+            Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, itemState.Status);
+            Assert.AreEqual(trackId, itemState.CanonicalTrackId);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static ServiceProvider CreateServices(string databasePath)
     {
         var services = new ServiceCollection();
