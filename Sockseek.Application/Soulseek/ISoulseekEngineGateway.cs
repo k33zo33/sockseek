@@ -9,5 +9,6 @@ public interface ISoulseekEngineGateway
     Task CancelJobAsync(Guid engineJobId, CancellationToken cancellationToken);
     Task<bool> TryNextCandidateAsync(Guid engineJobId, CancellationToken cancellationToken);
     Task<JobSnapshot?> GetJobAsync(Guid engineJobId, CancellationToken cancellationToken);
+    Task<DownloadJobResultSnapshot?> GetDownloadResultAsync(Guid engineJobId, CancellationToken cancellationToken);
     IAsyncEnumerable<EngineEventEnvelope> SubscribeAsync(Guid workflowId, CancellationToken cancellationToken);
 }

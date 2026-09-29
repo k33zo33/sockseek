@@ -167,6 +167,61 @@ public sealed class PlaylistEndpointTests
     }
 
     [TestMethod]
+    public async Task GetPlaylist_SyncsCompletedDownloadWorkflowIntoLocalAvailability()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        SeedMockSoulseekFile(tempRoot, "Artist One", "Album One", "01. Artist One - First Missing.mp3");
+        SeedMockSoulseekFile(tempRoot, "Artist Two", "Album Two", "02. Artist Two - Second Missing.mp3");
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var submitted = await client.DownloadMissingPlaylistItemsAsync(playlistId);
+            var synced = await WaitForPlaylistSummaryAsync(
+                client,
+                playlistId,
+                detail => detail.Resolution.AvailableLocalItems == 3
+                    && detail.Resolution.DownloadingItems == 0,
+                timeoutMs: 10000);
+
+            Assert.IsNotNull(submitted);
+            Assert.AreEqual(2, submitted.SubmittedItems);
+            Assert.AreEqual(3, synced.Resolution.AvailableLocalItems);
+            Assert.AreEqual(0, synced.Resolution.DownloadingItems);
+            Assert.AreEqual("AvailableLocal", synced.Items.Single(item => item.ProviderItemId == "missing-1").Status);
+            Assert.AreEqual("AvailableLocal", synced.Items.Single(item => item.ProviderItemId == "missing-2").Status);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var downloadedItems = await db.PlaylistItems
+                .AsNoTracking()
+                .Where(item => item.PlaylistId == playlistId && (item.ProviderItemId == "missing-1" || item.ProviderItemId == "missing-2"))
+                .Select(item => new { item.ProviderItemId, item.CanonicalTrackId, item.Status })
+                .ToListAsync();
+            Assert.IsTrue(downloadedItems.All(item => item.CanonicalTrackId.HasValue));
+            Assert.IsTrue(downloadedItems.All(item => item.Status == (int)PlaylistItemStatus.AvailableLocal));
+
+            var workflows = await db.DownloadWorkflows
+                .AsNoTracking()
+                .Where(workflow => workflow.PlaylistItemId.HasValue)
+                .ToListAsync();
+            Assert.AreEqual(2, workflows.Count);
+            Assert.IsTrue(workflows.All(workflow => workflow.Status == (int)DownloadWorkflowPersistenceStatus.Succeeded));
+            Assert.IsTrue(workflows.All(workflow => !string.IsNullOrWhiteSpace(workflow.OutputPath)));
+            Assert.IsTrue(await db.LocalMediaFiles.CountAsync(file => file.Availability == (int)LocalMediaAvailability.Available) >= 3);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task CancelActivePlaylistDownloads_MarksActiveItemsRetryableWithoutTouchingCompletedRows()
     {
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
@@ -650,6 +705,42 @@ public sealed class PlaylistEndpointTests
         await db.SaveChangesAsync();
 
         return (playlistId, items["review-approve"].Id, items["review-reject"].Id);
+    }
+
+    private static void SeedMockSoulseekFile(string tempRoot, string artist, string album, string filename)
+    {
+        var directory = Path.Combine(tempRoot, "music", artist, album);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, filename), new string('a', 4096));
+    }
+
+    private static async Task<PlaylistDetailDto> WaitForPlaylistSummaryAsync(
+        SockseekApiClient client,
+        Guid playlistId,
+        Func<PlaylistDetailDto, bool> predicate,
+        int timeoutMs = 5000)
+    {
+        using var timeout = new CancellationTokenSource(timeoutMs);
+        PlaylistDetailDto? last = null;
+
+        while (!timeout.IsCancellationRequested)
+        {
+            last = await client.GetPlaylistAsync(playlistId, timeout.Token);
+            if (last != null && predicate(last))
+                return last;
+
+            try
+            {
+                await Task.Delay(100, timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        Assert.Fail($"Timed out waiting for playlist {playlistId} to reach expected summary. Last detail: {last}.");
+        return null!;
     }
 
     private static WebApplication CreateApp(out string url, out string sessionToken, out string tempRoot)

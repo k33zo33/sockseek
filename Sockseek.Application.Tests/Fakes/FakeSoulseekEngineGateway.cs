@@ -7,6 +7,7 @@ namespace Tests.Application.Fakes;
 internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
 {
     private readonly ConcurrentDictionary<Guid, JobSnapshot?> jobs = new();
+    private readonly ConcurrentDictionary<Guid, DownloadJobResultSnapshot?> downloadResults = new();
     private readonly ConcurrentDictionary<Guid, List<EngineEventEnvelope>> eventsByWorkflow = new();
     private readonly Queue<SearchHandle> nextTrackSearchHandles = new();
     private readonly Queue<SearchHandle> nextAlbumSearchHandles = new();
@@ -26,6 +27,7 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
     public void EnqueueTrackDownloadHandle(DownloadHandle handle) => nextTrackDownloadHandles.Enqueue(handle);
     public void EnqueueDownloadHandle(DownloadHandle handle) => nextDownloadHandles.Enqueue(handle);
     public void SetJob(JobSnapshot snapshot) => jobs[snapshot.EngineJobId] = snapshot;
+    public void SetDownloadResult(DownloadJobResultSnapshot snapshot) => downloadResults[snapshot.EngineJobId] = snapshot;
     public void SetNextCandidateResult(Guid engineJobId, bool result) => nextCandidateResults[engineJobId] = result;
 
     public void AddEvent(Guid workflowId, EngineEventEnvelope envelope)
@@ -73,6 +75,9 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
 
     public Task<JobSnapshot?> GetJobAsync(Guid engineJobId, CancellationToken cancellationToken)
         => Task.FromResult(jobs.GetValueOrDefault(engineJobId));
+
+    public Task<DownloadJobResultSnapshot?> GetDownloadResultAsync(Guid engineJobId, CancellationToken cancellationToken)
+        => Task.FromResult(downloadResults.GetValueOrDefault(engineJobId));
 
     public async IAsyncEnumerable<EngineEventEnvelope> SubscribeAsync(Guid workflowId, [EnumeratorCancellation] CancellationToken cancellationToken)
     {

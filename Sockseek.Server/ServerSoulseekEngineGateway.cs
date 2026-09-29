@@ -86,6 +86,24 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
             : null);
     }
 
+    public Task<DownloadJobResultSnapshot?> GetDownloadResultAsync(Guid engineJobId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var detail = supervisor.StateStore.GetJobDetail(engineJobId);
+        if (detail == null)
+            return Task.FromResult<DownloadJobResultSnapshot?>(null);
+
+        var payload = detail.Payload as SongJobPayloadDto;
+        return Task.FromResult<DownloadJobResultSnapshot?>(new DownloadJobResultSnapshot(
+            detail.Summary.JobId,
+            detail.Summary.WorkflowId,
+            ToJobState(detail.Summary.LifecycleState, detail.Summary.TerminalOutcome),
+            payload?.DownloadPath,
+            payload?.ResolvedUsername,
+            payload?.ResolvedFilename,
+            payload?.ResolvedSize));
+    }
+
     public async IAsyncEnumerable<EngineEventEnvelope> SubscribeAsync(
         Guid workflowId,
         [EnumeratorCancellation] CancellationToken cancellationToken)

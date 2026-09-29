@@ -51,6 +51,15 @@ public sealed record JobSnapshot(
     SoulseekJobState State,
     string? Description);
 
+public sealed record DownloadJobResultSnapshot(
+    Guid EngineJobId,
+    Guid WorkflowId,
+    SoulseekJobState State,
+    string? OutputPath,
+    string? ResolvedUsername,
+    string? ResolvedFilename,
+    long? ResolvedSize);
+
 public sealed record EngineEventEnvelope(
     Guid EventId,
     string EventType,

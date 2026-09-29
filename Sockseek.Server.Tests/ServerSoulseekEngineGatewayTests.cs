@@ -120,6 +120,12 @@ public class ServerSoulseekEngineGatewayTests
             Assert.AreEqual(SoulseekJobKind.Download, downloadSnapshot.Kind);
             Assert.AreEqual(SoulseekJobState.Succeeded, downloadSnapshot.State);
 
+            var downloadResult = await gateway.GetDownloadResultAsync(downloadHandle.EngineJobId, CancellationToken.None);
+            Assert.IsNotNull(downloadResult);
+            Assert.AreEqual(SoulseekJobState.Succeeded, downloadResult.State);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(downloadResult.OutputPath));
+            Assert.IsTrue(File.Exists(downloadResult.OutputPath));
+
             var downloaded = Directory.GetFiles(outputDir, "*.mp3", SearchOption.AllDirectories);
             Assert.AreEqual(1, downloaded.Length);
         }

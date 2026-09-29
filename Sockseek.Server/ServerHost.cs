@@ -118,6 +118,8 @@ public static class ServerHost
         builder.Services.AddScoped<PlaylistQueryStore>();
         builder.Services.AddScoped<PlaylistLocalMatchResolver>();
         builder.Services.AddScoped<PlaylistDownloadOrchestrator>();
+        builder.Services.AddScoped<PlaylistWorkflowSyncService>();
+        builder.Services.AddScoped<CanonicalTrackStore>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
@@ -788,10 +790,12 @@ public static class ServerHost
 
         app.MapGet("/api/v1/playlists", async (
             ServerDatabaseMigrationService databaseMigration,
+            PlaylistWorkflowSyncService workflowSync,
             PlaylistQueryStore playlists,
             CancellationToken ct) =>
             {
                 await databaseMigration.EnsureMigratedAsync(ct);
+                await workflowSync.SyncAllAsync(ct);
                 var summaries = await playlists.GetSummariesAsync(ct);
                 return Results.Ok(summaries.Select(ToPlaylistSummaryDto).ToArray());
             })
@@ -804,10 +808,12 @@ public static class ServerHost
         app.MapGet("/api/v1/playlists/{playlistId:guid}", async (
             Guid playlistId,
             ServerDatabaseMigrationService databaseMigration,
+            PlaylistWorkflowSyncService workflowSync,
             PlaylistQueryStore playlists,
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
+            await workflowSync.SyncPlaylistAsync(playlistId, ct);
             var playlist = await playlists.GetDetailAsync(playlistId, ct);
             return playlist == null
                 ? Results.NotFound()
@@ -884,6 +890,7 @@ public static class ServerHost
             Guid playlistId,
             ServerDatabaseMigrationService databaseMigration,
             PlaylistDownloadOrchestrator downloads,
+            PlaylistWorkflowSyncService workflowSync,
             PlaylistQueryStore playlists,
             CancellationToken ct) =>
         {
@@ -892,6 +899,7 @@ public static class ServerHost
             if (!result.PlaylistFound)
                 return Results.NotFound();
 
+            await workflowSync.SyncPlaylistAsync(playlistId, ct);
             var updated = await playlists.GetDetailAsync(playlistId, ct)
                 ?? throw new InvalidOperationException("Playlist disappeared during active download cancellation.");
             var detail = ToPlaylistDetailDto(updated);
@@ -912,6 +920,7 @@ public static class ServerHost
             Guid playlistId,
             HttpContext context,
             ServerDatabaseMigrationService databaseMigration,
+            PlaylistWorkflowSyncService workflowSync,
             SockseekDbContext db,
             PlaybackCoordinator player,
             LocalArtworkCache artworkCache,
@@ -919,6 +928,7 @@ public static class ServerHost
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
+            await workflowSync.SyncPlaylistAsync(playlistId, ct);
             var playlistExists = await db.Playlists
                 .AsNoTracking()
                 .AnyAsync(playlist => playlist.Id == playlistId, ct);
@@ -946,6 +956,7 @@ public static class ServerHost
             Guid playlistItemId,
             HttpContext context,
             ServerDatabaseMigrationService databaseMigration,
+            PlaylistWorkflowSyncService workflowSync,
             SockseekDbContext db,
             PlaybackCoordinator player,
             LocalArtworkCache artworkCache,
@@ -953,6 +964,7 @@ public static class ServerHost
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
+            await workflowSync.SyncPlaylistAsync(playlistId, ct);
             var startItem = await db.PlaylistItems
                 .AsNoTracking()
                 .Where(item => item.Id == playlistItemId && item.PlaylistId == playlistId)
