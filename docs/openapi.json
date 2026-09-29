@@ -913,6 +913,60 @@
         }
       }
     },
+    "/api/v1/playlists/{playlistId}/cancel-active-downloads": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Cancels active Soulseek workflows linked to a playlist without touching completed local files.",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistCancelDownloadsResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/playlists/{playlistId}/items/{playlistItemId}/skip": {
       "post": {
         "tags": [
@@ -7073,6 +7127,39 @@
                 "$ref": "#/components/schemas/PlayerBufferDto"
               }
             ]
+          }
+        }
+      },
+      "PlaylistCancelDownloadsResultDto": {
+        "required": [
+          "cancelledItems",
+          "failedItems",
+          "resolution",
+          "playlist"
+        ],
+        "type": "object",
+        "properties": {
+          "cancelledItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "failedItems": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/PlaylistResolutionSummaryDto"
+          },
+          "playlist": {
+            "$ref": "#/components/schemas/PlaylistDetailDto"
           }
         }
       },

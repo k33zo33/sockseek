@@ -49,6 +49,8 @@ public sealed class DesktopPlaylistsViewModelTests
                 return new PlaylistLocalResolveResultDto(1, 0, 0, CreateResolution(1, 1, 0), CreateDetail(playlistId, itemId, "Actions", "AvailableLocal", canonicalTrackId: Guid.NewGuid()));
             if (request.Method == HttpMethod.Post && path.EndsWith("/download-missing", StringComparison.Ordinal))
                 return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, searching: 1), CreateDetail(playlistId, itemId, "Actions", "Searching"), [CreateSubmission(itemId)]);
+            if (request.Method == HttpMethod.Post && path.EndsWith("/cancel-active-downloads", StringComparison.Ordinal))
+                return new PlaylistCancelDownloadsResultDto(1, 0, CreateResolution(1, failed: 1), CreateDetail(playlistId, itemId, "Actions", "Failed"));
             if (request.Method == HttpMethod.Post && path.EndsWith("/skip", StringComparison.Ordinal))
                 return CreateDetail(playlistId, itemId, "Actions", "Skipped");
             if (request.Method == HttpMethod.Post && path.EndsWith("/retry", StringComparison.Ordinal))
@@ -85,6 +87,10 @@ public sealed class DesktopPlaylistsViewModelTests
         Assert.AreEqual("1 submitted, 0 failed, 0 skipped", viewModel.OperationSummary);
         Assert.AreEqual("Searching", viewModel.SelectedPlaylistItems[0].Status);
 
+        Assert.IsTrue(await viewModel.CancelActiveDownloadsAsync());
+        Assert.AreEqual("1 cancelled, 0 failed", viewModel.OperationSummary);
+        Assert.AreEqual("Failed", viewModel.SelectedPlaylistItems[0].Status);
+
         Assert.IsTrue(await viewModel.SkipItemAsync(itemId));
         Assert.AreEqual("Item skipped", viewModel.OperationSummary);
         Assert.AreEqual("Skipped", viewModel.SelectedPlaylistItems[0].Status);
@@ -104,6 +110,7 @@ public sealed class DesktopPlaylistsViewModelTests
                 $"api/v1/playlists/{playlistId}/items/{itemId}/reject-local",
                 $"api/v1/playlists/{playlistId}/resolve-local",
                 $"api/v1/playlists/{playlistId}/download-missing",
+                $"api/v1/playlists/{playlistId}/cancel-active-downloads",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/skip",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/retry",
                 "api/v1/player/play/playlist-item",
@@ -128,6 +135,7 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "ItemsSource=\"{Binding Playlists.Playlists}\"");
         StringAssert.Contains(xaml, "Playlists.ResolveLocalCommand");
         StringAssert.Contains(xaml, "Playlists.DownloadMissingCommand");
+        StringAssert.Contains(xaml, "Playlists.CancelActiveDownloadsCommand");
         StringAssert.Contains(xaml, "Playlists.ApproveLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.RejectLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.SkipItemCommand");
@@ -169,6 +177,7 @@ public sealed class DesktopPlaylistsViewModelTests
                 unresolved: status == "Unresolved" ? 1 : 0,
                 review: status == "ReviewRequired" ? 1 : 0,
                 searching: status == "Searching" ? 1 : 0,
+                failed: status == "Failed" ? 1 : 0,
                 skipped: status == "Skipped" ? 1 : 0),
             [
                 new PlaylistItemDto(

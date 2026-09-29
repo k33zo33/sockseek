@@ -90,6 +90,61 @@ public sealed class PlaylistDownloadOrchestrator(
         }
     }
 
+    public async Task<PlaylistCancelDownloadsResult> CancelActiveDownloadsAsync(
+        Guid playlistId,
+        CancellationToken cancellationToken = default)
+    {
+        var playlistExists = await dbContext.Playlists
+            .AsNoTracking()
+            .AnyAsync(playlist => playlist.Id == playlistId, cancellationToken);
+        if (!playlistExists)
+            return PlaylistCancelDownloadsResult.NotFound;
+
+        var workflows = await dbContext.DownloadWorkflows
+            .Include(workflow => workflow.PlaylistItem)
+            .Where(workflow => workflow.PlaylistItem != null
+                && workflow.PlaylistItem.PlaylistId == playlistId
+                && workflow.PlaylistItem.RemovedAtUtc == null
+                && (workflow.Status == (int)DownloadWorkflowPersistenceStatus.Searching
+                    || workflow.Status == (int)DownloadWorkflowPersistenceStatus.Downloading))
+            .OrderBy(workflow => workflow.Id)
+            .ToListAsync(cancellationToken);
+
+        var cancelledItems = 0;
+        var failedItems = 0;
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var workflow in workflows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await gateway.CancelJobAsync(workflow.EngineJobId, cancellationToken);
+                workflow.Status = (int)DownloadWorkflowPersistenceStatus.Cancelled;
+                workflow.ErrorCode = "cancelled_by_user";
+                cancelledItems++;
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                workflow.Status = (int)DownloadWorkflowPersistenceStatus.Failed;
+                workflow.ErrorCode = "cancel_failed";
+                failedItems++;
+            }
+
+            workflow.UpdatedAtUtc = now;
+            if (workflow.PlaylistItem is { } item && IsActivePlaylistStatus(item.Status))
+                item.Status = (int)PlaylistItemStatus.Failed;
+        }
+
+        if (workflows.Count > 0)
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new PlaylistCancelDownloadsResult(
+            PlaylistFound: true,
+            CancelledItems: cancelledItems,
+            FailedItems: failedItems);
+    }
+
     private async Task<PlaylistDownloadSubmissionRecord> SubmitSearchAsync(
         PlaylistItemEntity item,
         CancellationToken cancellationToken)
@@ -125,6 +180,17 @@ public sealed class PlaylistDownloadOrchestrator(
     private static ExternalPlaylistItemSnapshot DeserializeSnapshot(PlaylistItemEntity item)
         => JsonSerializer.Deserialize<ExternalPlaylistItemSnapshot>(item.SnapshotJson)
             ?? throw new InvalidOperationException($"Playlist item '{item.Id}' snapshot could not be deserialized.");
+
+    private static bool IsActivePlaylistStatus(int status)
+    {
+        var playlistStatus = Enum.IsDefined(typeof(PlaylistItemStatus), status)
+            ? (PlaylistItemStatus)status
+            : PlaylistItemStatus.Unresolved;
+
+        return playlistStatus is PlaylistItemStatus.Searching
+            or PlaylistItemStatus.CandidateFound
+            or PlaylistItemStatus.Downloading;
+    }
 }
 
 public enum DownloadWorkflowPersistenceStatus
@@ -155,6 +221,17 @@ public sealed record PlaylistDownloadSubmissionRecord(
     Guid PlaylistItemId,
     Guid WorkflowId,
     Guid EngineJobId);
+
+public sealed record PlaylistCancelDownloadsResult(
+    bool PlaylistFound,
+    int CancelledItems,
+    int FailedItems)
+{
+    public static PlaylistCancelDownloadsResult NotFound { get; } = new(
+        PlaylistFound: false,
+        CancelledItems: 0,
+        FailedItems: 0);
+}
 
 public enum PlaylistItemRetryOutcome
 {

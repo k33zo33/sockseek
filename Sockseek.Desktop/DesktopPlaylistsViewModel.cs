@@ -19,6 +19,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         SelectPlaylistCommand = new DesktopAsyncParameterCommand<Guid>(playlistId => SelectPlaylistAsync(playlistId));
         ResolveLocalCommand = new DesktopAsyncCommand(() => ResolveLocalAsync());
         DownloadMissingCommand = new DesktopAsyncCommand(() => DownloadMissingAsync());
+        CancelActiveDownloadsCommand = new DesktopAsyncCommand(() => CancelActiveDownloadsAsync());
         PlayItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayItemAsync(playlistItemId));
         SkipItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => SkipItemAsync(playlistItemId));
         RetryItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => RetryItemAsync(playlistItemId));
@@ -33,6 +34,8 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     public ICommand ResolveLocalCommand { get; }
 
     public ICommand DownloadMissingCommand { get; }
+
+    public ICommand CancelActiveDownloadsCommand { get; }
 
     public ICommand PlayItemCommand { get; }
 
@@ -152,6 +155,18 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
             ApplyPlaylist(result.Playlist);
             OperationSummary = $"{result.SubmittedItems} submitted, {result.FailedItems} failed, {result.SkippedItems} skipped";
+            return true;
+        });
+
+    public async Task<bool> CancelActiveDownloadsAsync(CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var result = await apiClient.CancelPlaylistDownloadsAsync(playlistId, cancellationToken);
+            if (result is null)
+                return MissingSelectedPlaylist();
+
+            ApplyPlaylist(result.Playlist);
+            OperationSummary = $"{result.CancelledItems} cancelled, {result.FailedItems} failed";
             return true;
         });
 

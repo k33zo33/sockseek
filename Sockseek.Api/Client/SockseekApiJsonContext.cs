@@ -22,6 +22,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(PlaylistResolutionSummaryDto))]
 [JsonSerializable(typeof(PlaylistLocalResolveResultDto))]
 [JsonSerializable(typeof(PlaylistDownloadMissingResultDto))]
+[JsonSerializable(typeof(PlaylistCancelDownloadsResultDto))]
 [JsonSerializable(typeof(PlaylistDownloadSubmissionDto))]
 [JsonSerializable(typeof(PlayerStateDto))]
 [JsonSerializable(typeof(PlayerBufferDto))]

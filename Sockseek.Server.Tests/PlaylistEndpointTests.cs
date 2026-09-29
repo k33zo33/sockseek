@@ -166,6 +166,57 @@ public sealed class PlaylistEndpointTests
     }
 
     [TestMethod]
+    public async Task CancelActivePlaylistDownloads_MarksActiveItemsRetryableWithoutTouchingCompletedRows()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var submitted = await client.DownloadMissingPlaylistItemsAsync(playlistId);
+            var cancelled = await client.CancelPlaylistDownloadsAsync(playlistId);
+            var missing = await client.CancelPlaylistDownloadsAsync(Guid.NewGuid());
+
+            Assert.IsNotNull(submitted);
+            Assert.IsNotNull(cancelled);
+            Assert.IsNull(missing);
+            Assert.AreEqual(2, submitted.SubmittedItems);
+            Assert.AreEqual(2, cancelled.CancelledItems + cancelled.FailedItems);
+            Assert.AreEqual(2, cancelled.Resolution.FailedItems);
+            Assert.AreEqual(1, cancelled.Resolution.AvailableLocalItems);
+            Assert.AreEqual(1, cancelled.Resolution.RemovedItems);
+
+            var cancelledItems = cancelled.Playlist.Items
+                .Where(item => item.ProviderItemId is "missing-1" or "missing-2")
+                .ToArray();
+            Assert.IsTrue(cancelledItems.All(item => item.Status == "Failed"));
+            Assert.AreEqual("AvailableLocal", cancelled.Playlist.Items.Single(item => item.ProviderItemId == "available-1").Status);
+            Assert.AreEqual("RemovedFromSourcePlaylist", cancelled.Playlist.Items.Single(item => item.ProviderItemId == "removed-1").Status);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var workflows = await db.DownloadWorkflows
+                .AsNoTracking()
+                .OrderBy(workflow => workflow.Id)
+                .ToListAsync();
+            Assert.AreEqual(2, workflows.Count);
+            Assert.IsTrue(workflows.All(workflow =>
+                workflow.Status == (int)DownloadWorkflowPersistenceStatus.Cancelled
+                || workflow.Status == (int)DownloadWorkflowPersistenceStatus.Failed));
+            Assert.IsTrue(workflows.All(workflow => workflow.ErrorCode is "cancelled_by_user" or "cancel_failed"));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task SkipPlaylistItem_MarksItemSkippedWithoutDeletingRows()
     {
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot);

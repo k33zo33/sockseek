@@ -880,6 +880,34 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/cancel-active-downloads", async (
+            Guid playlistId,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistDownloadOrchestrator downloads,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var result = await downloads.CancelActiveDownloadsAsync(playlistId, ct);
+            if (!result.PlaylistFound)
+                return Results.NotFound();
+
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during active download cancellation.");
+            var detail = ToPlaylistDetailDto(updated);
+            return Results.Ok(new PlaylistCancelDownloadsResultDto(
+                result.CancelledItems,
+                result.FailedItems,
+                detail.Resolution,
+                detail));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Cancels active Soulseek workflows linked to a playlist without touching completed local files.")
+            .Produces<PlaylistCancelDownloadsResultDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapPost("/api/v1/playlists/{playlistId:guid}/items/{playlistItemId:guid}/skip", async (
             Guid playlistId,
             Guid playlistItemId,

@@ -201,6 +201,12 @@ public sealed record PlaylistDownloadMissingResultDto(
     PlaylistDetailDto Playlist,
     IReadOnlyList<PlaylistDownloadSubmissionDto> Submissions);
 
+public sealed record PlaylistCancelDownloadsResultDto(
+    int CancelledItems,
+    int FailedItems,
+    PlaylistResolutionSummaryDto Resolution,
+    PlaylistDetailDto Playlist);
+
 public sealed record PlaylistDownloadSubmissionDto(
     Guid PlaylistItemId,
     Guid WorkflowId,
