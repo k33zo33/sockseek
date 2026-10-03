@@ -92,6 +92,54 @@ public sealed class PlaylistDownloadOrchestrator(
         }
     }
 
+    public async Task<PlaylistDownloadMissingResult> RetryFailedAsync(
+        Guid playlistId,
+        string? profileName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var playlistExists = await dbContext.Playlists
+            .AsNoTracking()
+            .AnyAsync(playlist => playlist.Id == playlistId, cancellationToken);
+        if (!playlistExists)
+            return PlaylistDownloadMissingResult.NotFound;
+
+        var items = await dbContext.PlaylistItems
+            .Where(item => item.PlaylistId == playlistId
+                && item.RemovedAtUtc == null
+                && item.CanonicalTrackId == null
+                && (item.Status == (int)PlaylistItemStatus.Failed
+                    || item.Status == (int)PlaylistItemStatus.Skipped))
+            .OrderBy(item => item.Position)
+            .ThenBy(item => item.ProviderItemId)
+            .ToListAsync(cancellationToken);
+
+        var submissions = new List<PlaylistDownloadSubmissionRecord>();
+        var failedItems = 0;
+
+        foreach (var item in items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                submissions.Add(await SubmitDownloadAsync(item, profileName, cancellationToken));
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                item.Status = (int)PlaylistItemStatus.Failed;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                failedItems++;
+            }
+        }
+
+        return new PlaylistDownloadMissingResult(
+            PlaylistFound: true,
+            SubmittedItems: submissions.Count,
+            FailedItems: failedItems,
+            SkippedItems: 0,
+            Submissions: submissions);
+    }
+
     public async Task<PlaylistItemDownloadResult> DownloadItemAsync(
         Guid playlistId,
         Guid playlistItemId,

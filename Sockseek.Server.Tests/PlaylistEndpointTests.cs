@@ -167,6 +167,67 @@ public sealed class PlaylistEndpointTests
     }
 
     [TestMethod]
+    public async Task RetryFailedPlaylistItems_SubmitsRetryableItemsAndPersistsPlaylistLinks()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedMissingPlaylistAsync(app);
+            Guid failedItemId;
+            Guid skippedItemId;
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+                var items = await db.PlaylistItems
+                    .Where(item => item.PlaylistId == playlistId && (item.ProviderItemId == "missing-1" || item.ProviderItemId == "missing-2"))
+                    .ToDictionaryAsync(item => item.ProviderItemId);
+                failedItemId = items["missing-1"].Id;
+                skippedItemId = items["missing-2"].Id;
+                items["missing-1"].Status = (int)PlaylistItemStatus.Failed;
+                items["missing-2"].Status = (int)PlaylistItemStatus.Skipped;
+                await db.SaveChangesAsync();
+            }
+
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var result = await client.RetryFailedPlaylistItemsAsync(playlistId);
+            var missing = await client.RetryFailedPlaylistItemsAsync(Guid.NewGuid());
+
+            Assert.IsNotNull(result);
+            Assert.IsNull(missing);
+            Assert.AreEqual(2, result.SubmittedItems);
+            Assert.AreEqual(0, result.FailedItems);
+            Assert.AreEqual(2, result.Submissions.Count);
+            CollectionAssert.AreEquivalent(
+                new[] { failedItemId, skippedItemId },
+                result.Submissions.Select(submission => submission.PlaylistItemId).ToArray());
+            Assert.AreEqual(2, result.Resolution.DownloadingItems);
+            Assert.AreEqual("Downloading", result.Playlist.Items.Single(item => item.PlaylistItemId == failedItemId).Status);
+            Assert.AreEqual("Downloading", result.Playlist.Items.Single(item => item.PlaylistItemId == skippedItemId).Status);
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var verifyDb = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var workflows = await verifyDb.DownloadWorkflows
+                .AsNoTracking()
+                .Where(workflow => workflow.PlaylistItemId == failedItemId || workflow.PlaylistItemId == skippedItemId)
+                .ToListAsync();
+            Assert.AreEqual(2, workflows.Count);
+            CollectionAssert.AreEquivalent(
+                result.Submissions.Select(submission => submission.EngineJobId).ToArray(),
+                workflows.Select(workflow => workflow.EngineJobId).ToArray());
+            Assert.IsTrue(workflows.All(workflow => workflow.Status == (int)DownloadWorkflowPersistenceStatus.Downloading));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task DownloadPlaylistItem_SubmitsSingleMissingItemWorkflow()
     {
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot);

@@ -23,6 +23,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         ResolveLocalCommand = new DesktopAsyncCommand(() => ResolveLocalAsync());
         DownloadMissingCommand = new DesktopAsyncCommand(() => DownloadMissingAsync());
         CancelActiveDownloadsCommand = new DesktopAsyncCommand(() => CancelActiveDownloadsAsync());
+        RetryFailedCommand = new DesktopAsyncCommand(() => RetryFailedAsync());
         PlayAvailableCommand = new DesktopAsyncCommand(() => PlayAvailableAsync());
         PlayItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayItemAsync(playlistItemId));
         PlayFromHereCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayFromHereAsync(playlistItemId));
@@ -41,6 +42,8 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     public ICommand DownloadMissingCommand { get; }
 
     public ICommand CancelActiveDownloadsCommand { get; }
+
+    public ICommand RetryFailedCommand { get; }
 
     public ICommand PlayAvailableCommand { get; }
 
@@ -284,6 +287,21 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
             ApplyPlaylist(result.Playlist);
             OperationSummary = $"{result.CancelledItems} cancelled, {result.FailedItems} failed";
+            return true;
+        });
+
+    public async Task<bool> RetryFailedAsync(CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var options = CreateDownloadOptions();
+            var result = options is null
+                ? await apiClient.RetryFailedPlaylistItemsAsync(playlistId, cancellationToken)
+                : await apiClient.RetryFailedPlaylistItemsAsync(playlistId, options, cancellationToken);
+            if (result is null)
+                return MissingSelectedPlaylist();
+
+            ApplyPlaylist(result.Playlist);
+            OperationSummary = $"{result.SubmittedItems} retries submitted, {result.FailedItems} failed";
             return true;
         });
 

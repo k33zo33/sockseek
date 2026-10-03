@@ -250,6 +250,24 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<PlaylistCancelDownloadsResultDto>(response, ct);
     }
 
+    public async Task<PlaylistDownloadMissingResultDto?> RetryFailedPlaylistItemsAsync(Guid playlistId, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/v1/playlists/{playlistId}/retry-failed", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<PlaylistDownloadMissingResultDto>(response, ct);
+    }
+
+    public async Task<PlaylistDownloadMissingResultDto?> RetryFailedPlaylistItemsAsync(
+        Guid playlistId,
+        PlaylistDownloadOptionsRequestDto request,
+        CancellationToken ct = default)
+        => await PostOptionalAsync<PlaylistDownloadMissingResultDto, PlaylistDownloadOptionsRequestDto>(
+            $"api/v1/playlists/{playlistId}/retry-failed",
+            request,
+            ct);
+
     public async Task<PlayerStateDto?> PlayAvailablePlaylistItemsAsync(Guid playlistId, CancellationToken ct = default)
     {
         using var response = await http.PostAsync($"api/v1/playlists/{playlistId}/play-available", null, ct);

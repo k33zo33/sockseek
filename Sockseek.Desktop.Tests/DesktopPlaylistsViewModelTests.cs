@@ -51,6 +51,8 @@ public sealed class DesktopPlaylistsViewModelTests
                 return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, downloading: 1), CreateDetail(playlistId, itemId, "Actions", "Downloading"), [CreateSubmission(itemId)]);
             if (request.Method == HttpMethod.Post && path.EndsWith("/cancel-active-downloads", StringComparison.Ordinal))
                 return new PlaylistCancelDownloadsResultDto(1, 0, CreateResolution(1, failed: 1), CreateDetail(playlistId, itemId, "Actions", "Failed"));
+            if (request.Method == HttpMethod.Post && path.EndsWith("/retry-failed", StringComparison.Ordinal))
+                return new PlaylistDownloadMissingResultDto(1, 0, 0, CreateResolution(1, downloading: 1), CreateDetail(playlistId, itemId, "Actions", "Downloading"), [CreateSubmission(itemId)]);
             if (request.Method == HttpMethod.Post && path.EndsWith("/play-available", StringComparison.Ordinal))
                 return CreatePlayerState(itemId, queueCount: 1);
             if (request.Method == HttpMethod.Post && path.EndsWith("/play-from-here", StringComparison.Ordinal))
@@ -98,6 +100,10 @@ public sealed class DesktopPlaylistsViewModelTests
         Assert.AreEqual("1 cancelled, 0 failed", viewModel.OperationSummary);
         Assert.AreEqual("Failed", viewModel.SelectedPlaylistItems[0].Status);
 
+        Assert.IsTrue(await viewModel.RetryFailedAsync());
+        Assert.AreEqual("1 retries submitted, 0 failed", viewModel.OperationSummary);
+        Assert.AreEqual("Downloading", viewModel.SelectedPlaylistItems[0].Status);
+
         Assert.IsTrue(await viewModel.PlayAvailableAsync());
         Assert.AreEqual("1 available queued", viewModel.OperationSummary);
 
@@ -115,6 +121,7 @@ public sealed class DesktopPlaylistsViewModelTests
         Assert.IsTrue(await viewModel.PlayItemAsync(itemId));
         Assert.AreEqual("Item is already resolving", viewModel.OperationSummary);
         AssertRequestBodyContains(handler, "/download-missing", "lossless");
+        AssertRequestBodyContains(handler, "/retry-failed", "lossless");
         AssertRequestBodyContains(handler, "/retry", "lossless");
         CollectionAssert.AreEqual(
             new[]
@@ -126,6 +133,7 @@ public sealed class DesktopPlaylistsViewModelTests
                 $"api/v1/playlists/{playlistId}/resolve-local",
                 $"api/v1/playlists/{playlistId}/download-missing",
                 $"api/v1/playlists/{playlistId}/cancel-active-downloads",
+                $"api/v1/playlists/{playlistId}/retry-failed",
                 $"api/v1/playlists/{playlistId}/play-available",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/play-from-here",
                 $"api/v1/playlists/{playlistId}/items/{itemId}/skip",
@@ -238,6 +246,7 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.ResolveLocalCommand");
         StringAssert.Contains(xaml, "Playlists.DownloadMissingCommand");
         StringAssert.Contains(xaml, "Playlists.CancelActiveDownloadsCommand");
+        StringAssert.Contains(xaml, "Playlists.RetryFailedCommand");
         StringAssert.Contains(xaml, "Playlists.PlayFromHereCommand");
         StringAssert.Contains(xaml, "Playlists.ApproveLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.RejectLocalMatchCommand");

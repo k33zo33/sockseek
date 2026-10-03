@@ -930,6 +930,39 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapPost("/api/v1/playlists/{playlistId:guid}/retry-failed", async (
+            Guid playlistId,
+            HttpContext context,
+            ServerDatabaseMigrationService databaseMigration,
+            PlaylistDownloadOrchestrator downloads,
+            PlaylistQueryStore playlists,
+            CancellationToken ct) =>
+        {
+            await databaseMigration.EnsureMigratedAsync(ct);
+            var request = await ReadPlaylistDownloadOptionsAsync(context, ct);
+            var result = await downloads.RetryFailedAsync(playlistId, request.ProfileName, ct);
+            if (!result.PlaylistFound)
+                return Results.NotFound();
+
+            var updated = await playlists.GetDetailAsync(playlistId, ct)
+                ?? throw new InvalidOperationException("Playlist disappeared during failed-item retry.");
+            var detail = ToPlaylistDetailDto(updated);
+            return Results.Ok(new PlaylistDownloadMissingResultDto(
+                result.SubmittedItems,
+                result.FailedItems,
+                result.SkippedItems,
+                detail.Resolution,
+                detail,
+                result.Submissions.Select(ToPlaylistDownloadSubmissionDto).ToArray()));
+        })
+            .WithTags("Playlists")
+            .WithSummary("Retries failed or skipped playlist items by submitting new Soulseek download workflows.")
+            .Accepts<PlaylistDownloadOptionsRequestDto>(true, "application/json")
+            .Produces<PlaylistDownloadMissingResultDto>()
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapPost("/api/v1/playlists/{playlistId:guid}/play-available", async (
             Guid playlistId,
             HttpContext context,

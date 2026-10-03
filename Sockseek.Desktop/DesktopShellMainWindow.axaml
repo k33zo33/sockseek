@@ -416,6 +416,7 @@
                     <Button Margin="0,0,8,8" Content="Play available" Command="{Binding Playlists.PlayAvailableCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                     <Button Margin="0,0,8,8" Content="Resolve local" Command="{Binding Playlists.ResolveLocalCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                     <Button Margin="0,0,8,8" Content="Download missing" Command="{Binding Playlists.DownloadMissingCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
+                    <Button Margin="0,0,8,8" Content="Retry failed" Command="{Binding Playlists.RetryFailedCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                     <Button Margin="0,0,8,8" Content="Cancel active" Command="{Binding Playlists.CancelActiveDownloadsCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                   </WrapPanel>
                   <Grid ColumnDefinitions="*,180,220" ColumnSpacing="12">
