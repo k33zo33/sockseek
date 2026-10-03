@@ -76,6 +76,7 @@ public sealed class DesktopPlaylistsViewModelTests
         Assert.IsTrue(await viewModel.RefreshAsync());
         Assert.AreEqual("ReviewRequired", viewModel.SelectedPlaylistItems[0].Status);
         Assert.IsTrue(viewModel.SelectedPlaylistItems[0].CanReviewLocal);
+        viewModel.DownloadProfileName = " lossless ";
 
         Assert.IsTrue(await viewModel.ApproveLocalMatchAsync(itemId));
         Assert.AreEqual("Local match approved", viewModel.OperationSummary);
@@ -113,6 +114,8 @@ public sealed class DesktopPlaylistsViewModelTests
 
         Assert.IsTrue(await viewModel.PlayItemAsync(itemId));
         Assert.AreEqual("Item is already resolving", viewModel.OperationSummary);
+        AssertRequestBodyContains(handler, "/download-missing", "lossless");
+        AssertRequestBodyContains(handler, "/retry", "lossless");
         CollectionAssert.AreEqual(
             new[]
             {
@@ -153,7 +156,10 @@ public sealed class DesktopPlaylistsViewModelTests
             return CreateDetail(playlistId, itemId, "Resolve Play", "Unresolved");
         });
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
-        var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
+        var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient))
+        {
+            DownloadProfileName = " portable "
+        };
 
         Assert.IsTrue(await viewModel.RefreshAsync());
         Assert.IsTrue(viewModel.SelectedPlaylistItems[0].CanPlay);
@@ -163,6 +169,7 @@ public sealed class DesktopPlaylistsViewModelTests
 
         Assert.AreEqual("1 download submitted for playback, 0 failed", viewModel.OperationSummary);
         Assert.AreEqual("Downloading", viewModel.SelectedPlaylistItems[0].Status);
+        AssertRequestBodyContains(handler, "/download", "portable");
         CollectionAssert.AreEqual(
             new[]
             {
@@ -238,8 +245,16 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.RetryItemCommand");
         StringAssert.Contains(xaml, "Playlists.IsAvailableFilter");
         StringAssert.Contains(xaml, "Playlists.IsMissingFilter");
+        StringAssert.Contains(xaml, "Playlists.DownloadProfileName");
         StringAssert.Contains(xaml, "Playlists.PlaylistSearchText");
         StringAssert.Contains(xaml, "Playlists.SelectedPlaylistItemSummary");
+    }
+
+    private static void AssertRequestBodyContains(RecordingHandler handler, string pathSuffix, string expected)
+    {
+        var index = handler.Requests.FindIndex(request => request.EndsWith(pathSuffix, StringComparison.Ordinal));
+        Assert.IsTrue(index >= 0, $"Expected a request ending with '{pathSuffix}'.");
+        StringAssert.Contains(handler.RequestBodies[index] ?? string.Empty, expected);
     }
 
     private static PlaylistSummaryDto CreateSummary(Guid playlistId, string name)
@@ -378,11 +393,13 @@ public sealed class DesktopPlaylistsViewModelTests
         HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
     {
         public List<string> Requests { get; } = [];
+        public List<string?> RequestBodies { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request.RequestUri?.PathAndQuery.TrimStart('/') ?? string.Empty);
-            return Task.FromResult(new HttpResponseMessage(statusCode) { Content = JsonContent.Create(responseFactory(request)) });
+            RequestBodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
+            return new HttpResponseMessage(statusCode) { Content = JsonContent.Create(responseFactory(request)) };
         }
     }
 }

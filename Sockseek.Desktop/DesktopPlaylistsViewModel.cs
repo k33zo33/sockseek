@@ -10,6 +10,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     private DesktopPlaylistDetailViewModel? selectedPlaylist;
     private DesktopPlaylistItemFilter itemFilter;
     private string playlistSearchText = string.Empty;
+    private string downloadProfileName = string.Empty;
     private bool isBusy;
     private string? errorMessage;
     private string? operationSummary;
@@ -101,6 +102,12 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             if (SetProperty(ref playlistSearchText, value ?? string.Empty))
                 NotifySelectedPlaylistItemsChanged();
         }
+    }
+
+    public string DownloadProfileName
+    {
+        get => downloadProfileName;
+        set => SetProperty(ref downloadProfileName, value ?? string.Empty);
     }
 
     public DesktopPlaylistItemFilter ItemFilter
@@ -256,7 +263,10 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     public async Task<bool> DownloadMissingAsync(CancellationToken cancellationToken = default)
         => await ExecuteSelectedPlaylistAsync(async playlistId =>
         {
-            var result = await apiClient.DownloadMissingPlaylistItemsAsync(playlistId, cancellationToken);
+            var options = CreateDownloadOptions();
+            var result = options is null
+                ? await apiClient.DownloadMissingPlaylistItemsAsync(playlistId, cancellationToken)
+                : await apiClient.DownloadMissingPlaylistItemsAsync(playlistId, options, cancellationToken);
             if (result is null)
                 return MissingSelectedPlaylist();
 
@@ -317,7 +327,10 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
                 return false;
             }
 
-            var result = await apiClient.DownloadPlaylistItemAsync(playlistId, playlistItemId, cancellationToken);
+            var options = CreateDownloadOptions();
+            var result = options is null
+                ? await apiClient.DownloadPlaylistItemAsync(playlistId, playlistItemId, cancellationToken)
+                : await apiClient.DownloadPlaylistItemAsync(playlistId, playlistItemId, options, cancellationToken);
             if (result is null)
             {
                 ErrorMessage = "Playlist item was not found.";
@@ -364,7 +377,10 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     public async Task<bool> RetryItemAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
         => await ExecuteSelectedPlaylistAsync(async playlistId =>
         {
-            var result = await apiClient.RetryPlaylistItemAsync(playlistId, playlistItemId, cancellationToken);
+            var options = CreateDownloadOptions();
+            var result = options is null
+                ? await apiClient.RetryPlaylistItemAsync(playlistId, playlistItemId, cancellationToken)
+                : await apiClient.RetryPlaylistItemAsync(playlistId, playlistItemId, options, cancellationToken);
             if (result is null)
             {
                 ErrorMessage = "Playlist item was not found.";
@@ -375,6 +391,14 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             OperationSummary = $"{result.SubmittedItems} retry submitted, {result.FailedItems} failed";
             return true;
         });
+
+    private PlaylistDownloadOptionsRequestDto? CreateDownloadOptions()
+    {
+        var profileName = DownloadProfileName.Trim();
+        return profileName.Length == 0
+            ? null
+            : new PlaylistDownloadOptionsRequestDto(profileName);
+    }
 
     public async Task<bool> ApproveLocalMatchAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
         => await ReviewLocalMatchAsync(
