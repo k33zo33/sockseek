@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -106,6 +107,7 @@ public sealed class SystemDesktopProcessLauncher : IDesktopProcessLauncher
         private readonly Task stdoutPump;
         private readonly Task stderrPump;
         private int disposeStarted;
+        private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(10);
 
         public SystemDesktopProcessSession(Process process)
         {
@@ -137,25 +139,34 @@ public sealed class SystemDesktopProcessLauncher : IDesktopProcessLauncher
                     {
                         process.Kill(entireProcessTree: true);
                     }
-                    catch (InvalidOperationException)
+                    catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
                     {
                     }
                 }
 
                 try
                 {
-                    await process.WaitForExitAsync();
+                    await WaitWithTimeoutAsync(process.WaitForExitAsync(), ShutdownTimeout);
                 }
-                catch (InvalidOperationException)
+                catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
                 {
                 }
 
-                await Task.WhenAll(stdoutPump, stderrPump);
+                await WaitWithTimeoutAsync(Task.WhenAll(stdoutPump, stderrPump), ShutdownTimeout);
             }
             finally
             {
                 process.Dispose();
             }
+        }
+
+        private static async Task WaitWithTimeoutAsync(Task task, TimeSpan timeout)
+        {
+            var completed = await Task.WhenAny(task, Task.Delay(timeout));
+            if (ReferenceEquals(completed, task))
+                await task;
+            else
+                _ = task.ContinueWith(static completedTask => _ = completedTask.Exception, TaskContinuationOptions.OnlyOnFaulted);
         }
 
         private async Task CompleteWhenFinishedAsync()
@@ -172,13 +183,19 @@ public sealed class SystemDesktopProcessLauncher : IDesktopProcessLauncher
 
         private static async Task PumpAsync(StreamReader reader, ChannelWriter<string> writer)
         {
-            while (true)
+            try
             {
-                var line = await reader.ReadLineAsync();
-                if (line is null)
-                    break;
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync();
+                    if (line is null)
+                        break;
 
-                await writer.WriteAsync(line.Trim());
+                    await writer.WriteAsync(line.Trim());
+                }
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
             }
         }
     }
