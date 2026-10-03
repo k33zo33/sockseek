@@ -876,6 +876,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistDownloadOptionsRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -1432,6 +1441,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistDownloadOptionsRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -1505,6 +1523,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistDownloadOptionsRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -7584,6 +7611,17 @@
             "items": {
               "$ref": "#/components/schemas/PlaylistDownloadSubmissionDto"
             }
+          }
+        }
+      },
+      "PlaylistDownloadOptionsRequestDto": {
+        "type": "object",
+        "properties": {
+          "profileName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -351,6 +351,17 @@ public static class ServerHost
         string message)
         => Results.BadRequest(new AppErrorDto(code, message, GetCorrelationId(context)));
 
+    private static async Task<PlaylistDownloadOptionsRequestDto> ReadPlaylistDownloadOptionsAsync(
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        if (!context.Request.HasJsonContentType())
+            return new PlaylistDownloadOptionsRequestDto();
+
+        return await context.Request.ReadFromJsonAsync<PlaylistDownloadOptionsRequestDto>(cancellationToken: cancellationToken)
+            ?? new PlaylistDownloadOptionsRequestDto();
+    }
+
     private static bool IsProviderFacingException(Exception ex)
         => ex is SpotifyProviderException
             or BandcampProviderException
@@ -858,13 +869,15 @@ public static class ServerHost
 
         app.MapPost("/api/v1/playlists/{playlistId:guid}/download-missing", async (
             Guid playlistId,
+            HttpContext context,
             ServerDatabaseMigrationService databaseMigration,
             PlaylistDownloadOrchestrator downloads,
             PlaylistQueryStore playlists,
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
-            var result = await downloads.DownloadMissingAsync(playlistId, ct);
+            var request = await ReadPlaylistDownloadOptionsAsync(context, ct);
+            var result = await downloads.DownloadMissingAsync(playlistId, request.ProfileName, ct);
             if (!result.PlaylistFound)
                 return Results.NotFound();
 
@@ -881,6 +894,7 @@ public static class ServerHost
         })
             .WithTags("Playlists")
             .WithSummary("Submits missing imported playlist items to Soulseek download workflows.")
+            .Accepts<PlaylistDownloadOptionsRequestDto>(true, "application/json")
             .Produces<PlaylistDownloadMissingResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
@@ -1181,7 +1195,8 @@ public static class ServerHost
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
-            var result = await downloads.RetryItemAsync(playlistId, playlistItemId, ct);
+            var request = await ReadPlaylistDownloadOptionsAsync(context, ct);
+            var result = await downloads.RetryItemAsync(playlistId, playlistItemId, request.ProfileName, ct);
             if (!result.ItemFound)
                 return Results.NotFound();
 
@@ -1211,6 +1226,7 @@ public static class ServerHost
         })
             .WithTags("Playlists")
             .WithSummary("Retries a failed or skipped playlist item by submitting a new Soulseek download workflow.")
+            .Accepts<PlaylistDownloadOptionsRequestDto>(true, "application/json")
             .Produces<PlaylistDownloadMissingResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
@@ -1227,7 +1243,8 @@ public static class ServerHost
             CancellationToken ct) =>
         {
             await databaseMigration.EnsureMigratedAsync(ct);
-            var result = await downloads.DownloadItemAsync(playlistId, playlistItemId, ct);
+            var request = await ReadPlaylistDownloadOptionsAsync(context, ct);
+            var result = await downloads.DownloadItemAsync(playlistId, playlistItemId, request.ProfileName, ct);
             if (!result.ItemFound)
                 return Results.NotFound();
 
@@ -1259,6 +1276,7 @@ public static class ServerHost
         })
             .WithTags("Playlists")
             .WithSummary("Submits one unresolved playlist item to a Soulseek download workflow.")
+            .Accepts<PlaylistDownloadOptionsRequestDto>(true, "application/json")
             .Produces<PlaylistDownloadMissingResultDto>()
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)

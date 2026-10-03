@@ -222,6 +222,12 @@ public sealed record SubmissionOptionsDto(
     DownloadSettingsPatchDto? DownloadSettings = null);
 
 /// <summary>
+/// Submission-time download options for playlist item downloads.
+/// </summary>
+public sealed record PlaylistDownloadOptionsRequestDto(
+    string? ProfileName = null);
+
+/// <summary>
 /// Starts a folder retrieval job for an album result folder.
 /// </summary>
 public sealed record RetrieveFolderRequestDto(

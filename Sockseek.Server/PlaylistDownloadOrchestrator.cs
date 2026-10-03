@@ -13,6 +13,7 @@ public sealed class PlaylistDownloadOrchestrator(
 {
     public async Task<PlaylistDownloadMissingResult> DownloadMissingAsync(
         Guid playlistId,
+        string? profileName = null,
         CancellationToken cancellationToken = default)
     {
         var playlistExists = await dbContext.Playlists
@@ -40,7 +41,7 @@ public sealed class PlaylistDownloadOrchestrator(
 
             try
             {
-                submissions.Add(await SubmitDownloadAsync(item, cancellationToken));
+                submissions.Add(await SubmitDownloadAsync(item, profileName, cancellationToken));
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
@@ -61,6 +62,7 @@ public sealed class PlaylistDownloadOrchestrator(
     public async Task<PlaylistItemRetryResult> RetryItemAsync(
         Guid playlistId,
         Guid playlistItemId,
+        string? profileName = null,
         CancellationToken cancellationToken = default)
     {
         var item = await dbContext.PlaylistItems
@@ -79,7 +81,7 @@ public sealed class PlaylistDownloadOrchestrator(
 
         try
         {
-            var submission = await SubmitDownloadAsync(item, cancellationToken);
+            var submission = await SubmitDownloadAsync(item, profileName, cancellationToken);
             return new PlaylistItemRetryResult(true, PlaylistItemRetryOutcome.Submitted, submission);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -93,6 +95,7 @@ public sealed class PlaylistDownloadOrchestrator(
     public async Task<PlaylistItemDownloadResult> DownloadItemAsync(
         Guid playlistId,
         Guid playlistItemId,
+        string? profileName = null,
         CancellationToken cancellationToken = default)
     {
         var item = await dbContext.PlaylistItems
@@ -122,7 +125,7 @@ public sealed class PlaylistDownloadOrchestrator(
 
         try
         {
-            var submission = await SubmitDownloadAsync(item, cancellationToken);
+            var submission = await SubmitDownloadAsync(item, profileName, cancellationToken);
             return new PlaylistItemDownloadResult(true, PlaylistItemDownloadOutcome.Submitted, submission);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -190,12 +193,13 @@ public sealed class PlaylistDownloadOrchestrator(
 
     private async Task<PlaylistDownloadSubmissionRecord> SubmitDownloadAsync(
         PlaylistItemEntity item,
+        string? profileName,
         CancellationToken cancellationToken)
     {
         var snapshot = DeserializeSnapshot(item);
         var handle = await gateway.StartTrackDownloadAsync(
             new TrackSearchRequest(snapshot.Artist, snapshot.Title, snapshot.Album, null),
-            new DownloadOptions(OutputParentDir: null, ProfileName: null),
+            new DownloadOptions(OutputParentDir: null, ProfileName: NormalizeProfileName(profileName)),
             cancellationToken);
         var now = DateTimeOffset.UtcNow;
 
@@ -224,6 +228,9 @@ public sealed class PlaylistDownloadOrchestrator(
     private static ExternalPlaylistItemSnapshot DeserializeSnapshot(PlaylistItemEntity item)
         => JsonSerializer.Deserialize<ExternalPlaylistItemSnapshot>(item.SnapshotJson)
             ?? throw new InvalidOperationException($"Playlist item '{item.Id}' snapshot could not be deserialized.");
+
+    private static string? NormalizeProfileName(string? profileName)
+        => string.IsNullOrWhiteSpace(profileName) ? null : profileName.Trim();
 
     private static PlaylistItemStatus ToPlaylistItemStatus(int status)
         => Enum.IsDefined(typeof(PlaylistItemStatus), status)

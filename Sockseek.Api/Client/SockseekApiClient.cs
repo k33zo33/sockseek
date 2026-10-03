@@ -232,6 +232,15 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<PlaylistDownloadMissingResultDto>(response, ct);
     }
 
+    public async Task<PlaylistDownloadMissingResultDto?> DownloadMissingPlaylistItemsAsync(
+        Guid playlistId,
+        PlaylistDownloadOptionsRequestDto request,
+        CancellationToken ct = default)
+        => await PostOptionalAsync<PlaylistDownloadMissingResultDto, PlaylistDownloadOptionsRequestDto>(
+            $"api/v1/playlists/{playlistId}/download-missing",
+            request,
+            ct);
+
     public async Task<PlaylistCancelDownloadsResultDto?> CancelPlaylistDownloadsAsync(Guid playlistId, CancellationToken ct = default)
     {
         using var response = await http.PostAsync($"api/v1/playlists/{playlistId}/cancel-active-downloads", null, ct);
@@ -305,6 +314,16 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<PlaylistDownloadMissingResultDto>(response, ct);
     }
 
+    public async Task<PlaylistDownloadMissingResultDto?> RetryPlaylistItemAsync(
+        Guid playlistId,
+        Guid playlistItemId,
+        PlaylistDownloadOptionsRequestDto request,
+        CancellationToken ct = default)
+        => await PostOptionalAsync<PlaylistDownloadMissingResultDto, PlaylistDownloadOptionsRequestDto>(
+            $"api/v1/playlists/{playlistId}/items/{playlistItemId}/retry",
+            request,
+            ct);
+
     public async Task<PlaylistDownloadMissingResultDto?> DownloadPlaylistItemAsync(Guid playlistId, Guid playlistItemId, CancellationToken ct = default)
     {
         using var response = await http.PostAsync($"api/v1/playlists/{playlistId}/items/{playlistItemId}/download", null, ct);
@@ -313,6 +332,16 @@ public sealed class SockseekApiClient
         await EnsureSuccessAsync(response, ct);
         return await ReadRequiredAsync<PlaylistDownloadMissingResultDto>(response, ct);
     }
+
+    public async Task<PlaylistDownloadMissingResultDto?> DownloadPlaylistItemAsync(
+        Guid playlistId,
+        Guid playlistItemId,
+        PlaylistDownloadOptionsRequestDto request,
+        CancellationToken ct = default)
+        => await PostOptionalAsync<PlaylistDownloadMissingResultDto, PlaylistDownloadOptionsRequestDto>(
+            $"api/v1/playlists/{playlistId}/items/{playlistItemId}/download",
+            request,
+            ct);
 
     public async Task<PlayerStateDto> GetPlayerStateAsync(CancellationToken ct = default)
     {
