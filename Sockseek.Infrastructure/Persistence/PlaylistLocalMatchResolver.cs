@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
 using Sockseek.Domain.Tracks;
 using Sockseek.Domain.Workflows;
@@ -14,6 +15,8 @@ public sealed class PlaylistLocalMatchResolver(
     public async Task<PlaylistLocalMatchResult> ResolveAsync(Guid playlistId, CancellationToken cancellationToken = default)
     {
         var items = await dbContext.PlaylistItems
+            .Include(item => item.Playlist)
+            .ThenInclude(playlist => playlist.ExternalPlaylist)
             .Where(item => item.PlaylistId == playlistId
                 && item.RemovedAtUtc == null
                 && (item.Status == (int)PlaylistItemStatus.Imported
@@ -49,6 +52,16 @@ public sealed class PlaylistLocalMatchResolver(
         {
             var snapshot = JsonSerializer.Deserialize<ExternalPlaylistItemSnapshot>(item.SnapshotJson)
                 ?? throw new InvalidOperationException("Playlist item snapshot could not be deserialized.");
+            ExternalProvider? sourceProvider = null;
+            if (item.Playlist.ExternalPlaylist is { } externalPlaylist
+                && Enum.IsDefined(typeof(ExternalProvider), externalPlaylist.Provider))
+            {
+                sourceProvider = (ExternalProvider)externalPlaylist.Provider;
+            }
+
+            var sourceExternalId = string.IsNullOrWhiteSpace(snapshot.ExternalTrackId)
+                ? item.ProviderItemId
+                : snapshot.ExternalTrackId.Trim();
 
             var query = new TrackIdentityQuery(
                 snapshot.Artist,
@@ -56,6 +69,8 @@ public sealed class PlaylistLocalMatchResolver(
                 snapshot.DurationMs,
                 snapshot.Isrc,
                 snapshot.MusicBrainzRecordingId,
+                sourceProvider,
+                sourceExternalId,
                 Album: snapshot.Album);
             rejectedCandidatesByItem.TryGetValue(item.Id, out var rejectedForItem);
             var bestMatch = FindBestMatch(candidates, query, rejectedForItem);

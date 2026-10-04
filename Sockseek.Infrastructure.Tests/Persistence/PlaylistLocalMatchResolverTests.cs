@@ -159,15 +159,62 @@ public class PlaylistLocalMatchResolverTests
         Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
     }
 
+    [TestMethod]
+    public async Task ResolveAsync_PreviousProviderSourceMapping_MatchesLocalTrackDeterministically()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        Guid playlistId;
+        Guid trackId;
+
+        await using (var context = new SockseekDbContext(database.Options))
+        {
+            playlistId = await new ExternalPlaylistSnapshotStore(context).UpsertAsync(
+                CreateSnapshot(
+                    "bandcamp-playlist-item",
+                    "Imported Artist",
+                    "Imported Title",
+                    null,
+                    provider: ExternalProvider.Bandcamp,
+                    externalTrackId: "bandcamp-track-1"));
+            trackId = await new CanonicalTrackStore(context).UpsertAsync(
+                CreateTrack(
+                    "Different Artist",
+                    "Different Title",
+                    null,
+                    LocalMediaAvailability.Available,
+                    sources:
+                    [
+                        new TrackSourceRecord(
+                            ExternalProvider.Bandcamp,
+                            "bandcamp-track-1",
+                            "https://artist.example.test/track/one",
+                            "{\"provider\":\"bandcamp\"}"),
+                    ]));
+
+            var resolver = new PlaylistLocalMatchResolver(context, new TrackIdentityService());
+            var result = await resolver.ResolveAsync(playlistId);
+
+            Assert.AreEqual(1, result.MatchedItems);
+            Assert.AreEqual(0, result.UnresolvedItems);
+        }
+
+        await using var verify = new SockseekDbContext(database.Options);
+        var item = await verify.PlaylistItems.SingleAsync();
+        Assert.AreEqual(trackId, item.CanonicalTrackId);
+        Assert.AreEqual((int)PlaylistItemStatus.AvailableLocal, item.Status);
+    }
+
     private static ExternalPlaylistSnapshotRecord CreateSnapshot(
         string providerItemId,
         string artist,
         string title,
         int? durationMs,
         string? isrc = null,
-        string? musicBrainzRecordingId = null)
+        string? musicBrainzRecordingId = null,
+        ExternalProvider provider = ExternalProvider.Spotify,
+        string? externalTrackId = null)
         => new(
-            ExternalProvider.Spotify,
+            provider,
             "playlist-1",
             "Daily Mix",
             "https://example.test/playlist/1",
@@ -182,6 +229,7 @@ public class PlaylistLocalMatchResolverTests
                 artist,
                 "Album",
                 durationMs,
+                ExternalTrackId: externalTrackId,
                 Isrc: isrc,
                 MusicBrainzRecordingId: musicBrainzRecordingId)],
             null);
@@ -192,7 +240,8 @@ public class PlaylistLocalMatchResolverTests
         int? durationMs,
         LocalMediaAvailability availability,
         string? isrc = null,
-        string? musicBrainzRecordingId = null)
+        string? musicBrainzRecordingId = null,
+        IReadOnlyList<TrackSourceRecord>? sources = null)
         => new(
             artist,
             title,
@@ -200,7 +249,7 @@ public class PlaylistLocalMatchResolverTests
             durationMs,
             isrc,
             musicBrainzRecordingId,
-            [],
+            sources ?? [],
             [new LocalMediaFileRecord(
                 $"C:/Music/{artist}/{title}.mp3",
                 1234,
