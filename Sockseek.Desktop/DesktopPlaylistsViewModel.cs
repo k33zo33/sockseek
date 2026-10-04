@@ -128,6 +128,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             OnPropertyChanged(nameof(IsReviewFilter));
             OnPropertyChanged(nameof(IsFailedFilter));
             OnPropertyChanged(nameof(IsSkippedFilter));
+            OnPropertyChanged(nameof(IsRemovedFilter));
             NotifySelectedPlaylistItemsChanged();
         }
     }
@@ -199,6 +200,16 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         {
             if (value)
                 ItemFilter = DesktopPlaylistItemFilter.Skipped;
+        }
+    }
+
+    public bool IsRemovedFilter
+    {
+        get => ItemFilter == DesktopPlaylistItemFilter.Removed;
+        set
+        {
+            if (value)
+                ItemFilter = DesktopPlaylistItemFilter.Removed;
         }
     }
 
@@ -520,6 +531,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             DesktopPlaylistItemFilter.Review => items.Where(item => item.IsReviewRequired),
             DesktopPlaylistItemFilter.Failed => items.Where(item => item.IsFailed),
             DesktopPlaylistItemFilter.Skipped => items.Where(item => item.IsSkipped),
+            DesktopPlaylistItemFilter.Removed => items.Where(item => item.IsRemoved),
             _ => items,
         };
 
@@ -553,6 +565,7 @@ public enum DesktopPlaylistItemFilter
     Review,
     Failed,
     Skipped,
+    Removed,
 }
 
 public sealed class DesktopPlaylistSummaryViewModel
@@ -593,7 +606,7 @@ public sealed class DesktopPlaylistSummaryViewModel
         => new(playlist);
 
     private static string FormatResolution(PlaylistResolutionSummaryDto resolution)
-        => $"{resolution.AvailableLocalItems}/{resolution.TotalItems} available, {resolution.UnresolvedItems} missing, {resolution.FailedItems} failed, {resolution.SkippedItems} skipped";
+        => $"{resolution.AvailableLocalItems}/{resolution.TotalItems} available, {resolution.UnresolvedItems} missing, {resolution.FailedItems} failed, {resolution.SkippedItems} skipped, {resolution.RemovedItems} removed";
 }
 
 public sealed class DesktopPlaylistDetailViewModel
@@ -685,6 +698,8 @@ public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
     public bool IsFailed { get; } = string.Equals(item.Status, "Failed", StringComparison.Ordinal);
 
     public bool IsSkipped { get; } = string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+
+    public bool IsRemoved { get; } = string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
 
     public bool MatchesSearch(string search)
         => Contains(Title, search)

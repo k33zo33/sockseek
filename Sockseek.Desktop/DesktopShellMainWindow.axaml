@@ -428,6 +428,7 @@
                       <RadioButton Margin="0,0,8,8" Content="Review" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsReviewFilter}" />
                       <RadioButton Margin="0,0,8,8" Content="Failed" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsFailedFilter}" />
                       <RadioButton Margin="0,0,8,8" Content="Skipped" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsSkippedFilter}" />
+                      <RadioButton Margin="0,0,8,8" Content="Removed" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsRemovedFilter}" />
                     </WrapPanel>
                     <TextBox Grid.Column="1" Watermark="Download profile" Text="{Binding Playlists.DownloadProfileName}" />
                     <TextBox Grid.Column="2" Watermark="Search playlist" Text="{Binding Playlists.PlaylistSearchText}" />

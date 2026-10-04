@@ -204,14 +204,14 @@ public sealed class DesktopPlaylistsViewModelTests
         var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
 
         Assert.IsTrue(await viewModel.RefreshAsync());
-        Assert.AreEqual(6, viewModel.SelectedPlaylistItems.Count);
-        Assert.AreEqual("6/6 tracks", viewModel.SelectedPlaylistItemSummary);
-        Assert.AreEqual("1/6 available, 1 missing, 1 failed, 1 skipped", viewModel.SelectedPlaylist!.ResolutionSummary);
+        Assert.AreEqual(7, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("7/7 tracks", viewModel.SelectedPlaylistItemSummary);
+        Assert.AreEqual("1/7 available, 1 missing, 1 failed, 1 skipped, 1 removed", viewModel.SelectedPlaylist!.ResolutionSummary);
 
         viewModel.IsMissingFilter = true;
         Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
         Assert.AreEqual("Missing Track", viewModel.SelectedPlaylistItems[0].Title);
-        Assert.AreEqual("1/6 tracks", viewModel.SelectedPlaylistItemSummary);
+        Assert.AreEqual("1/7 tracks", viewModel.SelectedPlaylistItemSummary);
 
         viewModel.IsReviewFilter = true;
         Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
@@ -234,6 +234,12 @@ public sealed class DesktopPlaylistsViewModelTests
         viewModel.IsSkippedFilter = true;
         Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
         Assert.AreEqual("Skipped Track", viewModel.SelectedPlaylistItems[0].Title);
+
+        viewModel.IsRemovedFilter = true;
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Removed Track", viewModel.SelectedPlaylistItems[0].Title);
+        Assert.IsFalse(viewModel.SelectedPlaylistItems[0].CanPlay);
+        Assert.IsFalse(viewModel.SelectedPlaylistItems[0].CanSkip);
     }
 
     [TestMethod]
@@ -264,6 +270,7 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.IsAvailableFilter");
         StringAssert.Contains(xaml, "Playlists.IsMissingFilter");
         StringAssert.Contains(xaml, "Playlists.IsSkippedFilter");
+        StringAssert.Contains(xaml, "Playlists.IsRemovedFilter");
         StringAssert.Contains(xaml, "Playlists.DownloadProfileName");
         StringAssert.Contains(xaml, "Playlists.PlaylistSearchText");
         StringAssert.Contains(xaml, "Playlists.SelectedPlaylistItemSummary");
@@ -344,7 +351,7 @@ public sealed class DesktopPlaylistsViewModelTests
             new DateTimeOffset(2026, 9, 28, 8, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
-            CreateResolution(6, available: 1, unresolved: 1, review: 1, downloading: 1, failed: 1, skipped: 1),
+            CreateResolution(7, available: 1, unresolved: 1, review: 1, downloading: 1, failed: 1, skipped: 1, removed: 1),
             [
                 CreateItem(1, "Ready Track", "AvailableLocal", canonicalTrackId: Guid.NewGuid()),
                 CreateItem(2, "Missing Track", "Unresolved"),
@@ -352,6 +359,7 @@ public sealed class DesktopPlaylistsViewModelTests
                 CreateItem(4, "Review Track", "ReviewRequired", canonicalTrackId: Guid.NewGuid()),
                 CreateItem(5, "Broken Track", "Failed"),
                 CreateItem(6, "Skipped Track", "Skipped"),
+                CreateItem(7, "Removed Track", "RemovedFromSourcePlaylist"),
             ]);
 
     private static PlaylistItemDto CreateItem(
@@ -384,8 +392,9 @@ public sealed class DesktopPlaylistsViewModelTests
         int searching = 0,
         int downloading = 0,
         int failed = 0,
-        int skipped = 0)
-        => new(total, available, unresolved, review, searching, 0, downloading, failed, skipped, 0);
+        int skipped = 0,
+        int removed = 0)
+        => new(total, available, unresolved, review, searching, 0, downloading, failed, skipped, removed);
 
     private static PlaylistDownloadSubmissionDto CreateSubmission(Guid itemId)
         => new(itemId, Guid.NewGuid(), Guid.NewGuid());
