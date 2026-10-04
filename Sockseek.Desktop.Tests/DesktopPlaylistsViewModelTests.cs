@@ -204,13 +204,14 @@ public sealed class DesktopPlaylistsViewModelTests
         var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
 
         Assert.IsTrue(await viewModel.RefreshAsync());
-        Assert.AreEqual(5, viewModel.SelectedPlaylistItems.Count);
-        Assert.AreEqual("5/5 tracks", viewModel.SelectedPlaylistItemSummary);
+        Assert.AreEqual(6, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("6/6 tracks", viewModel.SelectedPlaylistItemSummary);
+        Assert.AreEqual("1/6 available, 1 missing, 1 failed, 1 skipped", viewModel.SelectedPlaylist!.ResolutionSummary);
 
         viewModel.IsMissingFilter = true;
         Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
         Assert.AreEqual("Missing Track", viewModel.SelectedPlaylistItems[0].Title);
-        Assert.AreEqual("1/5 tracks", viewModel.SelectedPlaylistItemSummary);
+        Assert.AreEqual("1/6 tracks", viewModel.SelectedPlaylistItemSummary);
 
         viewModel.IsReviewFilter = true;
         Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
@@ -225,6 +226,14 @@ public sealed class DesktopPlaylistsViewModelTests
         viewModel.PlaylistSearchText = string.Empty;
         Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
         Assert.AreEqual("Download Track", viewModel.SelectedPlaylistItems[0].Title);
+
+        viewModel.IsFailedFilter = true;
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Broken Track", viewModel.SelectedPlaylistItems[0].Title);
+
+        viewModel.IsSkippedFilter = true;
+        Assert.AreEqual(1, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreEqual("Skipped Track", viewModel.SelectedPlaylistItems[0].Title);
     }
 
     [TestMethod]
@@ -254,6 +263,7 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.RetryItemCommand");
         StringAssert.Contains(xaml, "Playlists.IsAvailableFilter");
         StringAssert.Contains(xaml, "Playlists.IsMissingFilter");
+        StringAssert.Contains(xaml, "Playlists.IsSkippedFilter");
         StringAssert.Contains(xaml, "Playlists.DownloadProfileName");
         StringAssert.Contains(xaml, "Playlists.PlaylistSearchText");
         StringAssert.Contains(xaml, "Playlists.SelectedPlaylistItemSummary");
@@ -334,13 +344,14 @@ public sealed class DesktopPlaylistsViewModelTests
             new DateTimeOffset(2026, 9, 28, 8, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
-            CreateResolution(5, available: 1, unresolved: 1, review: 1, downloading: 1, failed: 1),
+            CreateResolution(6, available: 1, unresolved: 1, review: 1, downloading: 1, failed: 1, skipped: 1),
             [
                 CreateItem(1, "Ready Track", "AvailableLocal", canonicalTrackId: Guid.NewGuid()),
                 CreateItem(2, "Missing Track", "Unresolved"),
                 CreateItem(3, "Download Track", "Downloading"),
                 CreateItem(4, "Review Track", "ReviewRequired", canonicalTrackId: Guid.NewGuid()),
                 CreateItem(5, "Broken Track", "Failed"),
+                CreateItem(6, "Skipped Track", "Skipped"),
             ]);
 
     private static PlaylistItemDto CreateItem(

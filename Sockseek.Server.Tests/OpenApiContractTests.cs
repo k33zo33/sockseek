@@ -80,6 +80,16 @@ public class OpenApiContractTests
             StringAssert.Contains(json, nameof(LocalLibrarySearchResponseDto));
             StringAssert.Contains(json, nameof(LocalLibraryDuplicateGroupDto));
             StringAssert.Contains(json, nameof(LocalMediaFileRelinkResultDto));
+            StringAssert.Contains(json, nameof(PlaylistSummaryDto));
+            StringAssert.Contains(json, nameof(PlaylistDetailDto));
+            StringAssert.Contains(json, nameof(PlaylistItemDto));
+            StringAssert.Contains(json, nameof(PlaylistResolutionSummaryDto));
+            StringAssert.Contains(json, nameof(PlaylistLocalResolveResultDto));
+            StringAssert.Contains(json, nameof(PlaylistDownloadMissingResultDto));
+            StringAssert.Contains(json, nameof(PlaylistCancelDownloadsResultDto));
+            StringAssert.Contains(json, nameof(PlaylistDownloadSubmissionDto));
+            StringAssert.Contains(json, nameof(PlaylistDownloadOptionsRequestDto));
+            StringAssert.Contains(json, nameof(MapPlaylistItemLocalRequestDto));
             StringAssert.Contains(json, "lifecycleState");
             StringAssert.Contains(json, "activityPhase");
             StringAssert.Contains(json, "terminalOutcome");
@@ -100,6 +110,20 @@ public class OpenApiContractTests
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/tracks", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/duplicates", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/files/{localMediaFileId}/relink", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/resolve-local", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/download-missing", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/cancel-active-downloads", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/retry-failed", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/play-available", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/download", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/retry", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/skip", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/approve-local", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/reject-local", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/map-local", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/items/{playlistItemId}/play-from-here", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/jobs/{jobId}/retry", out _));
 
             var jobListParameterNames = paths

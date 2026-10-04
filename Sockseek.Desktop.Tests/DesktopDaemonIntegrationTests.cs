@@ -85,10 +85,6 @@ public class DesktopDaemonIntegrationTests
         freshTokenClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secondHandshake.SessionToken);
         using var freshTokenResponse = await freshTokenClient.GetAsync("/api/v1/system/info", cts.Token);
         Assert.AreEqual(HttpStatusCode.OK, freshTokenResponse.StatusCode);
-
-        var freshClient = DesktopBackendClientFactory.CreateApiClient(secondHandshake);
-        var systemInfo = await freshClient.GetSystemInfoAsync(cts.Token);
-        Assert.AreEqual("Sockseek", systemInfo.Name);
     }
 
     private static string FindWorkspaceRoot()

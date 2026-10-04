@@ -127,6 +127,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             OnPropertyChanged(nameof(IsDownloadingFilter));
             OnPropertyChanged(nameof(IsReviewFilter));
             OnPropertyChanged(nameof(IsFailedFilter));
+            OnPropertyChanged(nameof(IsSkippedFilter));
             NotifySelectedPlaylistItemsChanged();
         }
     }
@@ -188,6 +189,16 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         {
             if (value)
                 ItemFilter = DesktopPlaylistItemFilter.Failed;
+        }
+    }
+
+    public bool IsSkippedFilter
+    {
+        get => ItemFilter == DesktopPlaylistItemFilter.Skipped;
+        set
+        {
+            if (value)
+                ItemFilter = DesktopPlaylistItemFilter.Skipped;
         }
     }
 
@@ -508,6 +519,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             DesktopPlaylistItemFilter.Downloading => items.Where(item => item.IsDownloadActivity),
             DesktopPlaylistItemFilter.Review => items.Where(item => item.IsReviewRequired),
             DesktopPlaylistItemFilter.Failed => items.Where(item => item.IsFailed),
+            DesktopPlaylistItemFilter.Skipped => items.Where(item => item.IsSkipped),
             _ => items,
         };
 
@@ -540,6 +552,7 @@ public enum DesktopPlaylistItemFilter
     Downloading,
     Review,
     Failed,
+    Skipped,
 }
 
 public sealed class DesktopPlaylistSummaryViewModel
@@ -580,7 +593,7 @@ public sealed class DesktopPlaylistSummaryViewModel
         => new(playlist);
 
     private static string FormatResolution(PlaylistResolutionSummaryDto resolution)
-        => $"{resolution.AvailableLocalItems}/{resolution.TotalItems} available, {resolution.UnresolvedItems} missing, {resolution.FailedItems} failed";
+        => $"{resolution.AvailableLocalItems}/{resolution.TotalItems} available, {resolution.UnresolvedItems} missing, {resolution.FailedItems} failed, {resolution.SkippedItems} skipped";
 }
 
 public sealed class DesktopPlaylistDetailViewModel
@@ -661,8 +674,7 @@ public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
     public bool IsAvailable { get; } = string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
 
     public bool IsMissing { get; } = string.Equals(item.Status, "Imported", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+        || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal);
 
     public bool IsReviewRequired { get; } = string.Equals(item.Status, "ReviewRequired", StringComparison.Ordinal)
         || string.Equals(item.Status, "CandidateFound", StringComparison.Ordinal);
@@ -671,6 +683,8 @@ public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
         || string.Equals(item.Status, "Downloading", StringComparison.Ordinal);
 
     public bool IsFailed { get; } = string.Equals(item.Status, "Failed", StringComparison.Ordinal);
+
+    public bool IsSkipped { get; } = string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
 
     public bool MatchesSearch(string search)
         => Contains(Title, search)
