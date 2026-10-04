@@ -447,6 +447,40 @@ public sealed class PlaylistEndpointTests
     }
 
     [TestMethod]
+    public async Task BandcampImportedPlaylist_ResolvesByProviderSourceMappingAndQueuesLocalPlayback()
+    {
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            var playlistId = await SeedBandcampPlaylistWithSourceMappingAsync(app);
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var resolved = await client.ResolvePlaylistLocalAsync(playlistId);
+            var playerState = await client.PlayAvailablePlaylistItemsAsync(playlistId);
+
+            Assert.IsNotNull(resolved);
+            Assert.IsNotNull(playerState);
+            Assert.AreEqual("bandcamp", resolved.Playlist.ProviderId);
+            Assert.AreEqual(1, resolved.MatchedItems);
+            Assert.AreEqual(1, resolved.Resolution.AvailableLocalItems);
+            Assert.AreEqual(0, resolved.Resolution.UnresolvedItems);
+            var item = resolved.Playlist.Items.Single();
+            Assert.AreEqual("AvailableLocal", item.Status);
+            Assert.IsNotNull(item.CanonicalTrackId);
+            Assert.AreEqual(1, playerState.Queue.Items.Count);
+            Assert.AreEqual(item.CanonicalTrackId.Value, playerState.Queue.Items.Single().CanonicalTrackId);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task SkipPlaylistItem_MarksItemSkippedWithoutDeletingRows()
     {
         var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
@@ -807,6 +841,76 @@ public sealed class PlaylistEndpointTests
                     DurationMs = 200000,
                     Codec = "mp3",
                     Bitrate = 320,
+                    SampleRate = 44100,
+                    BitDepth = 16,
+                    Availability = (int)LocalMediaAvailability.Available,
+                },
+            ],
+        });
+        await db.SaveChangesAsync();
+
+        return playlistId;
+    }
+
+    private static async Task<Guid> SeedBandcampPlaylistWithSourceMappingAsync(WebApplication app)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
+        var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+        var playlistId = await new ExternalPlaylistSnapshotStore(db).UpsertAsync(new ExternalPlaylistSnapshotRecord(
+            ExternalProvider.Bandcamp,
+            "bandcamp-playlist",
+            "Bandcamp Local",
+            "https://artist.example.test/album/local",
+            1,
+            new DateTimeOffset(2026, 9, 29, 9, 0, 0, TimeSpan.Zero),
+            PlaylistImportMode.Copy,
+            "Bandcamp Local",
+            [
+                new ExternalPlaylistItemSnapshot(
+                    "bandcamp-item-1",
+                    1,
+                    "Imported Bandcamp Title",
+                    "Imported Bandcamp Artist",
+                    "Imported Bandcamp Album",
+                    null,
+                    ExternalTrackId: "bandcamp-track-1",
+                    ExternalUrl: "https://artist.example.test/track/one"),
+            ],
+            null));
+
+        var trackId = Guid.NewGuid();
+        db.CanonicalTracks.Add(new CanonicalTrackEntity
+        {
+            Id = trackId,
+            Artist = "Local Artist",
+            Title = "Local Title",
+            AlbumTitle = "Local Album",
+            DurationMs = 211000,
+            NormalizedArtist = "local artist",
+            NormalizedTitle = "local title",
+            Sources =
+            [
+                new TrackSourceEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Provider = (int)ExternalProvider.Bandcamp,
+                    ExternalId = "bandcamp-track-1",
+                    ExternalUrl = "https://artist.example.test/track/one",
+                    RawMetadataJson = "{\"provider\":\"bandcamp\"}",
+                },
+            ],
+            LocalMediaFiles =
+            [
+                new LocalMediaFileEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Path = "C:/Music/Local Artist/Local Title.flac",
+                    Size = 1234,
+                    LastWriteUtc = new DateTimeOffset(2026, 9, 29, 8, 55, 0, TimeSpan.Zero),
+                    DurationMs = 211000,
+                    Codec = "flac",
+                    Bitrate = 900,
                     SampleRate = 44100,
                     BitDepth = 16,
                     Availability = (int)LocalMediaAvailability.Available,
