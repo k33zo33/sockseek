@@ -41,11 +41,6 @@
           "MSTest.Analyzers": "3.7.3"
         }
       },
-      "AngleSharp": {
-        "type": "Transitive",
-        "resolved": "1.4.0",
-        "contentHash": "6ph8mpaQx0KL0COYRt0kI8MB9gSp1PtKijKMhJU//+aVFgKAJLKDesG/+26JSaVCOrHNgPf12wpfoyRcMYOeXg=="
-      },
       "EmbedIO": {
         "type": "Transitive",
         "resolved": "3.5.2",
@@ -230,6 +225,7 @@
       "sockseek.core": {
         "type": "Project",
         "dependencies": {
+          "AngleSharp": "[1.8.2, )",
           "Google.Apis.YouTube.v3": "[1.75.0.4176, )",
           "HtmlAgilityPack": "[1.12.4, )",
           "Microsoft.Extensions.Logging": "[10.0.9, )",
@@ -240,6 +236,12 @@
           "TagLibSharp": "[2.3.0, )",
           "YoutubeExplode": "[6.6.0, )"
         }
+      },
+      "AngleSharp": {
+        "type": "CentralTransitive",
+        "requested": "[1.8.2, )",
+        "resolved": "1.8.2",
+        "contentHash": "iRlkfBIhi+gTgTxBlYNT4PlmaiVEy7+qX3BmprAK4cYE1UjfSNFI4mEDyxC1qgtAKYg5rjGYgL3tJlzGF+Ukdg=="
       },
       "Google.Apis.YouTube.v3": {
         "type": "CentralTransitive",
