@@ -18,6 +18,8 @@ public sealed record SystemInfoDto(
     string Name,
     string Version,
     string Commit,
+    string SourceUrl,
+    string License,
     DateTimeOffset StartedAtUtc,
     SystemCapabilitiesDto Capabilities);
 

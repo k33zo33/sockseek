@@ -65,6 +65,8 @@ public class SystemEndpointTests
             Assert.AreEqual("Sockseek", systemInfo.Name);
             Assert.IsFalse(string.IsNullOrWhiteSpace(systemInfo.Version));
             Assert.IsFalse(string.IsNullOrWhiteSpace(systemInfo.Commit));
+            Assert.AreEqual("https://github.com/k33zo33/sockseek", systemInfo.SourceUrl);
+            Assert.AreEqual("AGPL-3.0", systemInfo.License);
             Assert.IsTrue(systemInfo.Capabilities.LegacyApi);
             Assert.IsTrue(systemInfo.Capabilities.VersionedApi);
             Assert.IsTrue(systemInfo.Capabilities.SignalR);

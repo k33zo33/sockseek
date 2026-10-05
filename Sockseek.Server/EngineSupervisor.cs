@@ -13,6 +13,9 @@ namespace Sockseek.Server;
 
 public sealed class EngineSupervisor
 {
+    public const string SourceUrl = "https://github.com/k33zo33/sockseek";
+    public const string License = "AGPL-3.0";
+
     private readonly ServerOptions options;
     private readonly EngineSettings engineSettings;
     private readonly DownloadSettings defaultDownloadSettings;
@@ -117,6 +120,8 @@ public sealed class EngineSupervisor
             options.Name,
             version,
             commit,
+            SourceUrl,
+            License,
             StartedAtUtc,
             GetSystemCapabilities());
     }

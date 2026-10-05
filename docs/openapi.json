@@ -9763,6 +9763,8 @@
           "name",
           "version",
           "commit",
+          "sourceUrl",
+          "license",
           "startedAtUtc",
           "capabilities"
         ],
@@ -9775,6 +9777,12 @@
             "type": "string"
           },
           "commit": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string"
+          },
+          "license": {
             "type": "string"
           },
           "startedAtUtc": {
