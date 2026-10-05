@@ -14,6 +14,7 @@ public sealed class ReleaseArtifactValidatorTests
         File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Server.exe"), "daemon");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteInstallerScripts(temp.Path);
         WriteValidSbom(temp.Path);
         File.WriteAllText(
             Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
@@ -60,6 +61,8 @@ public sealed class ReleaseArtifactValidatorTests
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: THIRD-PARTY-NOTICES");
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: Sockseek.Desktop.exe");
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: Sockseek.Server.exe");
+        CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: install.ps1");
+        CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: uninstall.ps1");
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: sbom.spdx.json");
         CollectionAssert.Contains(result.Errors.ToArray(), "release-metadata.json must include 'version'.");
         CollectionAssert.Contains(result.Errors.ToArray(), "release-metadata.json must include 'commit'.");
@@ -75,6 +78,7 @@ public sealed class ReleaseArtifactValidatorTests
         File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Server.exe"), "daemon");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteInstallerScripts(temp.Path);
         WriteValidSbom(temp.Path);
         File.WriteAllText(
             Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
@@ -107,6 +111,7 @@ public sealed class ReleaseArtifactValidatorTests
         File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Server.exe"), "daemon");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteInstallerScripts(temp.Path);
         File.WriteAllText(
             Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
             """
@@ -156,6 +161,12 @@ public sealed class ReleaseArtifactValidatorTests
               ]
             }
             """);
+    }
+
+    private static void WriteInstallerScripts(string directory)
+    {
+        File.WriteAllText(Path.Combine(directory, ReleaseArtifactValidator.WindowsInstallerFileName), "install");
+        File.WriteAllText(Path.Combine(directory, ReleaseArtifactValidator.WindowsUninstallerFileName), "uninstall");
     }
 
     private sealed class TempDirectory : IDisposable

@@ -8,6 +8,8 @@ public static class ReleaseArtifactValidator
     public const string ThirdPartyNoticesFileName = "THIRD-PARTY-NOTICES";
     public const string MetadataFileName = "release-metadata.json";
     public const string SbomFileName = "sbom.spdx.json";
+    public const string WindowsInstallerFileName = "install.ps1";
+    public const string WindowsUninstallerFileName = "uninstall.ps1";
 
     public static ReleaseArtifactValidationResult Validate(
         string stagingDirectory,
@@ -30,6 +32,8 @@ public static class ReleaseArtifactValidator
         RequireFile(fullStagingDirectory, ThirdPartyNoticesFileName, errors);
         RequireFile(fullStagingDirectory, desktopExecutableName, errors);
         RequireFile(fullStagingDirectory, daemonExecutableName, errors);
+        RequireFile(fullStagingDirectory, WindowsInstallerFileName, errors);
+        RequireFile(fullStagingDirectory, WindowsUninstallerFileName, errors);
         ValidateMetadata(fullStagingDirectory, errors);
         ValidateSbom(fullStagingDirectory, errors);
 

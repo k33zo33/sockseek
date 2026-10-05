@@ -45,6 +45,8 @@ public static class ReleaseStager
         File.Copy(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), Path.Combine(stagingDirectory, ReleaseArtifactValidator.LicenseFileName), overwrite: true);
         File.Copy(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), Path.Combine(stagingDirectory, ReleaseArtifactValidator.ThirdPartyNoticesFileName), overwrite: true);
         File.Copy(sbomPath, Path.Combine(stagingDirectory, ReleaseArtifactValidator.SbomFileName), overwrite: true);
+        File.WriteAllText(Path.Combine(stagingDirectory, ReleaseArtifactValidator.WindowsInstallerFileName), WindowsInstallScript);
+        File.WriteAllText(Path.Combine(stagingDirectory, ReleaseArtifactValidator.WindowsUninstallerFileName), WindowsUninstallScript);
 
         var metadata = new ReleaseMetadata(
             request.Version,
@@ -109,6 +111,68 @@ public static class ReleaseStager
 
         return fullPath.StartsWith(fullDirectory, comparison);
     }
+
+    private const string WindowsInstallScript =
+        """
+        #Requires -Version 5.1
+        [CmdletBinding()]
+        param(
+            [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Sockseek'),
+            [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'Sockseek')
+        )
+
+        $ErrorActionPreference = 'Stop'
+        $source = Split-Path -Parent $MyInvocation.MyCommand.Path
+        $installDirFull = [System.IO.Path]::GetFullPath($InstallDir)
+        $dataDirFull = [System.IO.Path]::GetFullPath($DataDir)
+
+        New-Item -ItemType Directory -Force -Path $installDirFull | Out-Null
+        Copy-Item -Path (Join-Path $source '*') -Destination $installDirFull -Recurse -Force
+
+        foreach ($child in @('config', 'logs', 'backups', 'secrets')) {
+            New-Item -ItemType Directory -Force -Path (Join-Path $dataDirFull $child) | Out-Null
+        }
+
+        $shortcutDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+        New-Item -ItemType Directory -Force -Path $shortcutDir | Out-Null
+        $shortcutPath = Join-Path $shortcutDir 'Sockseek.lnk'
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = Join-Path $installDirFull 'Sockseek.Desktop.exe'
+        $shortcut.WorkingDirectory = $installDirFull
+        $shortcut.Description = 'Sockseek local-first desktop music manager'
+        $shortcut.Save()
+
+        Write-Host "Sockseek installed to $installDirFull"
+        Write-Host "User data directory: $dataDirFull"
+        """;
+
+    private const string WindowsUninstallScript =
+        """
+        #Requires -Version 5.1
+        [CmdletBinding()]
+        param(
+            [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Sockseek'),
+            [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'Sockseek'),
+            [switch]$RemoveUserData
+        )
+
+        $ErrorActionPreference = 'Stop'
+        $installDirFull = [System.IO.Path]::GetFullPath($InstallDir)
+        $dataDirFull = [System.IO.Path]::GetFullPath($DataDir)
+        $shortcutPath = Join-Path (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') 'Sockseek.lnk'
+
+        Remove-Item -LiteralPath $shortcutPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $installDirFull -Recurse -Force -ErrorAction SilentlyContinue
+
+        if ($RemoveUserData) {
+            Remove-Item -LiteralPath $dataDirFull -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Sockseek user data removed from $dataDirFull"
+        }
+        else {
+            Write-Host "Sockseek user data preserved at $dataDirFull"
+        }
+        """;
 }
 
 public sealed record ReleaseStageRequest(

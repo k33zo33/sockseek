@@ -48,8 +48,10 @@ The final command validates that the staging directory contains:
 - `THIRD-PARTY-NOTICES`
 - `release-metadata.json`
 - `sbom.spdx.json`
+- `install.ps1`
+- `uninstall.ps1`
 
-For Sprint 14 smoke on `fd3a6a8`, the generated SBOM contained 126 packages and the staging validator passed. The staged daemon output included `e_sqlite3.dll` and `libvlc` native assets.
+For the Sprint 14 Windows staging smoke, the generated SBOM contained 126 packages and the staging validator passed. The staged daemon output included `e_sqlite3.dll` and `libvlc` native assets. The staged installer creates user-level install and data directories; the uninstaller preserves user data unless `-RemoveUserData` is passed.
 
 Clean local smoke artifacts after review:
 

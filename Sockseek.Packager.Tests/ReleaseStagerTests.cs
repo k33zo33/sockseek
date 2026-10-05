@@ -49,6 +49,14 @@ public sealed class ReleaseStagerTests
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.ThirdPartyNoticesFileName)));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.SbomFileName)));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.MetadataFileName)));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.WindowsInstallerFileName)));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.WindowsUninstallerFileName)));
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.WindowsInstallerFileName)),
+            "Programs\\Sockseek");
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.WindowsUninstallerFileName)),
+            "Sockseek user data preserved");
     }
 
     [TestMethod]
