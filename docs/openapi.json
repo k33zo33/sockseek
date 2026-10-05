@@ -156,6 +156,39 @@
         }
       }
     },
+    "/api/v1/system/shutdown": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Requests graceful shutdown of the local daemon host.",
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/providers": {
       "get": {
         "tags": [

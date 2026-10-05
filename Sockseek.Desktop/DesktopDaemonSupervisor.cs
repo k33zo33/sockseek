@@ -2,13 +2,21 @@ namespace Sockseek.Desktop;
 
 public sealed class DesktopDaemonSupervisor : IAsyncDisposable
 {
+    private static readonly TimeSpan ShutdownRequestTimeout = TimeSpan.FromSeconds(3);
+
     public event EventHandler<DesktopDaemonSupervisorSnapshot>? SnapshotChanged;
 
     private readonly IDesktopProcessLauncher? processLauncher;
+    private readonly Func<DesktopDaemonHandshake, CancellationToken, Task> shutdownRequester;
     private IDesktopProcessSession? activeSession;
 
-    public DesktopDaemonSupervisor(IDesktopProcessLauncher? processLauncher = null)
-        => this.processLauncher = processLauncher;
+    public DesktopDaemonSupervisor(
+        IDesktopProcessLauncher? processLauncher = null,
+        Func<DesktopDaemonHandshake, CancellationToken, Task>? shutdownRequester = null)
+    {
+        this.processLauncher = processLauncher;
+        this.shutdownRequester = shutdownRequester ?? RequestDaemonShutdownAsync;
+    }
 
     public BackendConnectionState State { get; private set; } = BackendConnectionState.Starting;
 
@@ -23,8 +31,9 @@ public sealed class DesktopDaemonSupervisor : IAsyncDisposable
         if (processLauncher is null)
             return false;
 
+        var previousHandshake = CurrentHandshake;
         ResetToStarting();
-        await DisposeActiveSessionAsync();
+        await DisposeActiveSessionAsync(previousHandshake);
 
         var session = await processLauncher.LaunchAsync(request, cancellationToken);
         var handshake = await DesktopDaemonStartupParser.WaitForHandshakeAsync(session.ReadOutputLinesAsync(cancellationToken), cancellationToken);
@@ -82,16 +91,41 @@ public sealed class DesktopDaemonSupervisor : IAsyncDisposable
     }
 
     public async ValueTask DisposeAsync()
-        => await DisposeActiveSessionAsync();
+        => await DisposeActiveSessionAsync(CurrentHandshake);
 
-    private async ValueTask DisposeActiveSessionAsync()
+    private async ValueTask DisposeActiveSessionAsync(DesktopDaemonHandshake? handshake)
     {
         if (activeSession is null)
             return;
 
         var session = activeSession;
         activeSession = null;
+        CurrentHandshake = null;
+        await TryRequestDaemonShutdownAsync(handshake);
         await session.DisposeAsync();
+    }
+
+    private async Task TryRequestDaemonShutdownAsync(DesktopDaemonHandshake? handshake)
+    {
+        if (handshake is null)
+            return;
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(ShutdownRequestTimeout);
+            await shutdownRequester(handshake, timeout.Token);
+        }
+        catch
+        {
+            // Process disposal remains the final cleanup path if the daemon has already crashed or is unreachable.
+        }
+    }
+
+    private static async Task RequestDaemonShutdownAsync(DesktopDaemonHandshake handshake, CancellationToken cancellationToken)
+    {
+        using var http = DesktopBackendClientFactory.CreateHttpClient(handshake);
+        var client = new Sockseek.Api.SockseekApiClient(http);
+        await client.RequestShutdownAsync(cancellationToken);
     }
 
     private void OnSnapshotChanged()

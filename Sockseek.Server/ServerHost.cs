@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sockseek.Application.Common;
@@ -478,6 +479,16 @@ public static class ServerHost
             .WithTags("System")
             .WithSummary("Gets the versioned application API capability snapshot.")
             .Produces<SystemCapabilitiesDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+        app.MapPost("/api/v1/system/shutdown", (IHostApplicationLifetime lifetime) =>
+        {
+            _ = Task.Run(lifetime.StopApplication);
+            return Results.Accepted();
+        })
+            .WithTags("System")
+            .WithSummary("Requests graceful shutdown of the local daemon host.")
+            .Produces(StatusCodes.Status202Accepted)
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 

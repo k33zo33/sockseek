@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
@@ -180,6 +182,64 @@ public class SystemEndpointTests
             Assert.AreEqual("internal_error", error.Code);
             Assert.AreEqual("error-test-correlation", error.CorrelationId);
             StringAssert.Contains(error.Message, "unexpected");
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(musicRoot))
+                Directory.Delete(musicRoot, recursive: true);
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ShutdownEndpoint_RequiresSessionTokenAndStopsApplication()
+    {
+        string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-system-shutdown-test-" + Guid.NewGuid());
+        string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-system-shutdown-out-" + Guid.NewGuid());
+        Directory.CreateDirectory(musicRoot);
+        Directory.CreateDirectory(outputDir);
+
+        int port = GetFreeTcpPort();
+        string url = $"http://127.0.0.1:{port}";
+        const string sessionToken = "shutdown-test-token";
+        await using var app = ServerHost.Build([], new ServerOptions
+        {
+            Engine = new EngineSettings
+            {
+                MockFilesDir = musicRoot,
+                MockFilesReadTags = false,
+            },
+            DefaultDownload = new DownloadSettings
+            {
+                Output =
+                {
+                    ParentDir = outputDir,
+                },
+            },
+            Profiles = ProfileCatalog.Empty,
+            SessionToken = sessionToken,
+        }, url);
+
+        try
+        {
+            var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+            var stopping = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = lifetime.ApplicationStopping.Register(() => stopping.TrySetResult());
+
+            await app.StartAsync();
+
+            using var anonymous = new HttpClient { BaseAddress = new Uri(url) };
+            using var unauthorized = await anonymous.PostAsync("/api/v1/system/shutdown", null);
+            Assert.AreEqual(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+            using var authorized = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            using var accepted = await authorized.PostAsync("/api/v1/system/shutdown", null);
+            Assert.AreEqual(HttpStatusCode.Accepted, accepted.StatusCode);
+
+            var completed = await Task.WhenAny(stopping.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.AreSame(stopping.Task, completed);
         }
         finally
         {

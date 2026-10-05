@@ -119,6 +119,12 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SystemCapabilitiesDto>(response, ct);
     }
 
+    public async Task RequestShutdownAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/v1/system/shutdown", null, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
     public async Task<IReadOnlyList<ProviderCapabilityDto>> GetProvidersAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/providers", ct);
