@@ -1,5 +1,6 @@
 using System.Formats.Tar;
 using System.IO.Compression;
+using Sockseek.Packager;
 
 const UnixFileMode DirectoryMode =
     UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
@@ -16,9 +17,26 @@ const UnixFileMode ExecutableFileMode =
     UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
     UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
 
+if (args.Length == 4 && args[0] == "validate-release")
+{
+    var result = ReleaseArtifactValidator.Validate(args[1], args[2], args[3]);
+    if (result.IsValid)
+    {
+        await Console.Out.WriteLineAsync($"Release staging directory is valid: {result.StagingDirectory}");
+        return 0;
+    }
+
+    foreach (var error in result.Errors)
+        await Console.Error.WriteLineAsync(error);
+
+    return 1;
+}
+
 if (args.Length != 4 || args[0] != "tar-gz")
 {
-    await Console.Error.WriteLineAsync("Usage: Sockseek.Packager tar-gz <source-dir> <destination.tar.gz> <executable-name>");
+    await Console.Error.WriteLineAsync("Usage:");
+    await Console.Error.WriteLineAsync("  Sockseek.Packager tar-gz <source-dir> <destination.tar.gz> <executable-name>");
+    await Console.Error.WriteLineAsync("  Sockseek.Packager validate-release <staging-dir> <desktop-executable-name> <daemon-executable-name>");
     return 2;
 }
 
