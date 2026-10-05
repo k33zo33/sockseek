@@ -17,6 +17,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 - [ ] Generated OpenAPI artifacts (currently `docs/openapi.json`) are committed for the released build
 - [ ] Required migrations are committed for the released build
 - [ ] The release notes or artifact metadata identify the exact commit/tag being shipped
+- [ ] Release artifact includes an SPDX SBOM at `sbom.spdx.json`
 
 ## Security / packaging
 

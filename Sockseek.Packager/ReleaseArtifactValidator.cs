@@ -7,6 +7,7 @@ public static class ReleaseArtifactValidator
     public const string LicenseFileName = "LICENSE";
     public const string ThirdPartyNoticesFileName = "THIRD-PARTY-NOTICES";
     public const string MetadataFileName = "release-metadata.json";
+    public const string SbomFileName = "sbom.spdx.json";
 
     public static ReleaseArtifactValidationResult Validate(
         string stagingDirectory,
@@ -30,6 +31,7 @@ public static class ReleaseArtifactValidator
         RequireFile(fullStagingDirectory, desktopExecutableName, errors);
         RequireFile(fullStagingDirectory, daemonExecutableName, errors);
         ValidateMetadata(fullStagingDirectory, errors);
+        ValidateSbom(fullStagingDirectory, errors);
 
         return new ReleaseArtifactValidationResult(fullStagingDirectory, errors);
     }
@@ -112,6 +114,58 @@ public static class ReleaseArtifactValidator
     {
         if (string.IsNullOrWhiteSpace(value))
             errors.Add($"release-metadata.json must include '{propertyName}'.");
+    }
+
+    private static void ValidateSbom(string stagingDirectory, List<string> errors)
+    {
+        var sbomPath = Path.Combine(stagingDirectory, SbomFileName);
+        if (!File.Exists(sbomPath))
+        {
+            errors.Add($"Missing required release artifact: {SbomFileName}");
+            return;
+        }
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(File.ReadAllText(sbomPath));
+        }
+        catch (JsonException ex)
+        {
+            errors.Add($"Invalid {SbomFileName}: {ex.Message}");
+            return;
+        }
+
+        using (document)
+        {
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"{SbomFileName} must be a JSON object.");
+                return;
+            }
+
+            RequireSbomString(root, "spdxVersion", errors);
+            RequireSbomString(root, "SPDXID", errors);
+            RequireSbomString(root, "name", errors);
+
+            if (!root.TryGetProperty("packages", out var packages)
+                || packages.ValueKind != JsonValueKind.Array
+                || packages.GetArrayLength() == 0)
+            {
+                errors.Add($"{SbomFileName} must include at least one package.");
+            }
+        }
+    }
+
+    private static void RequireSbomString(JsonElement root, string propertyName, List<string> errors)
+    {
+        if (!root.TryGetProperty(propertyName, out var value)
+            || value.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(value.GetString()))
+        {
+            errors.Add($"{SbomFileName} must include '{propertyName}'.");
+        }
     }
 }
 

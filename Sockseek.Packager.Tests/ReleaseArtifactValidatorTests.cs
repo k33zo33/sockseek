@@ -14,6 +14,7 @@ public sealed class ReleaseArtifactValidatorTests
         File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Server.exe"), "daemon");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteValidSbom(temp.Path);
         File.WriteAllText(
             Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
             """
@@ -59,6 +60,7 @@ public sealed class ReleaseArtifactValidatorTests
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: THIRD-PARTY-NOTICES");
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: Sockseek.Desktop.exe");
         CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: Sockseek.Server.exe");
+        CollectionAssert.Contains(result.Errors.ToArray(), "Missing required release artifact: sbom.spdx.json");
         CollectionAssert.Contains(result.Errors.ToArray(), "release-metadata.json must include 'version'.");
         CollectionAssert.Contains(result.Errors.ToArray(), "release-metadata.json must include 'commit'.");
         CollectionAssert.Contains(result.Errors.ToArray(), "release-metadata.json license must be AGPL-3.0.");
@@ -73,6 +75,7 @@ public sealed class ReleaseArtifactValidatorTests
         File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Server.exe"), "daemon");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
         File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteValidSbom(temp.Path);
         File.WriteAllText(
             Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
             """
@@ -94,6 +97,65 @@ public sealed class ReleaseArtifactValidatorTests
         CollectionAssert.Contains(
             result.Errors.ToArray(),
             $"Release artifact path must stay inside staging directory: {escapingDaemonName}");
+    }
+
+    [TestMethod]
+    public void Validate_WhenSbomIsInvalid_ReturnsActionableErrors()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Desktop.exe"), "desktop");
+        File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Server.exe"), "daemon");
+        File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
+        File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        File.WriteAllText(
+            Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
+            """
+            {
+              "version": "3.0.5",
+              "commit": "abc123",
+              "sourceUrl": "https://github.com/k33zo33/sockseek",
+              "license": "AGPL-3.0"
+            }
+            """);
+        File.WriteAllText(
+            Path.Combine(temp.Path, ReleaseArtifactValidator.SbomFileName),
+            """
+            {
+              "spdxVersion": "",
+              "SPDXID": "",
+              "packages": []
+            }
+            """);
+
+        var result = ReleaseArtifactValidator.Validate(
+            temp.Path,
+            "Sockseek.Desktop.exe",
+            "Sockseek.Server.exe");
+
+        Assert.IsFalse(result.IsValid);
+        CollectionAssert.Contains(result.Errors.ToArray(), "sbom.spdx.json must include 'spdxVersion'.");
+        CollectionAssert.Contains(result.Errors.ToArray(), "sbom.spdx.json must include 'SPDXID'.");
+        CollectionAssert.Contains(result.Errors.ToArray(), "sbom.spdx.json must include 'name'.");
+        CollectionAssert.Contains(result.Errors.ToArray(), "sbom.spdx.json must include at least one package.");
+    }
+
+    private static void WriteValidSbom(string directory)
+    {
+        File.WriteAllText(
+            Path.Combine(directory, ReleaseArtifactValidator.SbomFileName),
+            """
+            {
+              "spdxVersion": "SPDX-2.3",
+              "SPDXID": "SPDXRef-DOCUMENT",
+              "name": "Sockseek",
+              "packages": [
+                {
+                  "SPDXID": "SPDXRef-Package-Sockseek",
+                  "name": "Sockseek"
+                }
+              ]
+            }
+            """);
     }
 
     private sealed class TempDirectory : IDisposable
