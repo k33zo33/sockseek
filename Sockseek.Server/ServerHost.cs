@@ -203,11 +203,24 @@ public static class ServerHost
     }
 
     public static string ResolveListenUrl(string? url, string? configuredUrl = null)
-        => !string.IsNullOrWhiteSpace(url)
-            ? url
-            : !string.IsNullOrWhiteSpace(configuredUrl)
-                ? configuredUrl
-                : DefaultListenUrl;
+    {
+        if (!string.IsNullOrWhiteSpace(url))
+            return url;
+
+        if (IsLoopbackListenUrl(configuredUrl))
+            return configuredUrl!.Trim();
+
+        return DefaultListenUrl;
+    }
+
+    private static bool IsLoopbackListenUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        return Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
+            && uri.IsLoopback;
+    }
 
     private static string ResolveDatabasePath(ServerOptions options)
     {
