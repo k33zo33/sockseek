@@ -11,6 +11,10 @@ RUN if [ "$DOCKER_ARCH" = "amd64" ] || [ "$TARGETPLATFORM" = "linux/amd64" ]; th
     && if [ "$DOCKER_ARCH" = "arm64" ] || [ "$TARGETPLATFORM" = "linux/arm64" ]; then export DN_RUNTIME=linux-musl-arm64; echo 'Build ARM'; fi \
     && test -n "$DN_RUNTIME" \
     && dotnet publish /src/Sockseek.Cli/Sockseek.Cli.csproj -c Release -r "$DN_RUNTIME" -p:PublishSingleFile=true -p:PublishTrimmed=true --self-contained=true -o /out \
+    && dotnet publish /src/Sockseek.Server/Sockseek.Server.csproj -c Release -r "$DN_RUNTIME" -p:PublishSingleFile=true -p:PublishTrimmed=false --self-contained=true -o /out-daemon \
+    && cp -a /out-daemon/. /out/ \
+    && mv /out/Sockseek.Server /out/sockseek-daemon \
+    && rm -rf /out-daemon \
     && rm -f /out/*.pdb
 
 FROM ghcr.io/linuxserver/baseimage-alpine:3.20 AS app
@@ -31,8 +35,13 @@ RUN \
     /root/.cache \
     /tmp/*
 
-ENV DOCKER_MODS=linuxserver/mods:universal-cron \
-    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
+ENV ASPNETCORE_URLS=http://127.0.0.1:5030 \
+    DOCKER_MODS=linuxserver/mods:universal-cron \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0 \
+    SockseekServer__ConfigDir=/config \
+    SockseekServer__DatabaseBackupDir=/config/backups \
+    SockseekServer__DatabasePath=/config/sockseek.db \
+    SockseekServer__SecretStoreDir=/config/secrets
 
 COPY docker/root/ /
 

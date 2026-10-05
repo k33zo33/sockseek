@@ -3,7 +3,7 @@
 > [!WARNING]
 > This Docker workflow is still a secondary headless/container path. It is not the primary desktop distribution mechanism for Sockseek UI.
 >
-> The checked-in `Dockerfile` now builds against the repository's `net10.0` target, but the default compose stack is intentionally minimal: it starts the linuxserver base image with cron support and does **not** automatically start `sockseek daemon`.
+> The checked-in `Dockerfile` now builds the repository's `net10.0` CLI and daemon binaries, but the default compose stack is intentionally minimal: it starts the linuxserver base image with cron support and does **not** automatically start the Sockseek daemon.
 
 A Docker container for running Sockseek can be built from this repository. The image supports linux x86/ARM.
 
@@ -16,6 +16,7 @@ It currently:
 - mounts `./config` to `/config`
 - mounts `./data` to `/data`
 - publishes `127.0.0.1:48721:48721` for provider login callbacks such as Spotify PKCE
+- includes `sockseek` for CLI/cron usage and `sockseek-daemon` for the ASP.NET Core daemon
 - does **not** start the Sockseek HTTP/SignalR daemon automatically
 - does **not** publish the daemon API port `5030` by default
 
@@ -46,17 +47,20 @@ The compose stack mounts two directories relative to where `docker-compose.yml` 
 * `/config` (host `./config`) - put your `sockseek.conf` here, then run `sockseek -c /config ...`
 * `/data` (host `./data`) - use this as the download directory, for example `sockseek -p /data ...`
 
-## Daemon / remote mode in Docker
+## Daemon mode in Docker
 
-If you want to experiment with the daemon in Docker, start it manually inside the container and add your own `5030` port mapping first. For example:
+The image contains the ASP.NET Core daemon as `sockseek-daemon`. By default it binds to loopback inside the container through `ASPNETCORE_URLS=http://127.0.0.1:5030`, stores daemon state under `/config`, and does not expose the API to the host or LAN.
+
+To smoke-test the daemon inside the container:
 
 ```shell
-docker compose exec sockseek sockseek daemon --server-ip 0.0.0.0 --server-port 5030 -c /config
+docker compose exec sockseek sh
+sockseek-daemon
 ```
 
-Then connect a client to `http://127.0.0.1:5030` only after you have explicitly published that port in your compose override or local edits.
+The default compose file does not publish the daemon API port. Host/LAN daemon exposure remains outside the reviewed default Docker path; keep any such experiments in a local compose override with your own access-control review.
 
-Because this path has not had the same Sprint 0 review as the CLI/container flow, treat it as manual advanced usage rather than a polished default deployment.
+Because this path has not had the same release-candidate review as the desktop package, treat it as manual advanced usage rather than a polished default deployment.
 
 ## File Permissions
 
