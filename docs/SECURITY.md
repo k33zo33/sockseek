@@ -1,5 +1,7 @@
 # Security, privacy and operational rules
 
+See also the release-focused [threat model](threat-model.md).
+
 ## 15. Sigurnost, privatnost i operativna pravila
 
 ### 15.1. Lokalni API

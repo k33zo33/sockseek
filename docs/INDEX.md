@@ -24,6 +24,7 @@
 - [Planned application API and events](application-api.md)
 - [Desktop UI/UX](UI_UX.md)
 - [Security and privacy](SECURITY.md)
+- [Threat model](threat-model.md)
 - [Configuration](CONFIGURATION.md)
 - [Docker / container workflow](docker.md)
 - [Testing and CI/CD](TESTING.md)
