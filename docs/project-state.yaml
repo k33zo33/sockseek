@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 13
-  slug: unified-playlist-resolution
-  file: docs/sprints/sprint-13-unified-playlist-resolution.md
+  id: 14
+  slug: packaging-legal-security
+  file: docs/sprints/sprint-14-packaging-legal-security.md
   status: in_progress
 
 completed_sprints:
@@ -31,6 +31,7 @@ completed_sprints:
   - 10
   - 11
   - 12
+  - 13
 blocked_by: []
 
 locked_decisions:
