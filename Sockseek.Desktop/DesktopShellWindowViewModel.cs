@@ -19,6 +19,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? libraryHandshake;
     private DesktopAccountsViewModel? accounts;
     private DesktopDaemonHandshake? accountsHandshake;
+    private DesktopAboutViewModel? about;
+    private DesktopDaemonHandshake? aboutHandshake;
     private DesktopDaemonHandshake? playerHandshake;
     private readonly IDesktopFileOpener fileOpener;
     private bool isStartingDaemon;
@@ -234,6 +236,25 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     public bool IsLibraryVisible => CurrentSection == ShellSection.Library && IsLibraryReady;
 
     public bool IsAccountsVisible => CurrentSection == ShellSection.Accounts && IsAccountsReady;
+
+    public bool IsSettingsVisible => CurrentSection == ShellSection.Settings;
+
+    public DesktopAboutViewModel? About
+    {
+        get
+        {
+            if (about is null && CurrentHandshake is not null)
+            {
+                about = new DesktopAboutViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                aboutHandshake = CurrentHandshake;
+                about.EnsureLoaded();
+            }
+
+            return about;
+        }
+    }
+
+    public bool IsAboutReady => about is not null;
 
     public string HomeSummaryTitle => DesktopStringResources.Get("Shell.Home.Summary.Title");
 
@@ -500,6 +521,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsLibraryVisible));
                 OnPropertyChanged(nameof(IsAccountsReady));
                 OnPropertyChanged(nameof(IsAccountsVisible));
+                OnPropertyChanged(nameof(IsSettingsVisible));
+                OnPropertyChanged(nameof(IsAboutReady));
                 OnPropertyChanged(nameof(WindowTitle));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -555,6 +578,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(Accounts));
                 OnPropertyChanged(nameof(IsAccountsReady));
                 OnPropertyChanged(nameof(IsAccountsVisible));
+                OnPropertyChanged(nameof(About));
+                OnPropertyChanged(nameof(IsAboutReady));
                 OnPropertyChanged(nameof(HomeSummaryFacts));
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
@@ -657,6 +682,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             libraryHandshake = null;
             accounts = null;
             accountsHandshake = null;
+            about = null;
+            aboutHandshake = null;
             return;
         }
 
@@ -688,6 +715,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             accounts = null;
             accountsHandshake = CurrentHandshake;
+        }
+
+        if (!Equals(aboutHandshake, CurrentHandshake))
+        {
+            about = null;
+            aboutHandshake = CurrentHandshake;
         }
     }
 

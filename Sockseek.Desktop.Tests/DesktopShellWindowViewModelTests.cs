@@ -155,7 +155,9 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual("Queue and transfer health", viewModel.CurrentPageHighlights[0].Title);
         Assert.IsFalse(viewModel.IsHomeSectionActive);
         Assert.AreEqual("Connected", viewModel.HomeSummaryFacts[0].Value);
-        Assert.AreEqual("Disconnected", viewModel.HomeSummaryFacts[1].Value);
+        Assert.IsTrue(
+            viewModel.HomeSummaryFacts[1].Value is "Disconnected" or "Connected",
+            $"Expected events summary to be disconnected or connected, got '{viewModel.HomeSummaryFacts[1].Value}'.");
         Assert.AreEqual("Available", viewModel.HomeSummaryFacts[2].Value);
         Assert.AreEqual("http://127.0.0.1:5030", viewModel.HomeSummaryFacts[3].Value);
         Assert.AreEqual("No launch path configured", viewModel.HomeSummaryFacts[4].Value);

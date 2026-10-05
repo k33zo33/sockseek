@@ -645,6 +645,30 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
+                  IsVisible="{Binding IsSettingsVisible}">
+            <StackPanel Spacing="12">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="About and license" FontSize="20" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding About.RefreshCommand}" IsEnabled="{Binding IsAboutReady}" />
+              </DockPanel>
+              <TextBlock Text="{Binding About.ProductName}" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding About.VersionSummary}" Opacity="0.8" />
+              <TextBlock Text="{Binding About.LicenseSummary}" TextWrapping="Wrap" Opacity="0.8" />
+              <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="License" FontWeight="SemiBold" Opacity="0.75" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding About.License}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Source" FontWeight="SemiBold" Opacity="0.75" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding About.SourceUrl}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Commit" FontWeight="SemiBold" Opacity="0.75" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding About.Commit}" TextWrapping="Wrap" />
+              </Grid>
+              <TextBlock Text="{Binding About.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
                   IsVisible="{Binding IsHomeSectionActive}">
             <StackPanel Spacing="14">
               <DockPanel>
