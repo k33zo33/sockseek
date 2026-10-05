@@ -419,6 +419,11 @@
                     <Button Margin="0,0,8,8" Content="Retry failed" Command="{Binding Playlists.RetryFailedCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                     <Button Margin="0,0,8,8" Content="Cancel active" Command="{Binding Playlists.CancelActiveDownloadsCommand}" IsEnabled="{Binding Playlists.CanRunBulkActions}" />
                   </WrapPanel>
+                  <WrapPanel>
+                    <Button Margin="0,0,8,8" Content="Download selected" Command="{Binding Playlists.DownloadSelectedCommand}" IsEnabled="{Binding Playlists.CanRunSelectedItemActions}" />
+                    <Button Margin="0,0,8,8" Content="Retry selected" Command="{Binding Playlists.RetrySelectedCommand}" IsEnabled="{Binding Playlists.CanRunSelectedItemActions}" />
+                    <Button Margin="0,0,8,8" Content="Skip selected" Command="{Binding Playlists.SkipSelectedCommand}" IsEnabled="{Binding Playlists.CanRunSelectedItemActions}" />
+                  </WrapPanel>
                   <Grid ColumnDefinitions="*,180,220" ColumnSpacing="12">
                     <WrapPanel Grid.Column="0">
                       <RadioButton Margin="0,0,8,8" Content="All" GroupName="PlaylistItemFilter" IsChecked="{Binding Playlists.IsAllFilter}" />
@@ -442,9 +447,10 @@
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="desktop:DesktopPlaylistItemViewModel">
                         <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                          <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="12">
-                            <TextBlock Grid.Column="0" Text="{Binding PositionLabel}" Opacity="0.65" />
-                            <StackPanel Grid.Column="1" Spacing="4">
+                          <Grid ColumnDefinitions="32,48,*,Auto" ColumnSpacing="12">
+                            <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" />
+                            <TextBlock Grid.Column="1" Text="{Binding PositionLabel}" Opacity="0.65" />
+                            <StackPanel Grid.Column="2" Spacing="4">
                               <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                               <TextBlock Text="{Binding ArtistSummary}" Opacity="0.75" />
                               <TextBlock Text="{Binding AlbumTitle}" Opacity="0.75" />
@@ -454,7 +460,7 @@
                                 <TextBlock Text="{Binding DurationSummary}" Opacity="0.75" />
                               </WrapPanel>
                             </StackPanel>
-                            <WrapPanel Grid.Column="2" VerticalAlignment="Center">
+                            <WrapPanel Grid.Column="3" VerticalAlignment="Center">
                               <Button Margin="0,0,8,8"
                                       Content="Play"
                                       Command="{Binding DataContext.Playlists.PlayItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"

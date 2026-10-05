@@ -189,6 +189,128 @@ public sealed class DesktopPlaylistsViewModelTests
     }
 
     [TestMethod]
+    public async Task SelectedPlaylistItemActions_CallExistingItemEndpointsForEligibleItems()
+    {
+        var playlistId = Guid.NewGuid();
+        var availableItemId = Guid.NewGuid();
+        var missingItemId = Guid.NewGuid();
+        var failedItemId = Guid.NewGuid();
+        var skippedItemId = Guid.NewGuid();
+        var removedItemId = Guid.NewGuid();
+        var statuses = new Dictionary<Guid, string>
+        {
+            [availableItemId] = "AvailableLocal",
+            [missingItemId] = "Unresolved",
+            [failedItemId] = "Failed",
+            [skippedItemId] = "Skipped",
+            [removedItemId] = "RemovedFromSourcePlaylist",
+        };
+        PlaylistDetailDto CreateDetail() => CreateBulkSelectionDetail(
+            playlistId,
+            statuses,
+            availableItemId,
+            missingItemId,
+            failedItemId,
+            skippedItemId,
+            removedItemId);
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.EndsWith("/playlists", StringComparison.Ordinal))
+                return new[] { CreateSummary(playlistId, "Selected") };
+            if (request.Method == HttpMethod.Post && path.EndsWith($"/items/{missingItemId}/download", StringComparison.Ordinal))
+            {
+                statuses[missingItemId] = "Downloading";
+                return new PlaylistDownloadMissingResultDto(
+                    1,
+                    0,
+                    0,
+                    CreateResolution(statuses.Count, downloading: 1),
+                    CreateDetail(),
+                    [CreateSubmission(missingItemId)]);
+            }
+
+            if (request.Method == HttpMethod.Post && path.EndsWith($"/items/{failedItemId}/retry", StringComparison.Ordinal))
+            {
+                statuses[failedItemId] = "Downloading";
+                return new PlaylistDownloadMissingResultDto(
+                    1,
+                    0,
+                    0,
+                    CreateResolution(statuses.Count, downloading: 1),
+                    CreateDetail(),
+                    [CreateSubmission(failedItemId)]);
+            }
+
+            if (request.Method == HttpMethod.Post && path.EndsWith($"/items/{skippedItemId}/retry", StringComparison.Ordinal))
+            {
+                statuses[skippedItemId] = "Downloading";
+                return new PlaylistDownloadMissingResultDto(
+                    1,
+                    0,
+                    0,
+                    CreateResolution(statuses.Count, downloading: 1),
+                    CreateDetail(),
+                    [CreateSubmission(skippedItemId)]);
+            }
+
+            if (request.Method == HttpMethod.Post && path.EndsWith($"/items/{availableItemId}/skip", StringComparison.Ordinal))
+            {
+                statuses[availableItemId] = "Skipped";
+                return CreateDetail();
+            }
+
+            return CreateDetail();
+        });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient))
+        {
+            DownloadProfileName = " selected-profile "
+        };
+
+        Assert.IsTrue(await viewModel.RefreshAsync());
+        var available = viewModel.SelectedPlaylist!.Items.Single(item => item.PlaylistItemId == availableItemId);
+        var missing = viewModel.SelectedPlaylist.Items.Single(item => item.PlaylistItemId == missingItemId);
+        available.IsSelected = true;
+        missing.IsSelected = true;
+        Assert.AreEqual("5/5 tracks, 2 selected", viewModel.SelectedPlaylistItemSummary);
+        Assert.IsTrue(viewModel.CanRunSelectedItemActions);
+
+        Assert.IsTrue(await viewModel.DownloadSelectedAsync());
+
+        Assert.AreEqual("1 selected downloads submitted, 0 failed, 0 skipped", viewModel.OperationSummary);
+        Assert.IsTrue(handler.Requests.Any(request => request.EndsWith($"/items/{missingItemId}/download", StringComparison.Ordinal)));
+        Assert.IsFalse(handler.Requests.Any(request => request.EndsWith($"/items/{availableItemId}/download", StringComparison.Ordinal)));
+        AssertRequestBodyContains(handler, $"/items/{missingItemId}/download", "selected-profile");
+
+        ClearSelectedPlaylistItems(viewModel);
+        var failed = viewModel.SelectedPlaylist!.Items.Single(item => item.PlaylistItemId == failedItemId);
+        var skipped = viewModel.SelectedPlaylist.Items.Single(item => item.PlaylistItemId == skippedItemId);
+        failed.IsSelected = true;
+        skipped.IsSelected = true;
+
+        Assert.IsTrue(await viewModel.RetrySelectedAsync());
+
+        Assert.AreEqual("2 selected retries submitted, 0 failed", viewModel.OperationSummary);
+        Assert.IsTrue(handler.Requests.Any(request => request.EndsWith($"/items/{failedItemId}/retry", StringComparison.Ordinal)));
+        Assert.IsTrue(handler.Requests.Any(request => request.EndsWith($"/items/{skippedItemId}/retry", StringComparison.Ordinal)));
+        AssertRequestBodyContains(handler, $"/items/{failedItemId}/retry", "selected-profile");
+        AssertRequestBodyContains(handler, $"/items/{skippedItemId}/retry", "selected-profile");
+
+        ClearSelectedPlaylistItems(viewModel);
+        available = viewModel.SelectedPlaylist!.Items.Single(item => item.PlaylistItemId == availableItemId);
+        var removed = viewModel.SelectedPlaylist.Items.Single(item => item.PlaylistItemId == removedItemId);
+        available.IsSelected = true;
+        removed.IsSelected = true;
+
+        Assert.IsTrue(await viewModel.SkipSelectedAsync());
+
+        Assert.AreEqual("1 selected skipped, 0 failed", viewModel.OperationSummary);
+        Assert.IsTrue(handler.Requests.Any(request => request.EndsWith($"/items/{availableItemId}/skip", StringComparison.Ordinal)));
+        Assert.IsFalse(handler.Requests.Any(request => request.EndsWith($"/items/{removedItemId}/skip", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public async Task SelectedPlaylistItems_AppliesStatusFilterAndSearchText()
     {
         var playlistId = Guid.NewGuid();
@@ -262,6 +384,9 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.DownloadMissingCommand");
         StringAssert.Contains(xaml, "Playlists.CancelActiveDownloadsCommand");
         StringAssert.Contains(xaml, "Playlists.RetryFailedCommand");
+        StringAssert.Contains(xaml, "Playlists.DownloadSelectedCommand");
+        StringAssert.Contains(xaml, "Playlists.RetrySelectedCommand");
+        StringAssert.Contains(xaml, "Playlists.SkipSelectedCommand");
         StringAssert.Contains(xaml, "Playlists.PlayFromHereCommand");
         StringAssert.Contains(xaml, "Playlists.ApproveLocalMatchCommand");
         StringAssert.Contains(xaml, "Playlists.RejectLocalMatchCommand");
@@ -274,6 +399,7 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.DownloadProfileName");
         StringAssert.Contains(xaml, "Playlists.PlaylistSearchText");
         StringAssert.Contains(xaml, "Playlists.SelectedPlaylistItemSummary");
+        StringAssert.Contains(xaml, "IsChecked=\"{Binding IsSelected}\"");
     }
 
     private static void AssertRequestBodyContains(RecordingHandler handler, string pathSuffix, string expected)
@@ -362,13 +488,55 @@ public sealed class DesktopPlaylistsViewModelTests
                 CreateItem(7, "Removed Track", "RemovedFromSourcePlaylist"),
             ]);
 
+    private static PlaylistDetailDto CreateBulkSelectionDetail(
+        Guid playlistId,
+        IReadOnlyDictionary<Guid, string> statuses,
+        Guid availableItemId,
+        Guid missingItemId,
+        Guid failedItemId,
+        Guid skippedItemId,
+        Guid removedItemId)
+        => new(
+            playlistId,
+            "Selected",
+            "Mirror",
+            "spotify",
+            "external-playlist",
+            "https://example.test/playlist",
+            new DateTimeOffset(2026, 9, 28, 8, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
+            CreateResolution(
+                statuses.Count,
+                available: CountStatus(statuses, "AvailableLocal"),
+                unresolved: CountStatus(statuses, "Unresolved"),
+                downloading: CountStatus(statuses, "Downloading"),
+                failed: CountStatus(statuses, "Failed"),
+                skipped: CountStatus(statuses, "Skipped"),
+                removed: CountStatus(statuses, "RemovedFromSourcePlaylist")),
+            [
+                CreateItem(availableItemId, 1, "Ready Track", statuses[availableItemId], canonicalTrackId: Guid.NewGuid()),
+                CreateItem(missingItemId, 2, "Missing Track", statuses[missingItemId]),
+                CreateItem(failedItemId, 3, "Failed Track", statuses[failedItemId]),
+                CreateItem(skippedItemId, 4, "Skipped Track", statuses[skippedItemId]),
+                CreateItem(removedItemId, 5, "Removed Track", statuses[removedItemId]),
+            ]);
+
     private static PlaylistItemDto CreateItem(
         int position,
         string title,
         string status,
         Guid? canonicalTrackId = null)
+        => CreateItem(Guid.NewGuid(), position, title, status, canonicalTrackId);
+
+    private static PlaylistItemDto CreateItem(
+        Guid playlistItemId,
+        int position,
+        string title,
+        string status,
+        Guid? canonicalTrackId = null)
         => new(
-            Guid.NewGuid(),
+            playlistItemId,
             position,
             $"provider-item-{position}",
             canonicalTrackId,
@@ -383,6 +551,15 @@ public sealed class DesktopPlaylistsViewModelTests
             $"https://example.test/track/{position}",
             null,
             null);
+
+    private static int CountStatus(IReadOnlyDictionary<Guid, string> statuses, string status)
+        => statuses.Values.Count(value => string.Equals(value, status, StringComparison.Ordinal));
+
+    private static void ClearSelectedPlaylistItems(DesktopPlaylistsViewModel viewModel)
+    {
+        foreach (var item in viewModel.SelectedPlaylist?.Items ?? [])
+            item.IsSelected = false;
+    }
 
     private static PlaylistResolutionSummaryDto CreateResolution(
         int total,

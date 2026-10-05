@@ -6,6 +6,7 @@ namespace Sockseek.Desktop;
 public sealed class DesktopPlaylistsViewModel : ObservableObject
 {
     private readonly SockseekApiClient apiClient;
+    private readonly HashSet<Guid> selectedPlaylistItemIds = [];
     private IReadOnlyList<DesktopPlaylistSummaryViewModel> playlists = [];
     private DesktopPlaylistDetailViewModel? selectedPlaylist;
     private DesktopPlaylistItemFilter itemFilter;
@@ -25,6 +26,9 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         CancelActiveDownloadsCommand = new DesktopAsyncCommand(() => CancelActiveDownloadsAsync());
         RetryFailedCommand = new DesktopAsyncCommand(() => RetryFailedAsync());
         PlayAvailableCommand = new DesktopAsyncCommand(() => PlayAvailableAsync());
+        DownloadSelectedCommand = new DesktopAsyncCommand(() => DownloadSelectedAsync());
+        RetrySelectedCommand = new DesktopAsyncCommand(() => RetrySelectedAsync());
+        SkipSelectedCommand = new DesktopAsyncCommand(() => SkipSelectedAsync());
         PlayItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayItemAsync(playlistItemId));
         PlayFromHereCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => PlayFromHereAsync(playlistItemId));
         SkipItemCommand = new DesktopAsyncParameterCommand<Guid>(playlistItemId => SkipItemAsync(playlistItemId));
@@ -46,6 +50,12 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     public ICommand RetryFailedCommand { get; }
 
     public ICommand PlayAvailableCommand { get; }
+
+    public ICommand DownloadSelectedCommand { get; }
+
+    public ICommand RetrySelectedCommand { get; }
+
+    public ICommand SkipSelectedCommand { get; }
 
     public ICommand PlayItemCommand { get; }
 
@@ -81,6 +91,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             OnPropertyChanged(nameof(SelectedPlaylistItems));
             OnPropertyChanged(nameof(SelectedPlaylistItemSummary));
             OnPropertyChanged(nameof(CanRunBulkActions));
+            OnPropertyChanged(nameof(CanRunSelectedItemActions));
         }
     }
 
@@ -93,7 +104,13 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         {
             var total = SelectedPlaylist?.Items.Count ?? 0;
             var shown = SelectedPlaylistItems.Count;
-            return total == 0 ? "No tracks" : $"{shown}/{total} tracks";
+            var selected = selectedPlaylistItemIds.Count;
+            if (total == 0)
+                return "No tracks";
+
+            return selected == 0
+                ? $"{shown}/{total} tracks"
+                : $"{shown}/{total} tracks, {selected} selected";
         }
     }
 
@@ -219,6 +236,8 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
     public bool CanRunBulkActions => SelectedPlaylist is not null && !IsBusy;
 
+    public bool CanRunSelectedItemActions => selectedPlaylistItemIds.Count > 0 && !IsBusy;
+
     public bool IsBusy
     {
         get => isBusy;
@@ -228,6 +247,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
                 return;
 
             OnPropertyChanged(nameof(CanRunBulkActions));
+            OnPropertyChanged(nameof(CanRunSelectedItemActions));
         }
     }
 
@@ -255,7 +275,11 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             else if (Playlists.FirstOrDefault()?.PlaylistId is { } firstPlaylistId)
                 await LoadPlaylistAsync(firstPlaylistId, cancellationToken);
             else
+            {
+                selectedPlaylistItemIds.Clear();
                 SelectedPlaylist = null;
+                NotifySelectedPlaylistSelectionChanged();
+            }
 
             return true;
         });
@@ -338,6 +362,121 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             return true;
         });
 
+    public async Task<bool> DownloadSelectedAsync(CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var items = GetSelectedItems()
+                .Where(item => item.CanStartResolution && !item.IsResolutionActive)
+                .ToArray();
+            if (items.Length == 0)
+            {
+                OperationSummary = "No selected items can be downloaded";
+                return true;
+            }
+
+            var options = CreateDownloadOptions();
+            var submitted = 0;
+            var failed = 0;
+            var skipped = 0;
+            PlaylistDetailDto? latestPlaylist = null;
+            foreach (var item in items)
+            {
+                var result = options is null
+                    ? await apiClient.DownloadPlaylistItemAsync(playlistId, item.PlaylistItemId, cancellationToken)
+                    : await apiClient.DownloadPlaylistItemAsync(playlistId, item.PlaylistItemId, options, cancellationToken);
+                if (result is null)
+                {
+                    failed++;
+                    continue;
+                }
+
+                submitted += result.SubmittedItems;
+                failed += result.FailedItems;
+                skipped += result.SkippedItems;
+                latestPlaylist = result.Playlist;
+            }
+
+            if (latestPlaylist is not null)
+                ApplyPlaylist(latestPlaylist);
+
+            OperationSummary = $"{submitted} selected downloads submitted, {failed} failed, {skipped} skipped";
+            return true;
+        });
+
+    public async Task<bool> RetrySelectedAsync(CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var items = GetSelectedItems()
+                .Where(item => item.CanRetry)
+                .ToArray();
+            if (items.Length == 0)
+            {
+                OperationSummary = "No selected items can be retried";
+                return true;
+            }
+
+            var options = CreateDownloadOptions();
+            var submitted = 0;
+            var failed = 0;
+            PlaylistDetailDto? latestPlaylist = null;
+            foreach (var item in items)
+            {
+                var result = options is null
+                    ? await apiClient.RetryPlaylistItemAsync(playlistId, item.PlaylistItemId, cancellationToken)
+                    : await apiClient.RetryPlaylistItemAsync(playlistId, item.PlaylistItemId, options, cancellationToken);
+                if (result is null)
+                {
+                    failed++;
+                    continue;
+                }
+
+                submitted += result.SubmittedItems;
+                failed += result.FailedItems;
+                latestPlaylist = result.Playlist;
+            }
+
+            if (latestPlaylist is not null)
+                ApplyPlaylist(latestPlaylist);
+
+            OperationSummary = $"{submitted} selected retries submitted, {failed} failed";
+            return true;
+        });
+
+    public async Task<bool> SkipSelectedAsync(CancellationToken cancellationToken = default)
+        => await ExecuteSelectedPlaylistAsync(async playlistId =>
+        {
+            var items = GetSelectedItems()
+                .Where(item => item.CanSkip)
+                .ToArray();
+            if (items.Length == 0)
+            {
+                OperationSummary = "No selected items can be skipped";
+                return true;
+            }
+
+            var skipped = 0;
+            var failed = 0;
+            PlaylistDetailDto? latestPlaylist = null;
+            foreach (var item in items)
+            {
+                var playlist = await apiClient.SkipPlaylistItemAsync(playlistId, item.PlaylistItemId, cancellationToken);
+                if (playlist is null)
+                {
+                    failed++;
+                    continue;
+                }
+
+                skipped++;
+                latestPlaylist = playlist;
+            }
+
+            if (latestPlaylist is not null)
+                ApplyPlaylist(latestPlaylist);
+
+            OperationSummary = $"{skipped} selected skipped, {failed} failed";
+            return true;
+        });
+
     public async Task<bool> PlayItemAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
         => await ExecuteSelectedPlaylistAsync(async playlistId =>
         {
@@ -398,6 +537,9 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
     private DesktopPlaylistItemViewModel? FindSelectedItem(Guid playlistItemId)
         => SelectedPlaylist?.Items.SingleOrDefault(item => item.PlaylistItemId == playlistItemId);
+
+    private IReadOnlyList<DesktopPlaylistItemViewModel> GetSelectedItems()
+        => SelectedPlaylist?.Items.Where(item => item.IsSelected).ToArray() ?? [];
 
     public async Task<bool> SkipItemAsync(Guid playlistItemId, CancellationToken cancellationToken = default)
         => await ExecuteSelectedPlaylistAsync(async playlistId =>
@@ -512,12 +654,24 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
 
     private void ApplyPlaylist(PlaylistDetailDto playlist)
     {
-        SelectedPlaylist = new DesktopPlaylistDetailViewModel(playlist);
+        var retainedSelection = playlist.Items
+            .Where(item => selectedPlaylistItemIds.Contains(item.PlaylistItemId))
+            .Select(item => item.PlaylistItemId)
+            .ToHashSet();
+        selectedPlaylistItemIds.Clear();
+        foreach (var itemId in retainedSelection)
+            selectedPlaylistItemIds.Add(itemId);
+
+        SelectedPlaylist = new DesktopPlaylistDetailViewModel(
+            playlist,
+            OnPlaylistItemSelectionChanged,
+            selectedPlaylistItemIds);
         Playlists = Playlists
             .Select(summary => summary.PlaylistId == playlist.PlaylistId
                 ? DesktopPlaylistSummaryViewModel.FromDetail(playlist)
                 : summary)
             .ToArray();
+        NotifySelectedPlaylistSelectionChanged();
     }
 
     private IEnumerable<DesktopPlaylistItemViewModel> FilterSelectedPlaylistItems()
@@ -548,10 +702,28 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPlaylistItemSummary));
     }
 
+    private void OnPlaylistItemSelectionChanged(DesktopPlaylistItemViewModel item)
+    {
+        if (item.IsSelected)
+            selectedPlaylistItemIds.Add(item.PlaylistItemId);
+        else
+            selectedPlaylistItemIds.Remove(item.PlaylistItemId);
+
+        NotifySelectedPlaylistSelectionChanged();
+    }
+
+    private void NotifySelectedPlaylistSelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedPlaylistItemSummary));
+        OnPropertyChanged(nameof(CanRunSelectedItemActions));
+    }
+
     private bool MissingSelectedPlaylist()
     {
         ErrorMessage = "Playlist was not found.";
+        selectedPlaylistItemIds.Clear();
         SelectedPlaylist = null;
+        NotifySelectedPlaylistSelectionChanged();
         return false;
     }
 }
@@ -611,7 +783,10 @@ public sealed class DesktopPlaylistSummaryViewModel
 
 public sealed class DesktopPlaylistDetailViewModel
 {
-    public DesktopPlaylistDetailViewModel(PlaylistDetailDto playlist)
+    public DesktopPlaylistDetailViewModel(
+        PlaylistDetailDto playlist,
+        Action<DesktopPlaylistItemViewModel>? itemSelectionChanged = null,
+        IReadOnlySet<Guid>? selectedItemIds = null)
     {
         PlaylistId = playlist.PlaylistId;
         Name = playlist.Name;
@@ -622,7 +797,12 @@ public sealed class DesktopPlaylistDetailViewModel
             : playlist.ExternalUrl;
         ResolutionSummary = DesktopPlaylistSummaryViewModel.FromDetail(playlist).ResolutionSummary;
         ActivitySummary = $"{playlist.Resolution.SearchingItems} searching, {playlist.Resolution.DownloadingItems} downloading, {playlist.Resolution.ReviewRequiredItems + playlist.Resolution.CandidateFoundItems} review";
-        Items = playlist.Items.Select(item => new DesktopPlaylistItemViewModel(item)).ToArray();
+        Items = playlist.Items
+            .Select(item => new DesktopPlaylistItemViewModel(
+                item,
+                itemSelectionChanged,
+                selectedItemIds?.Contains(item.PlaylistItemId) == true))
+            .ToArray();
     }
 
     public Guid PlaylistId { get; }
@@ -642,64 +822,111 @@ public sealed class DesktopPlaylistDetailViewModel
     public IReadOnlyList<DesktopPlaylistItemViewModel> Items { get; }
 }
 
-public sealed class DesktopPlaylistItemViewModel(PlaylistItemDto item)
+public sealed class DesktopPlaylistItemViewModel : ObservableObject
 {
-    public Guid PlaylistItemId { get; } = item.PlaylistItemId;
+    private readonly Action<DesktopPlaylistItemViewModel>? selectionChanged;
+    private bool isSelected;
 
-    public string PositionLabel { get; } = item.Position.ToString();
+    public DesktopPlaylistItemViewModel(
+        PlaylistItemDto item,
+        Action<DesktopPlaylistItemViewModel>? selectionChanged = null,
+        bool isSelected = false)
+    {
+        this.selectionChanged = selectionChanged;
+        this.isSelected = isSelected;
 
-    public string Title { get; } = string.IsNullOrWhiteSpace(item.Title) ? "Untitled" : item.Title;
+        PlaylistItemId = item.PlaylistItemId;
+        PositionLabel = item.Position.ToString();
+        Title = string.IsNullOrWhiteSpace(item.Title) ? "Untitled" : item.Title;
+        ArtistSummary = item.Artists.Count == 0 ? "Unknown artist" : string.Join(", ", item.Artists);
+        AlbumTitle = string.IsNullOrWhiteSpace(item.Album) ? "Unknown album" : item.Album;
+        DurationSummary = item.DurationMs is { } durationMs
+            ? TimeSpan.FromMilliseconds(durationMs).ToString(@"m\:ss")
+            : string.Empty;
+        Status = item.Status;
+        SourceSummary = string.IsNullOrWhiteSpace(item.ExternalUrl) ? item.ProviderItemId : item.ExternalUrl;
 
-    public string ArtistSummary { get; } = item.Artists.Count == 0 ? "Unknown artist" : string.Join(", ", item.Artists);
+        CanPlayLocal = item.CanonicalTrackId.HasValue && string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+        CanStartResolution = string.Equals(item.Status, "Imported", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Failed", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+        IsResolutionActive = string.Equals(item.Status, "Searching", StringComparison.Ordinal)
+            || string.Equals(item.Status, "CandidateFound", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Downloading", StringComparison.Ordinal);
+        CanPlay = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+        CanPlayFromHere = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+        CanSkip = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+        CanRetry = string.Equals(item.Status, "Failed", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+        CanReviewLocal = string.Equals(item.Status, "ReviewRequired", StringComparison.Ordinal);
+        IsAvailable = string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+        IsMissing = string.Equals(item.Status, "Imported", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal);
+        IsReviewRequired = string.Equals(item.Status, "ReviewRequired", StringComparison.Ordinal)
+            || string.Equals(item.Status, "CandidateFound", StringComparison.Ordinal);
+        IsDownloadActivity = string.Equals(item.Status, "Searching", StringComparison.Ordinal)
+            || string.Equals(item.Status, "Downloading", StringComparison.Ordinal);
+        IsFailed = string.Equals(item.Status, "Failed", StringComparison.Ordinal);
+        IsSkipped = string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+        IsRemoved = string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+    }
 
-    public string AlbumTitle { get; } = string.IsNullOrWhiteSpace(item.Album) ? "Unknown album" : item.Album;
+    public bool IsSelected
+    {
+        get => isSelected;
+        set
+        {
+            if (SetProperty(ref isSelected, value))
+                selectionChanged?.Invoke(this);
+        }
+    }
 
-    public string DurationSummary { get; } = item.DurationMs is { } durationMs
-        ? TimeSpan.FromMilliseconds(durationMs).ToString(@"m\:ss")
-        : string.Empty;
+    public Guid PlaylistItemId { get; }
 
-    public string Status { get; } = item.Status;
+    public string PositionLabel { get; }
 
-    public string SourceSummary { get; } = string.IsNullOrWhiteSpace(item.ExternalUrl) ? item.ProviderItemId : item.ExternalUrl;
+    public string Title { get; }
 
-    public bool CanPlayLocal { get; } = item.CanonicalTrackId.HasValue && string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+    public string ArtistSummary { get; }
 
-    public bool CanStartResolution { get; } = string.Equals(item.Status, "Imported", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Failed", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+    public string AlbumTitle { get; }
 
-    public bool IsResolutionActive { get; } = string.Equals(item.Status, "Searching", StringComparison.Ordinal)
-        || string.Equals(item.Status, "CandidateFound", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Downloading", StringComparison.Ordinal);
+    public string DurationSummary { get; }
 
-    public bool CanPlay { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+    public string Status { get; }
 
-    public bool CanPlayFromHere { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+    public string SourceSummary { get; }
 
-    public bool CanSkip { get; } = !string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+    public bool CanPlayLocal { get; }
 
-    public bool CanRetry { get; } = string.Equals(item.Status, "Failed", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+    public bool CanStartResolution { get; }
 
-    public bool CanReviewLocal { get; } = string.Equals(item.Status, "ReviewRequired", StringComparison.Ordinal);
+    public bool IsResolutionActive { get; }
 
-    public bool IsAvailable { get; } = string.Equals(item.Status, "AvailableLocal", StringComparison.Ordinal);
+    public bool CanPlay { get; }
 
-    public bool IsMissing { get; } = string.Equals(item.Status, "Imported", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Unresolved", StringComparison.Ordinal);
+    public bool CanPlayFromHere { get; }
 
-    public bool IsReviewRequired { get; } = string.Equals(item.Status, "ReviewRequired", StringComparison.Ordinal)
-        || string.Equals(item.Status, "CandidateFound", StringComparison.Ordinal);
+    public bool CanSkip { get; }
 
-    public bool IsDownloadActivity { get; } = string.Equals(item.Status, "Searching", StringComparison.Ordinal)
-        || string.Equals(item.Status, "Downloading", StringComparison.Ordinal);
+    public bool CanRetry { get; }
 
-    public bool IsFailed { get; } = string.Equals(item.Status, "Failed", StringComparison.Ordinal);
+    public bool CanReviewLocal { get; }
 
-    public bool IsSkipped { get; } = string.Equals(item.Status, "Skipped", StringComparison.Ordinal);
+    public bool IsAvailable { get; }
 
-    public bool IsRemoved { get; } = string.Equals(item.Status, "RemovedFromSourcePlaylist", StringComparison.Ordinal);
+    public bool IsMissing { get; }
+
+    public bool IsReviewRequired { get; }
+
+    public bool IsDownloadActivity { get; }
+
+    public bool IsFailed { get; }
+
+    public bool IsSkipped { get; }
+
+    public bool IsRemoved { get; }
 
     public bool MatchesSearch(string search)
         => Contains(Title, search)
