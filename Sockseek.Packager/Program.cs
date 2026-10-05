@@ -32,11 +32,37 @@ if (args.Length == 4 && args[0] == "validate-release")
     return 1;
 }
 
+if (args.Length == 11 && args[0] == "stage-windows")
+{
+    var result = ReleaseStager.StageWindows(new ReleaseStageRequest(
+        args[1],
+        args[2],
+        args[3],
+        args[4],
+        args[5],
+        args[6],
+        args[7],
+        args[8],
+        args[9],
+        args[10]));
+    if (result.IsValid)
+    {
+        await Console.Out.WriteLineAsync($"Windows release staging directory is valid: {result.StagingDirectory}");
+        return 0;
+    }
+
+    foreach (var error in result.Errors)
+        await Console.Error.WriteLineAsync(error);
+
+    return 1;
+}
+
 if (args.Length != 4 || args[0] != "tar-gz")
 {
     await Console.Error.WriteLineAsync("Usage:");
     await Console.Error.WriteLineAsync("  Sockseek.Packager tar-gz <source-dir> <destination.tar.gz> <executable-name>");
     await Console.Error.WriteLineAsync("  Sockseek.Packager validate-release <staging-dir> <desktop-executable-name> <daemon-executable-name>");
+    await Console.Error.WriteLineAsync("  Sockseek.Packager stage-windows <repo-root> <desktop-publish-dir> <daemon-publish-dir> <staging-dir> <desktop-exe> <daemon-exe> <version> <commit> <source-url> <sbom.spdx.json>");
     return 2;
 }
 
