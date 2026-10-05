@@ -31,7 +31,7 @@ public static partial class SensitiveLogRedactor
     private static partial Regex AuthorizationHeaderPattern();
 
     [GeneratedRegex(
-        @"(?<prefix>[""']?(?:access_token|refresh_token|code_verifier|client_secret|code)[""']?\s*[:=]\s*)(?<value>""[^""]*""|'[^']*'|[^&\s,;]+)",
+        @"(?<prefix>[""']?(?:access_token|accesstoken|refresh_token|refreshtoken|code_verifier|codeverifier|client_secret|clientsecret|session_token|sessiontoken|soulseek_password|soulseekpassword|password|pass|code)[""']?\s*[:=]\s*)(?<value>""[^""]*""|'[^']*'|[^&\s,;]+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SensitiveKeyValuePattern();
 }

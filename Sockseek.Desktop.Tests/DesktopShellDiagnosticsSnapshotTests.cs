@@ -46,6 +46,37 @@ public sealed class DesktopShellDiagnosticsSnapshotTests
         StringAssert.Contains(text, "Backend state: Disconnected");
     }
 
+    [TestMethod]
+    public void ToDisplayText_RedactsSensitiveDiagnosticsValues()
+    {
+        var snapshot = new DesktopShellDiagnosticsSnapshot(
+            "Sockseek Authorization: Bearer local-session-token",
+            "callback?code=oauth-code&state=public-state",
+            """{"client_secret":"client-secret-value","password":"soulseek-password"}""",
+            "Disconnected",
+            "SessionToken=session-token-value",
+            HasHandshake: true,
+            "http://127.0.0.1:5030?access_token=access-token&refresh_token=refresh-token");
+
+        var text = snapshot.ToDisplayText();
+
+        StringAssert.Contains(text, "Authorization: Bearer [REDACTED]");
+        StringAssert.Contains(text, "code=[REDACTED]");
+        StringAssert.Contains(text, "state=public-state");
+        StringAssert.Contains(text, """"client_secret":"[REDACTED]"""");
+        StringAssert.Contains(text, """"password":"[REDACTED]"""");
+        StringAssert.Contains(text, "SessionToken=[REDACTED]");
+        StringAssert.Contains(text, "access_token=[REDACTED]");
+        StringAssert.Contains(text, "refresh_token=[REDACTED]");
+        Assert.IsFalse(text.Contains("local-session-token", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("oauth-code", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("client-secret-value", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("soulseek-password", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("session-token-value", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("access-token", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("refresh-token", StringComparison.Ordinal));
+    }
+
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection
     {
         public DesktopDaemonHandshake Handshake { get; } = handshake;

@@ -34,12 +34,29 @@ public sealed class SensitiveLogRedactorTests
     public void Redact_MasksJsonLikeSecretFields()
     {
         var redacted = SensitiveLogRedactor.Redact(
-            """{"client_secret":"secret-value","code_verifier":"verifier-value","name":"public"}""");
+            """{"client_secret":"secret-value","code_verifier":"verifier-value","SessionToken":"session-token","name":"public"}""");
 
         StringAssert.Contains(redacted, """"client_secret":"[REDACTED]"""");
         StringAssert.Contains(redacted, """"code_verifier":"[REDACTED]"""");
+        StringAssert.Contains(redacted, """"SessionToken":"[REDACTED]"""");
         StringAssert.Contains(redacted, """"name":"public"""");
         Assert.IsFalse(redacted.Contains("secret-value", StringComparison.Ordinal));
         Assert.IsFalse(redacted.Contains("verifier-value", StringComparison.Ordinal));
+        Assert.IsFalse(redacted.Contains("session-token", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Redact_MasksPasswordAndSessionQueryValues()
+    {
+        var redacted = SensitiveLogRedactor.Redact(
+            "connect?password=soulseek-password&session_token=local-session&pass=short&state=public-state");
+
+        StringAssert.Contains(redacted, "password=[REDACTED]");
+        StringAssert.Contains(redacted, "session_token=[REDACTED]");
+        StringAssert.Contains(redacted, "pass=[REDACTED]");
+        StringAssert.Contains(redacted, "state=public-state");
+        Assert.IsFalse(redacted.Contains("soulseek-password", StringComparison.Ordinal));
+        Assert.IsFalse(redacted.Contains("local-session", StringComparison.Ordinal));
+        Assert.IsFalse(redacted.Contains("short", StringComparison.Ordinal));
     }
 }
