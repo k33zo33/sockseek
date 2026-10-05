@@ -85,18 +85,29 @@ public sealed class LocalLibraryScanner(
 
     private static IEnumerable<string> EnumerateSupportedFiles(IReadOnlyList<string> roots, IReadOnlySet<string> supportedExtensions)
     {
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        };
+
         foreach (string root in roots)
         {
-            if (!Directory.Exists(root))
+            var rootInfo = new DirectoryInfo(root);
+            if (!rootInfo.Exists || IsReparsePoint(rootInfo.Attributes))
                 continue;
 
-            foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            foreach (string path in Directory.EnumerateFiles(root, "*", options))
             {
                 if (!IsIncompleteFilePath(path) && supportedExtensions.Contains(Path.GetExtension(path)))
                     yield return Path.GetFullPath(path);
             }
         }
     }
+
+    private static bool IsReparsePoint(FileAttributes attributes)
+        => (attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint;
 
     public static bool IsIncompleteFilePath(string path)
         => path.EndsWith(IncompleteDownloadSuffix, StringComparison.OrdinalIgnoreCase);

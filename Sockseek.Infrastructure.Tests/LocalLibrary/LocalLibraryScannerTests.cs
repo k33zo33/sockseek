@@ -180,6 +180,32 @@ public class LocalLibraryScannerTests
     }
 
     [TestMethod]
+    public async Task ScanAsync_SymlinkedDirectoryOutsideRoot_IsIgnored()
+    {
+        using var root = TemporaryDirectory.Create();
+        using var outside = TemporaryDirectory.Create();
+        string outsidePath = CreateAudioFile(outside.Path, "Outside Artist", "Outside.mp3");
+        string linkPath = Path.Combine(root.Path, "linked-outside");
+        if (!TryCreateDirectorySymbolicLink(linkPath, outside.Path))
+            return;
+
+        var metadataReader = new FakeMetadataReader();
+        metadataReader.Set(outsidePath, new LocalAudioMetadata("Outside Artist", "Outside", null, 180000, null, null, "mp3", 320, 44100, 16));
+
+        await using var database = await TestDatabase.CreateAsync();
+        var scanner = CreateScanner(database.Options, metadataReader);
+
+        var result = await scanner.ScanAsync(new LocalLibraryScanRequest([root.Path]));
+
+        Assert.AreEqual(0, result.DiscoveredFiles);
+        Assert.AreEqual(0, result.ImportedFiles);
+
+        await using var verify = new SockseekDbContext(database.Options);
+        Assert.AreEqual(0, await verify.CanonicalTracks.CountAsync());
+        Assert.AreEqual(0, await verify.LocalMediaFiles.CountAsync());
+    }
+
+    [TestMethod]
     public async Task ScanAsync_MetadataFailure_ContinuesAndReportsProgress()
     {
         using var temp = TemporaryDirectory.Create();
@@ -224,6 +250,22 @@ public class LocalLibraryScannerTests
 
     private static string NormalizePath(string path)
         => Path.GetFullPath(path).Trim().Replace('\\', '/');
+
+    private static bool TryCreateDirectorySymbolicLink(string linkPath, string targetPath)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(linkPath, targetPath);
+            return true;
+        }
+        catch (Exception ex) when (
+            ex is IOException
+                or UnauthorizedAccessException
+                or PlatformNotSupportedException)
+        {
+            return false;
+        }
+    }
 
     private sealed class FakeMetadataReader : ILocalAudioMetadataReader
     {
