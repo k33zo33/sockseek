@@ -555,6 +555,61 @@ public sealed class ProviderEndpointTests
     }
 
     [TestMethod]
+    public async Task GetProviderPlaylists_WhenSpotifyRefreshRevoked_MarksAccountAuthorizationExpired()
+    {
+        var spotify = new QueueSpotifyHandler(
+        [
+            JsonResponse("""
+            {
+              "access_token": "expired-access",
+              "refresh_token": "refresh-1",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "scope": "playlist-read-private playlist-read-collaborative"
+            }
+            """),
+            JsonResponse("""{ "id": "spotify-user-1", "display_name": "Spotify User" }"""),
+            JsonResponse("""{ "error": { "status": 401, "message": "The access token expired" } }""", HttpStatusCode.Unauthorized),
+            JsonResponse("""{ "error": "invalid_grant", "error_description": "Refresh token revoked." }""", HttpStatusCode.BadRequest),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotifyHandler: spotify);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var start = await client.StartProviderAuthorizationAsync(
+                "spotify",
+                new ProviderAuthorizationStartRequestDto("http://127.0.0.1:49152/callback"));
+            var account = await client.CompleteProviderAuthorizationAsync(
+                "spotify",
+                new ProviderAuthorizationCallbackRequestDto(
+                    "http://127.0.0.1:49152/callback",
+                    start.State,
+                    "code-1"));
+
+            using var response = await http.GetAsync($"api/v1/accounts/{account.AccountId}/provider-playlists");
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            StringAssert.Contains(body, "provider_reauthorization_required");
+            StringAssert.Contains(body, "Reconnect Spotify");
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            var stored = await db.ExternalAccounts.SingleAsync(entity => entity.Id == account.AccountId);
+            Assert.AreEqual((int)ExternalAccountStatus.AuthorizationExpired, stored.Status);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task YouTubeAuthorizationListAndMirrorImport_UsesFixtureHttpAndPreservesLocalSnapshot()
     {
         var youtube = new QueueYouTubeHandler(

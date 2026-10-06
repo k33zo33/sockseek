@@ -228,9 +228,9 @@ public sealed class SpotifyPlaylistSourceProvider : IPlaylistSourceProvider
         CancellationToken cancellationToken)
     {
         var secret = await secretStore.ReadAsync(account.SecretReference, cancellationToken)
-            ?? throw new SpotifyProviderException("Spotify account credential was not found.", HttpStatusCode.Unauthorized);
+            ?? throw new SpotifyProviderException("Spotify account credential was not found.", HttpStatusCode.Unauthorized, reauthorizationRequired: true);
         if (!secret.Secrets.TryGetValue("access_token", out var accessToken) || string.IsNullOrWhiteSpace(accessToken))
-            throw new SpotifyProviderException("Spotify access token is missing from the local secret store.", HttpStatusCode.Unauthorized);
+            throw new SpotifyProviderException("Spotify access token is missing from the local secret store.", HttpStatusCode.Unauthorized, reauthorizationRequired: true);
         return accessToken;
     }
 
@@ -243,9 +243,9 @@ public sealed class SpotifyPlaylistSourceProvider : IPlaylistSourceProvider
         {
             var currentSecretReference = account.SecretReference;
             var existing = await secretStore.ReadAsync(currentSecretReference, cancellationToken)
-                ?? throw new SpotifyProviderException("Spotify account credential was not found.", HttpStatusCode.Unauthorized);
+                ?? throw new SpotifyProviderException("Spotify account credential was not found.", HttpStatusCode.Unauthorized, reauthorizationRequired: true);
             if (!existing.Secrets.TryGetValue("refresh_token", out var refreshToken) || string.IsNullOrWhiteSpace(refreshToken))
-                throw new SpotifyProviderException("Spotify authorization expired and cannot be refreshed. Reconnect Spotify.", HttpStatusCode.Unauthorized);
+                throw new SpotifyProviderException("Spotify authorization expired and cannot be refreshed. Reconnect Spotify.", HttpStatusCode.Unauthorized, reauthorizationRequired: true);
 
             var tokenResponse = await PostTokenAsync(
                 new Dictionary<string, string>
@@ -350,11 +350,22 @@ public sealed class SpotifyPlaylistSourceProvider : IPlaylistSourceProvider
 
         var retryAfter = GetRetryAfter(response);
         var message = await ReadErrorMessageAsync(response, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.BadRequest
+            && string.Equals(message, "invalid_grant", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new SpotifyProviderException(
+                "Spotify authorization expired and cannot be refreshed. Reconnect Spotify.",
+                response.StatusCode,
+                retryAfter,
+                reauthorizationRequired: true);
+        }
+
         throw response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => new SpotifyProviderException(
                 message ?? "Spotify authorization expired. Reconnect Spotify.",
-                response.StatusCode),
+                response.StatusCode,
+                reauthorizationRequired: true),
             HttpStatusCode.Forbidden => new SpotifyProviderException(
                 message ?? "This Spotify account is not allowlisted for the development-mode app. Ask the app owner to add the account in Spotify Developer Dashboard.",
                 response.StatusCode),

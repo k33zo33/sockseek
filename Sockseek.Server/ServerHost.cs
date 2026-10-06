@@ -390,6 +390,8 @@ public static class ServerHost
         var correlationId = GetCorrelationId(context);
         return exception switch
         {
+            SpotifyProviderException spotify when spotify.ReauthorizationRequired =>
+                Results.Json(new AppErrorDto("provider_reauthorization_required", spotify.Message, correlationId), statusCode: StatusCodes.Status401Unauthorized),
             SpotifyProviderException spotify when spotify.StatusCode == System.Net.HttpStatusCode.Forbidden =>
                 Results.Json(new AppErrorDto("provider_forbidden", spotify.Message, correlationId), statusCode: StatusCodes.Status403Forbidden),
             SpotifyProviderException spotify when spotify.StatusCode == System.Net.HttpStatusCode.TooManyRequests =>
@@ -430,8 +432,11 @@ public static class ServerHost
         ExternalAccountStore accounts,
         CancellationToken cancellationToken)
     {
-        if (exception is YouTubeProviderException { ReauthorizationRequired: true })
+        if (exception is YouTubeProviderException { ReauthorizationRequired: true }
+            || exception is SpotifyProviderException { ReauthorizationRequired: true })
+        {
             await accounts.MarkAuthorizationExpiredAsync(accountId, cancellationToken);
+        }
     }
 
     private static string GetOpenApiVersion()
