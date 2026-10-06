@@ -9,6 +9,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
     private readonly HashSet<Guid> selectedPlaylistItemIds = [];
     private IReadOnlyList<DesktopPlaylistSummaryViewModel> playlists = [];
     private DesktopPlaylistDetailViewModel? selectedPlaylist;
+    private IReadOnlyList<DesktopPlaylistItemViewModel> selectedPlaylistItems = [];
     private DesktopPlaylistItemFilter itemFilter;
     private string playlistSearchText = string.Empty;
     private string downloadProfileName = string.Empty;
@@ -88,15 +89,14 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
                 return;
 
             OnPropertyChanged(nameof(HasSelectedPlaylist));
-            OnPropertyChanged(nameof(SelectedPlaylistItems));
-            OnPropertyChanged(nameof(SelectedPlaylistItemSummary));
+            RefreshSelectedPlaylistItems();
             OnPropertyChanged(nameof(CanRunBulkActions));
             OnPropertyChanged(nameof(CanRunSelectedItemActions));
         }
     }
 
     public IReadOnlyList<DesktopPlaylistItemViewModel> SelectedPlaylistItems
-        => FilterSelectedPlaylistItems().ToArray();
+        => selectedPlaylistItems;
 
     public string SelectedPlaylistItemSummary
     {
@@ -120,7 +120,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         set
         {
             if (SetProperty(ref playlistSearchText, value ?? string.Empty))
-                NotifySelectedPlaylistItemsChanged();
+                RefreshSelectedPlaylistItems();
         }
     }
 
@@ -146,7 +146,7 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
             OnPropertyChanged(nameof(IsFailedFilter));
             OnPropertyChanged(nameof(IsSkippedFilter));
             OnPropertyChanged(nameof(IsRemovedFilter));
-            NotifySelectedPlaylistItemsChanged();
+            RefreshSelectedPlaylistItems();
         }
     }
 
@@ -696,8 +696,9 @@ public sealed class DesktopPlaylistsViewModel : ObservableObject
         return items;
     }
 
-    private void NotifySelectedPlaylistItemsChanged()
+    private void RefreshSelectedPlaylistItems()
     {
+        selectedPlaylistItems = FilterSelectedPlaylistItems().ToArray();
         OnPropertyChanged(nameof(SelectedPlaylistItems));
         OnPropertyChanged(nameof(SelectedPlaylistItemSummary));
     }

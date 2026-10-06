@@ -8,6 +8,7 @@ Sprint 15 uses deterministic opt-in tests and benchmarks for large-data evidence
 | --- | --- | --- | --- |
 | Local library search | 100,000 canonical tracks with one available media file each | First page under 5 seconds | `LargeDataPerformanceTests.SearchAsync_HundredThousandTrackFixture_ReturnsFirstPageWithinBudget` |
 | Playlist detail projection | 10,000 imported playlist items | Detail projection under 10 seconds | `LargeDataPerformanceTests.GetDetailAsync_TenThousandItemPlaylist_ReturnsDetailWithinBudget` |
+| Desktop playlist filtering | 10,000 playlist item view models | Search or status filter refresh under 1 second | `DesktopPlaylistsViewModelTests.SelectedPlaylistItems_FiltersTenThousandItemsWithinBudget` |
 
 ## How to run
 
@@ -41,9 +42,10 @@ Recorded on 2026-10-06:
 - 100k library search elapsed query time: `00:00:00.5956801`.
 - 10k playlist detail elapsed query time: `00:00:00.2506731`.
 - Total test process time, including fixture generation: `1.1649 Minutes`.
+- `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopPlaylistsViewModelTests --logger "console;verbosity=detailed"` passed; the 10k playlist filtering test completed in `130 ms`.
 
 ## Notes
 
 - These tests use in-memory SQLite and measure query/projection paths after fixture creation.
 - They do not prove an eight-hour soak run or UI memory stability; those remain separate Sprint 15 gates.
-- The current Desktop library list has a bounded list surface, but a rendered virtualized performance trace still needs capture before beta go/no-go.
+- The current Desktop library, search candidate and playlist item lists have bounded `ListBox` surfaces, but a rendered virtualized performance trace still needs capture before beta go/no-go.

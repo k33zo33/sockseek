@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -365,6 +366,48 @@ public sealed class DesktopPlaylistsViewModelTests
     }
 
     [TestMethod]
+    public async Task SelectedPlaylistItems_FiltersTenThousandItemsWithinBudget()
+    {
+        const int itemCount = 10_000;
+        var playlistId = Guid.NewGuid();
+        var handler = new RecordingHandler(request =>
+        {
+            var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+            if (path.EndsWith("/playlists", StringComparison.Ordinal))
+                return new[] { CreateSummary(playlistId, "Large Filters") };
+
+            return CreateLargeDetail(playlistId, itemCount);
+        });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopPlaylistsViewModel(new SockseekApiClient(httpClient));
+
+        Assert.IsTrue(await viewModel.RefreshAsync());
+        Assert.AreEqual(itemCount, viewModel.SelectedPlaylistItems.Count);
+        Assert.AreSame(viewModel.SelectedPlaylistItems, viewModel.SelectedPlaylistItems);
+
+        var stopwatch = Stopwatch.StartNew();
+        viewModel.PlaylistSearchText = "needle";
+        var searchedItems = viewModel.SelectedPlaylistItems;
+        stopwatch.Stop();
+
+        Assert.AreEqual(200, searchedItems.Count);
+        Assert.AreEqual("200/10000 tracks", viewModel.SelectedPlaylistItemSummary);
+        Assert.IsTrue(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(1),
+            $"Expected search filtering to stay under 1 second, actual elapsed was {stopwatch.Elapsed}.");
+
+        stopwatch.Restart();
+        viewModel.IsFailedFilter = true;
+        var failedItems = viewModel.SelectedPlaylistItems;
+        stopwatch.Stop();
+
+        Assert.AreEqual(100, failedItems.Count);
+        Assert.IsTrue(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(1),
+            $"Expected status filtering to stay under 1 second, actual elapsed was {stopwatch.Elapsed}.");
+    }
+
+    [TestMethod]
     public void PlaylistsSurface_BindsListDetailAndCommands()
     {
         var xamlPath = Path.GetFullPath(Path.Combine(
@@ -400,6 +443,8 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "Playlists.PlaylistSearchText");
         StringAssert.Contains(xaml, "Playlists.SelectedPlaylistItemSummary");
         StringAssert.Contains(xaml, "IsChecked=\"{Binding IsSelected}\"");
+        StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Playlists.SelectedPlaylistItems}\"");
+        StringAssert.Contains(xaml, "MaxHeight=\"520\"");
     }
 
     private static void AssertRequestBodyContains(RecordingHandler handler, string pathSuffix, string expected)
@@ -487,6 +532,28 @@ public sealed class DesktopPlaylistsViewModelTests
                 CreateItem(6, "Skipped Track", "Skipped"),
                 CreateItem(7, "Removed Track", "RemovedFromSourcePlaylist"),
             ]);
+
+    private static PlaylistDetailDto CreateLargeDetail(Guid playlistId, int itemCount)
+    {
+        var failedCount = itemCount / 100;
+        return new(
+            playlistId,
+            "Large Filters",
+            "Mirror",
+            "spotify",
+            "external-playlist",
+            "https://example.test/playlist",
+            new DateTimeOffset(2026, 9, 28, 8, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 28, 8, 5, 0, TimeSpan.Zero),
+            CreateResolution(itemCount, unresolved: itemCount - failedCount, failed: failedCount),
+            Enumerable.Range(1, itemCount)
+                .Select(position => CreateItem(
+                    position,
+                    position % 50 == 0 ? $"Needle Track {position}" : $"Track {position}",
+                    position % 100 == 0 ? "Failed" : "Unresolved"))
+                .ToArray());
+    }
 
     private static PlaylistDetailDto CreateBulkSelectionDetail(
         Guid playlistId,
