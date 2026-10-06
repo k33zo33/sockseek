@@ -18,6 +18,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 - [ ] Required migrations are committed for the released build
 - [ ] The release notes or artifact metadata identify the exact commit/tag being shipped
 - [ ] Release artifact includes an SPDX SBOM at `sbom.spdx.json`
+- [ ] Release artifact has a SHA256 manifest for internal verification
 
 ## Security / packaging
 

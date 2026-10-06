@@ -6,7 +6,7 @@ Produce a release-candidate path that can package the local-first desktop app, d
 
 ## Current-state findings
 
-- `Sockseek.Packager` exists and can create deterministic `tar.gz` archives from a publish directory, but it does not yet assemble Desktop/Server publish outputs or verify legal artifacts.
+- `Sockseek.Packager` now stages Windows Desktop/daemon publish outputs with legal/source/SBOM artifacts and can create a Windows release zip plus SHA256 manifest from a validated staging directory.
 - `THIRD-PARTY-NOTICES`, `LICENSE`, `docs/LEGAL.md`, `docs/SECURITY.md`, `docs/TESTING.md` and `docs/release-checklist.md` already define the release gate.
 - CI currently restores, builds and tests on Ubuntu, but it does not run OpenAPI drift, dependency/license scans, SBOM generation or package smoke checks.
 - `Dockerfile` targets `net10.0` but still publishes `Sockseek.Cli`; the Sprint 14 goal calls for a daemon container refresh while keeping Docker secondary to desktop packaging.
@@ -16,7 +16,7 @@ Produce a release-candidate path that can package the local-first desktop app, d
 ## In scope
 
 - Add version/commit/source metadata to API and Desktop About/License surfaces.
-- Extend packaging tooling to stage Desktop, daemon, `LICENSE`, `THIRD-PARTY-NOTICES`, source metadata and native runtime dependencies for Windows x64 first.
+- Extend packaging tooling to stage Desktop, daemon, `LICENSE`, `THIRD-PARTY-NOTICES`, source metadata, SBOM, installer scripts and native runtime dependencies for Windows x64 first, then archive the staged layout with a SHA256 manifest.
 - Add tests/checks that release artifacts include required legal/source files.
 - Add diagnostics/log export redaction checks for secrets, tokens, OAuth codes and Authorization headers.
 - Add user-data directory and upgrade backup smoke coverage where packaging/runtime startup needs it.
@@ -32,7 +32,7 @@ Produce a release-candidate path that can package the local-first desktop app, d
 
 ## Files and projects affected
 
-- `Sockseek.Packager` for staging, archive creation and release checklist validation.
+- `Sockseek.Packager` for staging, archive creation, SHA256 manifests and release checklist validation.
 - `Sockseek.Desktop` and `Sockseek.Desktop.Tests` for About/License UI and local diagnostics/export surfaces.
 - `Sockseek.Server`, `Sockseek.Api` and tests for build/source metadata and security info endpoints if needed.
 - `Sockseek.Server.Tests`, `Sockseek.Infrastructure.Tests` and `Sockseek.Desktop.Tests` for security/package smoke tests.
@@ -48,8 +48,8 @@ Produce a release-candidate path that can package the local-first desktop app, d
 
 1. Add release metadata plumbing and tests: version, commit and source URL available to Server/Desktop without secrets.
 2. Add About/License surface and Desktop tests for AGPL, source URL, version and commit.
-3. Extend `Sockseek.Packager` with a Windows x64 staging/check command that verifies `LICENSE`, `THIRD-PARTY-NOTICES`, Desktop/daemon binaries and metadata.
-4. Add package checklist tests and run a local publish/package smoke where feasible.
+3. Extend `Sockseek.Packager` with Windows x64 staging/check/archive commands that verify `LICENSE`, `THIRD-PARTY-NOTICES`, Desktop/daemon binaries, metadata, SBOM and checksums.
+4. Add package checklist tests and run a local publish/package/archive smoke where feasible.
 5. Add redaction helpers/tests for diagnostics/log export and ensure Authorization/token/OAuth/secret values are scrubbed.
 6. Audit localhost bind/auth, OAuth callback and path traversal/symlink protections; add failing tests before fixes where gaps exist.
 7. Address dependency advisories with safe upgrades or document release-blocking exceptions.
@@ -62,7 +62,7 @@ Produce a release-candidate path that can package the local-first desktop app, d
 - Add targeted `Sockseek.Packager` tests for artifact layout/legal files.
 - Add Desktop tests for About/License text and source/version/commit display.
 - Add security integration tests for auth/bind defaults, redaction, traversal/symlink handling and secret deletion.
-- Add package smoke commands for Windows x64 publish/stage/archive when local environment supports it.
+- Add package smoke commands for Windows x64 publish/stage/archive and SHA256 manifest creation when local environment supports it.
 - Keep provider-audio forbidden-symbol scans in every final Sprint 14 validation pass.
 
 ## Migration and Rollback
@@ -92,4 +92,4 @@ Produce a release-candidate path that can package the local-first desktop app, d
 - About shows AGPL/source/version/commit: About metadata implementation and Desktop tests.
 - Secrets absent from log export: redaction helpers and security tests.
 - Daemon not open to LAN by default: bind/auth tests.
-- SBOM and notices in artifacts: packager validation and release checklist tests.
+- SBOM, notices and checksum manifest in artifacts: packager validation, archive generation and release checklist tests.

@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Packager;
+using System.IO.Compression;
 
 namespace Tests.Packager;
 
@@ -185,6 +186,92 @@ public sealed class ReleaseStagerTests
             "-RemoveUserData");
 
         Assert.IsFalse(Directory.Exists(dataDir));
+    }
+
+    [TestMethod]
+    public void ArchiveWindows_WithValidStaging_CreatesZipAndSha256Manifest()
+    {
+        using var temp = TempDirectory.Create();
+        string staging = CreateValidWindowsStaging(temp);
+        string archivePath = Path.Combine(temp.Path, "Sockseek-win-x64.zip");
+        string manifestPath = Path.Combine(temp.Path, "Sockseek-win-x64.sha256");
+
+        var result = ReleaseArchiveBuilder.ArchiveWindows(new ReleaseArchiveRequest(
+            staging,
+            archivePath,
+            manifestPath,
+            "Sockseek.Desktop.exe",
+            "Sockseek.Server.exe"));
+
+        Assert.IsTrue(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+        Assert.IsTrue(File.Exists(archivePath));
+        Assert.IsTrue(File.Exists(manifestPath));
+        using var archive = ZipFile.OpenRead(archivePath);
+        CollectionAssert.Contains(
+            archive.Entries.Select(entry => entry.FullName).ToArray(),
+            "Sockseek.Desktop.exe");
+        CollectionAssert.Contains(
+            archive.Entries.Select(entry => entry.FullName).ToArray(),
+            "daemon/Sockseek.Server.exe");
+        CollectionAssert.Contains(
+            archive.Entries.Select(entry => entry.FullName).ToArray(),
+            "install.ps1");
+        var manifest = File.ReadAllText(manifestPath);
+        StringAssert.Contains(manifest, "Sockseek-win-x64.zip");
+        StringAssert.Contains(manifest, "Sockseek.Desktop.exe");
+        StringAssert.Contains(manifest, "daemon/Sockseek.Server.exe");
+        StringAssert.Contains(manifest, "sbom.spdx.json");
+    }
+
+    [TestMethod]
+    public void ArchiveWindows_WhenArchiveWouldBeInsideStaging_ReturnsError()
+    {
+        using var temp = TempDirectory.Create();
+        string staging = CreateValidWindowsStaging(temp);
+        string archivePath = Path.Combine(staging, "Sockseek-win-x64.zip");
+        string manifestPath = Path.Combine(temp.Path, "Sockseek-win-x64.sha256");
+
+        var result = ReleaseArchiveBuilder.ArchiveWindows(new ReleaseArchiveRequest(
+            staging,
+            archivePath,
+            manifestPath,
+            "Sockseek.Desktop.exe",
+            "Sockseek.Server.exe"));
+
+        Assert.IsFalse(result.IsValid);
+        CollectionAssert.Contains(result.Errors.ToArray(), "Archive path must not be inside the staging directory.");
+        Assert.IsFalse(File.Exists(archivePath));
+    }
+
+    private static string CreateValidWindowsStaging(TempDirectory temp)
+    {
+        string repoRoot = Path.Combine(temp.Path, "repo");
+        string desktopPublish = Path.Combine(temp.Path, "desktop");
+        string daemonPublish = Path.Combine(temp.Path, "daemon");
+        string staging = Path.Combine(temp.Path, "staging");
+        Directory.CreateDirectory(repoRoot);
+        Directory.CreateDirectory(desktopPublish);
+        Directory.CreateDirectory(daemonPublish);
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop.exe"), "desktop");
+        File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server.exe"), "daemon");
+        string sbomPath = Path.Combine(temp.Path, "sbom.spdx.json");
+        WriteValidSbom(sbomPath);
+
+        var result = ReleaseStager.StageWindows(new ReleaseStageRequest(
+            repoRoot,
+            desktopPublish,
+            daemonPublish,
+            staging,
+            "Sockseek.Desktop.exe",
+            "Sockseek.Server.exe",
+            "3.0.5",
+            "abc123",
+            "https://github.com/k33zo33/sockseek",
+            sbomPath));
+        Assert.IsTrue(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+        return staging;
     }
 
     private static void WriteValidSbom(string path)
