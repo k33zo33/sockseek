@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 14
-  slug: packaging-legal-security
-  file: docs/sprints/sprint-14-packaging-legal-security.md
+  id: 15
+  slug: performance-compliance-beta
+  file: docs/sprints/sprint-15-performance-compliance-beta.md
   status: in_progress
 
 completed_sprints:
@@ -32,6 +32,7 @@ completed_sprints:
   - 11
   - 12
   - 13
+  - 14
 blocked_by: []
 
 locked_decisions:

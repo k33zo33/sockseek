@@ -17,9 +17,9 @@ Only one sprint is active at a time. Read the active sprint file and only its re
 | 10 | [sprint-10-spotify-playlist-import.md](sprint-10-spotify-playlist-import.md) | Completed |
 | 11 | [sprint-11-youtube-playlist-import.md](sprint-11-youtube-playlist-import.md) | Completed |
 | 12 | [sprint-12-bandcamp-metabrainz.md](sprint-12-bandcamp-metabrainz.md) | Completed |
-| 13 | [sprint-13-unified-playlist-resolution.md](sprint-13-unified-playlist-resolution.md) | In Progress |
-| 14 | [sprint-14-packaging-legal-security.md](sprint-14-packaging-legal-security.md) | Planned |
-| 15 | [sprint-15-performance-compliance-beta.md](sprint-15-performance-compliance-beta.md) | Planned |
+| 13 | [sprint-13-unified-playlist-resolution.md](sprint-13-unified-playlist-resolution.md) | Completed |
+| 14 | [sprint-14-packaging-legal-security.md](sprint-14-packaging-legal-security.md) | Completed |
+| 15 | [sprint-15-performance-compliance-beta.md](sprint-15-performance-compliance-beta.md) | In Progress |
 
 ## General sprint rules
 
