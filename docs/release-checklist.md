@@ -19,6 +19,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 - [ ] The release notes or artifact metadata identify the exact commit/tag being shipped
 - [ ] Release artifact includes an SPDX SBOM at `sbom.spdx.json`
 - [ ] Release artifact has a SHA256 manifest for internal verification
+- [ ] Release notes include beta limitations and legal-use notice
 
 ## Security / packaging
 
