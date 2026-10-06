@@ -41,6 +41,7 @@
 ## Repository artifacts
 
 - [Root license](../LICENSE)
+- [Security policy](../SECURITY.md)
 - [Third-party notices](../THIRD-PARTY-NOTICES)
 - [Generated OpenAPI document](openapi.json)
 
