@@ -10,6 +10,7 @@
 | Bandcamp source | 12 | Public URL fixture import; no credential test. |
 | MusicBrainz metadata | 12 | Rate-limit/cache i ISRC/MBID enrichment test. |
 | Soulseek downloader | 2, 5, 13 | Gateway parity i E2E download. |
+| Soulseek public beta compliance | 15 | `docs/soulseek-compliance-audit.md` i ADR-0009. |
 | Full local player | 7 | Codec matrix i queue persistence. |
 | Play while downloading | 8 | Slow-stream/underrun/cancel tests. |
 | Local library | 6 | Scan/watcher/10k performance tests. |
