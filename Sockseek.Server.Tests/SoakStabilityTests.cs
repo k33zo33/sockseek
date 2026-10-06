@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
@@ -16,6 +17,7 @@ public sealed class SoakStabilityTests
     private const string SoakCycleDelayMsEnvVar = "SOCKSEEK_SOAK_CYCLE_DELAY_MS";
     private const string ManagedBudgetMiBEnvVar = "SOCKSEEK_SOAK_MAX_MANAGED_GROWTH_MIB";
     private const string PrivateBudgetMiBEnvVar = "SOCKSEEK_SOAK_MAX_PRIVATE_GROWTH_MIB";
+    private const string SoakReportPathEnvVar = "SOCKSEEK_SOAK_REPORT_PATH";
     private const int DefaultSoakMinutes = 480;
     private const int DefaultItemsPerCycle = 100;
     private const int DefaultCycleDelayMs = 30_000;
@@ -41,6 +43,7 @@ public sealed class SoakStabilityTests
         var cycleDelay = TimeSpan.FromMilliseconds(ReadNonNegativeInt(SoakCycleDelayMsEnvVar, DefaultCycleDelayMs));
         var maxManagedGrowthBytes = MiB(ReadPositiveInt(ManagedBudgetMiBEnvVar, DefaultMaxManagedGrowthMiB));
         var maxPrivateGrowthBytes = MiB(ReadPositiveInt(PrivateBudgetMiBEnvVar, DefaultMaxPrivateGrowthMiB));
+        var reportPath = Environment.GetEnvironmentVariable(SoakReportPathEnvVar);
 
         string workDir = Path.Combine(Path.GetTempPath(), "Sockseek-soak-work-" + Guid.NewGuid());
         string musicRoot = Path.Combine(workDir, "music");
@@ -60,7 +63,8 @@ public sealed class SoakStabilityTests
 
             var start = CaptureMemory();
             var peak = start;
-            var deadline = DateTimeOffset.UtcNow + duration;
+            var startedAtUtc = DateTimeOffset.UtcNow;
+            var deadline = startedAtUtc + duration;
             var cycle = 0;
 
             TestContext.WriteLine(
@@ -94,12 +98,32 @@ public sealed class SoakStabilityTests
             }
 
             var end = CaptureMemory();
+            var completedAtUtc = DateTimeOffset.UtcNow;
             peak = MemorySample.Max(peak, end);
             var managedGrowth = peak.ManagedHeapBytes - start.ManagedHeapBytes;
             var privateGrowth = peak.PrivateBytes - start.PrivateBytes;
 
             TestContext.WriteLine(
                 $"Completed {cycle} soak cycles. Start managed={FormatBytes(start.ManagedHeapBytes)}, peak managed={FormatBytes(peak.ManagedHeapBytes)}, managed growth={FormatBytes(managedGrowth)}. Start private={FormatBytes(start.PrivateBytes)}, peak private={FormatBytes(peak.PrivateBytes)}, private growth={FormatBytes(privateGrowth)}.");
+
+            WriteReportIfRequested(
+                reportPath,
+                new SoakStabilityReport(
+                    StartedAtUtc: startedAtUtc,
+                    CompletedAtUtc: completedAtUtc,
+                    RequestedDuration: duration.ToString(),
+                    ActualDuration: (completedAtUtc - startedAtUtc).ToString(),
+                    CycleCount: cycle,
+                    ItemsPerCycle: itemsPerCycle,
+                    CycleDelayMilliseconds: (int)cycleDelay.TotalMilliseconds,
+                    StartManagedHeapBytes: start.ManagedHeapBytes,
+                    PeakManagedHeapBytes: peak.ManagedHeapBytes,
+                    ManagedHeapGrowthBytes: managedGrowth,
+                    MaxManagedHeapGrowthBytes: maxManagedGrowthBytes,
+                    StartPrivateBytes: start.PrivateBytes,
+                    PeakPrivateBytes: peak.PrivateBytes,
+                    PrivateGrowthBytes: privateGrowth,
+                    MaxPrivateGrowthBytes: maxPrivateGrowthBytes));
 
             Assert.IsTrue(
                 managedGrowth <= maxManagedGrowthBytes,
@@ -217,6 +241,21 @@ public sealed class SoakStabilityTests
                 ? $"{bytes / 1024.0:F1} KiB"
                 : $"{bytes / (1024.0 * 1024.0):F2} MiB";
 
+    private void WriteReportIfRequested(string? reportPath, SoakStabilityReport report)
+    {
+        if (string.IsNullOrWhiteSpace(reportPath))
+            return;
+
+        var fullPath = Path.GetFullPath(reportPath);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        File.WriteAllText(fullPath, JsonSerializer.Serialize(report, options));
+        TestContext.WriteLine($"Wrote soak stability report to {fullPath}.");
+    }
+
     private sealed record MemorySample(long ManagedHeapBytes, long PrivateBytes)
     {
         public static MemorySample Max(MemorySample left, MemorySample right)
@@ -224,4 +263,21 @@ public sealed class SoakStabilityTests
                 Math.Max(left.ManagedHeapBytes, right.ManagedHeapBytes),
                 Math.Max(left.PrivateBytes, right.PrivateBytes));
     }
+
+    private sealed record SoakStabilityReport(
+        DateTimeOffset StartedAtUtc,
+        DateTimeOffset CompletedAtUtc,
+        string RequestedDuration,
+        string ActualDuration,
+        int CycleCount,
+        int ItemsPerCycle,
+        int CycleDelayMilliseconds,
+        long StartManagedHeapBytes,
+        long PeakManagedHeapBytes,
+        long ManagedHeapGrowthBytes,
+        long MaxManagedHeapGrowthBytes,
+        long StartPrivateBytes,
+        long PeakPrivateBytes,
+        long PrivateGrowthBytes,
+        long MaxPrivateGrowthBytes);
 }
