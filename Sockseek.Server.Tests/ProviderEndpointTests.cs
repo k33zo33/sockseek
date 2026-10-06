@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
+using Sockseek.Application.Security;
 using Sockseek.Core.Settings;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
@@ -135,11 +136,19 @@ public sealed class ProviderEndpointTests
     [TestMethod]
     public async Task DisconnectExternalAccount_ClearsSecretReferenceAndReturnsDisconnectedStatus()
     {
-        var app = CreateApp(out var url, out var sessionToken, out var tempRoot);
+        var secretStore = new InMemorySecretStore();
+        var secretReference = await secretStore.SaveAsync(new SecretStoreSaveRequest(
+            "spotify",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["access_token"] = "access-token",
+                ["refresh_token"] = "refresh-token",
+            }));
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, secretStore: secretStore);
         await app.StartAsync();
         try
         {
-            var accountId = await SeedExternalAccountAsync(app);
+            var accountId = await SeedExternalAccountAsync(app, secretReference);
             using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
             var client = new SockseekApiClient(http);
 
@@ -154,6 +163,28 @@ public sealed class ProviderEndpointTests
             Assert.AreEqual((int)ExternalAccountStatus.Disconnected, account.Status);
             Assert.AreEqual(string.Empty, account.SecretReference);
             Assert.AreEqual(1, await verifyDb.ExternalPlaylists.CountAsync(playlist => playlist.AccountId == accountId));
+            Assert.IsNull(await secretStore.ReadAsync(secretReference));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
+    public async Task DisconnectExternalAccount_RequiresSessionToken()
+    {
+        var app = CreateApp(out var url, out _, out var tempRoot);
+        await app.StartAsync();
+        try
+        {
+            using var http = new HttpClient { BaseAddress = new Uri(url) };
+
+            using var response = await http.PostAsync($"/api/v1/accounts/{Guid.NewGuid()}/disconnect", null);
+
+            Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
         }
         finally
         {
@@ -176,6 +207,41 @@ public sealed class ProviderEndpointTests
             var disconnected = await client.DisconnectExternalAccountAsync(Guid.NewGuid());
 
             Assert.IsNull(disconnected);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
+    public async Task StartProviderAuthorization_DoesNotExposePkceVerifierOrClientSecret()
+    {
+        var spotify = new QueueSpotifyHandler([]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotifyHandler: spotify);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+
+            using var response = await http.PostAsync(
+                "api/v1/providers/spotify/authorization/start",
+                new StringContent(
+                    """{"redirectUri":"http://127.0.0.1:49152/callback"}""",
+                    Encoding.UTF8,
+                    "application/json"));
+            var rawJson = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+            StringAssert.Contains(rawJson, "authorizationUri");
+            StringAssert.Contains(rawJson, "code_challenge");
+            StringAssert.Contains(rawJson, "S256");
+            Assert.IsFalse(rawJson.Contains("code_verifier", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(rawJson.Contains("codeVerifier", StringComparison.Ordinal));
+            Assert.IsFalse(rawJson.Contains("client_secret", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(rawJson.Contains("clientSecret", StringComparison.Ordinal));
         }
         finally
         {
@@ -877,12 +943,12 @@ public sealed class ProviderEndpointTests
         }
     }
 
-    private static async Task<Guid> SeedExternalAccountAsync(WebApplication app)
+    private static async Task<Guid> SeedExternalAccountAsync(WebApplication app, string? secretReference = null)
     {
         await using var scope = app.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<ServerDatabaseMigrationService>().EnsureMigratedAsync();
         var db = scope.ServiceProvider.GetRequiredService<SockseekDbContext>();
-        var secretReference = "secret://windows-dpapi/" + Guid.NewGuid().ToString("N");
+        secretReference ??= "secret://windows-dpapi/" + Guid.NewGuid().ToString("N");
 
         var account = new ExternalAccountEntity
         {
@@ -916,7 +982,8 @@ public sealed class ProviderEndpointTests
         out string tempRoot,
         QueueBandcampHandler? bandcampHandler = null,
         QueueSpotifyHandler? spotifyHandler = null,
-        QueueYouTubeHandler? youtubeHandler = null)
+        QueueYouTubeHandler? youtubeHandler = null,
+        ISecretStore? secretStore = null)
     {
         tempRoot = Path.Combine(Path.GetTempPath(), "Sockseek-provider-test-" + Guid.NewGuid());
         var musicRoot = Path.Combine(tempRoot, "music");
@@ -941,7 +1008,7 @@ public sealed class ProviderEndpointTests
                 },
             },
             Profiles = ProfileCatalog.Empty,
-            SecretStoreFactory = () => new InMemorySecretStore(),
+            SecretStoreFactory = () => secretStore ?? new InMemorySecretStore(),
             SessionToken = sessionToken,
             Bandcamp = new BandcampServerOptions
             {

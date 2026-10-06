@@ -89,6 +89,25 @@ public sealed class OAuthLoopbackCallbackListenerTests
         Assert.AreEqual("expected-state", callback.State);
     }
 
+    [TestMethod]
+    public async Task WaitForCallbackAsync_RejectsNonGetUntilValidCallbackArrives()
+    {
+        await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.Spotify);
+        using var cancellation = CreateTestCancellation();
+        using var client = new HttpClient();
+        var callbackUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code&state=expected-state");
+
+        var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
+        var postResponse = await client.PostAsync(callbackUri, null, cancellation.Token);
+        var validResponse = await client.GetAsync(callbackUri, cancellation.Token);
+        var callback = await pendingCallback;
+
+        Assert.AreEqual(HttpStatusCode.MethodNotAllowed, postResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, validResponse.StatusCode);
+        Assert.AreEqual("expected-state", callback.State);
+        Assert.AreEqual("authorization-code", callback.Code);
+    }
+
     private static Uri CreateCallbackUri(Uri redirectUri, string query)
         => new UriBuilder(redirectUri)
         {
