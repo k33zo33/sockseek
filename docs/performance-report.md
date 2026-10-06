@@ -70,4 +70,4 @@ Recorded on 2026-10-06:
 
 - These tests use in-memory SQLite and measure query/projection paths after fixture creation.
 - The one-minute soak smoke does not prove an eight-hour soak run or UI memory stability; those remain separate Sprint 15 gates.
-- The current Desktop library, search candidate and playlist item lists have bounded `ListBox` surfaces, but a rendered virtualized performance trace still needs capture before beta go/no-go.
+- The current Desktop library, search candidate and playlist item lists have bounded `ListBox` surfaces, but the rendered trace in `docs/desktop-virtualization-trace.md` still needs capture before beta go/no-go.

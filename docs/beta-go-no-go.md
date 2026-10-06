@@ -24,14 +24,14 @@ Recorded on 2026-10-06.
 | Security reporting | Root `SECURITY.md` and GitHub issue templates route private vulnerabilities and redacted diagnostics. | Passed |
 | Windows package smoke | Sprint 14 package smoke verified legal files, SBOM, SHA256 manifest, Desktop and daemon executables and native dependencies. | Passed for Windows RC |
 | Soak stability | `SoakStabilityTests.RepeatedWorkflowSoak_DoesNotExceedMemoryGrowthBudget` exists and a one-minute harness smoke passed. The required eight-hour run is not captured. | Incomplete |
-| Rendered UI virtualization trace | XAML guards prove bounded `ListBox` surfaces for large library/search/playlist lists. A rendered UI trace is not captured. | Incomplete |
+| Rendered UI virtualization trace | `docs/desktop-virtualization-trace.md` defines the trace checklist. XAML guards prove bounded `ListBox` surfaces for large library/search/playlist lists, but a rendered UI trace is not captured. | Incomplete |
 | Docker/headless smoke | Docker Desktop engine was unavailable during local package smoke. | Incomplete |
 
 ## Required before public beta
 
 1. Resolve ADR-0009 by either implementing the missing Soulseek compliance work or accepting a superseding decision.
 2. Run the eight-hour soak command in `docs/performance-report.md` and record the memory growth results here.
-3. Capture a rendered Desktop UI virtualization trace for large library, search result and playlist item lists.
+3. Capture the rendered Desktop UI virtualization trace described in `docs/desktop-virtualization-trace.md`.
 4. Complete target OS package smoke for every public beta artifact.
 5. Update release notes with the exact commit/tag, beta limitations, legal-use notice and source availability.
 
