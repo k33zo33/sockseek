@@ -118,7 +118,8 @@ public static class ReleaseStager
         [CmdletBinding()]
         param(
             [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Sockseek'),
-            [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'Sockseek')
+            [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'Sockseek'),
+            [string]$ShortcutDir = (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs')
         )
 
         $ErrorActionPreference = 'Stop'
@@ -133,9 +134,9 @@ public static class ReleaseStager
             New-Item -ItemType Directory -Force -Path (Join-Path $dataDirFull $child) | Out-Null
         }
 
-        $shortcutDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-        New-Item -ItemType Directory -Force -Path $shortcutDir | Out-Null
-        $shortcutPath = Join-Path $shortcutDir 'Sockseek.lnk'
+        $shortcutDirFull = [System.IO.Path]::GetFullPath($ShortcutDir)
+        New-Item -ItemType Directory -Force -Path $shortcutDirFull | Out-Null
+        $shortcutPath = Join-Path $shortcutDirFull 'Sockseek.lnk'
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($shortcutPath)
         $shortcut.TargetPath = Join-Path $installDirFull 'Sockseek.Desktop.exe'
@@ -154,13 +155,14 @@ public static class ReleaseStager
         param(
             [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Sockseek'),
             [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'Sockseek'),
+            [string]$ShortcutDir = (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'),
             [switch]$RemoveUserData
         )
 
         $ErrorActionPreference = 'Stop'
         $installDirFull = [System.IO.Path]::GetFullPath($InstallDir)
         $dataDirFull = [System.IO.Path]::GetFullPath($DataDir)
-        $shortcutPath = Join-Path (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') 'Sockseek.lnk'
+        $shortcutPath = Join-Path ([System.IO.Path]::GetFullPath($ShortcutDir)) 'Sockseek.lnk'
 
         Remove-Item -LiteralPath $shortcutPath -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $installDirFull -Recurse -Force -ErrorAction SilentlyContinue

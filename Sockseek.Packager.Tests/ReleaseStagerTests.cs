@@ -117,6 +117,76 @@ public sealed class ReleaseStagerTests
         CollectionAssert.Contains(result.Errors.ToArray(), "Staging directory must not be inside the Desktop publish directory.");
     }
 
+    [TestMethod]
+    public void WindowsInstallerScripts_InstallAndUninstallTempPayload()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var temp = TempDirectory.Create();
+        string repoRoot = Path.Combine(temp.Path, "repo");
+        string desktopPublish = Path.Combine(temp.Path, "desktop");
+        string daemonPublish = Path.Combine(temp.Path, "daemon");
+        string staging = Path.Combine(temp.Path, "staging");
+        string installDir = Path.Combine(temp.Path, "install");
+        string dataDir = Path.Combine(temp.Path, "data");
+        string shortcutDir = Path.Combine(temp.Path, "shortcuts");
+        Directory.CreateDirectory(repoRoot);
+        Directory.CreateDirectory(desktopPublish);
+        Directory.CreateDirectory(daemonPublish);
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop.exe"), "desktop");
+        File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server.exe"), "daemon");
+        string sbomPath = Path.Combine(temp.Path, "sbom.spdx.json");
+        WriteValidSbom(sbomPath);
+
+        var result = ReleaseStager.StageWindows(new ReleaseStageRequest(
+            repoRoot,
+            desktopPublish,
+            daemonPublish,
+            staging,
+            "Sockseek.Desktop.exe",
+            "Sockseek.Server.exe",
+            "3.0.5",
+            "abc123",
+            "https://github.com/k33zo33/sockseek",
+            sbomPath));
+        Assert.IsTrue(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+
+        RunPowerShellScript(
+            Path.Combine(staging, ReleaseArtifactValidator.WindowsInstallerFileName),
+            "-InstallDir", installDir,
+            "-DataDir", dataDir,
+            "-ShortcutDir", shortcutDir);
+
+        Assert.IsTrue(File.Exists(Path.Combine(installDir, "Sockseek.Desktop.exe")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(dataDir, "config")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(dataDir, "logs")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(dataDir, "backups")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(dataDir, "secrets")));
+        Assert.IsTrue(File.Exists(Path.Combine(shortcutDir, "Sockseek.lnk")));
+
+        RunPowerShellScript(
+            Path.Combine(staging, ReleaseArtifactValidator.WindowsUninstallerFileName),
+            "-InstallDir", installDir,
+            "-DataDir", dataDir,
+            "-ShortcutDir", shortcutDir);
+
+        Assert.IsFalse(Directory.Exists(installDir));
+        Assert.IsTrue(Directory.Exists(dataDir));
+        Assert.IsFalse(File.Exists(Path.Combine(shortcutDir, "Sockseek.lnk")));
+
+        RunPowerShellScript(
+            Path.Combine(staging, ReleaseArtifactValidator.WindowsUninstallerFileName),
+            "-InstallDir", installDir,
+            "-DataDir", dataDir,
+            "-ShortcutDir", shortcutDir,
+            "-RemoveUserData");
+
+        Assert.IsFalse(Directory.Exists(dataDir));
+    }
+
     private static void WriteValidSbom(string path)
     {
         File.WriteAllText(
@@ -134,6 +204,30 @@ public sealed class ReleaseStagerTests
               ]
             }
             """);
+    }
+
+    private static void RunPowerShellScript(string scriptPath, params string[] arguments)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+        {
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-ExecutionPolicy");
+        startInfo.ArgumentList.Add("Bypass");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(scriptPath);
+        foreach (var argument in arguments)
+            startInfo.ArgumentList.Add(argument);
+
+        using var process = System.Diagnostics.Process.Start(startInfo);
+        Assert.IsNotNull(process);
+        string output = process.StandardOutput.ReadToEnd();
+        string error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        Assert.AreEqual(0, process.ExitCode, output + Environment.NewLine + error);
     }
 
     private sealed class TempDirectory : IDisposable
