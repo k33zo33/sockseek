@@ -63,6 +63,10 @@ Recorded on 2026-10-06:
 - Total test process time, including fixture generation: `1.1649 Minutes`.
 - `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopSearchViewModelTests --logger "console;verbosity=detailed"` passed; the 10k Soulseek result display mapping test completed in `151 ms`.
 - `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopPlaylistsViewModelTests --logger "console;verbosity=detailed"` passed; the 10k playlist filtering test completed in `130 ms`.
+- `dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj -c Release --no-build --filter EventTrafficProfilingTests --logger "console;verbosity=detailed"` with `SOCKSEEK_RUN_EVENT_PROFILE=1` passed all three event traffic profile gates in `43.4680 Seconds`.
+- Large workflow cancellation event traffic stayed within budget: `106` network messages, `164.1 KiB` serialized payload, `101` cancel-delta messages and `59.0 KiB` cancel-delta payload.
+- Large aggregate completion with matching results stayed within budget: `2` network messages and `167.2 KiB` serialized payload.
+- Large no-result aggregate completion stayed within budget: `112` network messages and `7.71 MiB` serialized payload.
 - `dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj -c Release --no-build --filter SoakStabilityTests --logger "console;verbosity=detailed"` passed as a default no-op when `SOCKSEEK_RUN_SOAK` was unset.
 - A one-minute soak harness smoke with `SOCKSEEK_RUN_SOAK=1`, `SOCKSEEK_SOAK_MINUTES=1` and `SOCKSEEK_SOAK_ITEMS_PER_CYCLE=10` passed. It completed 1,016 unthrottled cycles with peak managed heap growth `57.20 MiB` and peak private memory growth `120.26 MiB`; this validates the harness only and does not satisfy the eight-hour acceptance gate.
 

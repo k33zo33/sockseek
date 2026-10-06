@@ -19,6 +19,7 @@ Recorded on 2026-10-06.
 | 10k playlist detail projection | `LargeDataPerformanceTests.GetDetailAsync_TenThousandItemPlaylist_ReturnsDetailWithinBudget` passed opt-in large-data run at `00:00:00.2506731`. | Passed |
 | Large Soulseek result display | `DesktopSearchViewModelTests.RefreshResultsAsync_TrackMode_MapsTenThousandSoulseekResultsWithinBudget` passed in `151 ms`. | Passed |
 | Desktop playlist filtering | `DesktopPlaylistsViewModelTests.SelectedPlaylistItems_FiltersTenThousandItemsWithinBudget` passed in `130 ms`. | Passed |
+| Event traffic profiling | `EventTrafficProfilingTests` passed the cancellation, matching-result completion and no-result completion profile gates. The largest recorded profile was `112` network messages and `7.71 MiB` serialized payload for the 3,000-job no-result aggregate completion path. | Passed |
 | Provider recovery UX | `docs/provider-failure-matrix.md` documents recovery paths; provider endpoint tests cover rate-limit recovery and token/error surfaces. | Passed for covered providers |
 | Release limitations | `docs/beta-limitations.md` states Spotify quota limits, Bandcamp/MusicBrainz scope and provider no-audio policy. | Passed |
 | Security reporting | Root `SECURITY.md` and GitHub issue templates route private vulnerabilities and redacted diagnostics. | Passed |
