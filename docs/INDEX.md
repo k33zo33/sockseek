@@ -19,6 +19,7 @@
 - [Domain model](DOMAIN_MODEL.md)
 - [Database](DATABASE.md)
 - [Provider integrations](PROVIDERS.md)
+- [Provider failure matrix](provider-failure-matrix.md)
 - [Soulseek compliance audit](soulseek-compliance-audit.md)
 - [Player](PLAYER.md)
 - [Current daemon/client API integration](current-api.md)

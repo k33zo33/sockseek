@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
@@ -503,6 +504,57 @@ public sealed class ProviderEndpointTests
     }
 
     [TestMethod]
+    public async Task GetProviderPlaylists_WhenSpotifyRateLimited_ReturnsRetryableProviderError()
+    {
+        var rateLimit = JsonResponse("""{ "error": { "status": 429, "message": "API rate limit exceeded" } }""", HttpStatusCode.TooManyRequests);
+        rateLimit.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(9));
+        var spotify = new QueueSpotifyHandler(
+        [
+            JsonResponse("""
+            {
+              "access_token": "access-1",
+              "refresh_token": "refresh-1",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "scope": "playlist-read-private playlist-read-collaborative"
+            }
+            """),
+            JsonResponse("""{ "id": "spotify-user-1", "display_name": "Spotify User" }"""),
+            rateLimit,
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, spotifyHandler: spotify);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var start = await client.StartProviderAuthorizationAsync(
+                "spotify",
+                new ProviderAuthorizationStartRequestDto("http://127.0.0.1:49152/callback"));
+            var account = await client.CompleteProviderAuthorizationAsync(
+                "spotify",
+                new ProviderAuthorizationCallbackRequestDto(
+                    "http://127.0.0.1:49152/callback",
+                    start.State,
+                    "code-1"));
+
+            using var response = await http.GetAsync($"api/v1/accounts/{account.AccountId}/provider-playlists");
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.TooManyRequests, response.StatusCode);
+            StringAssert.Contains(body, "provider_rate_limited");
+            StringAssert.Contains(body, "API rate limit exceeded");
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task YouTubeAuthorizationListAndMirrorImport_UsesFixtureHttpAndPreservesLocalSnapshot()
     {
         var youtube = new QueueYouTubeHandler(
@@ -758,6 +810,63 @@ public sealed class ProviderEndpointTests
             var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
             var stored = await db.ExternalAccounts.SingleAsync(entity => entity.Id == account.AccountId);
             Assert.AreEqual((int)ExternalAccountStatus.AuthorizationExpired, stored.Status);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
+    public async Task GetProviderPlaylists_WhenYouTubeRateLimited_ReturnsRetryableProviderError()
+    {
+        var rateLimit = JsonResponse("""{ "error": { "code": 429, "message": "Quota exceeded" } }""", HttpStatusCode.TooManyRequests);
+        rateLimit.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(9));
+        var youtube = new QueueYouTubeHandler(
+        [
+            JsonResponse("""
+            {
+              "access_token": "access-1",
+              "refresh_token": "refresh-1",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "scope": "https://www.googleapis.com/auth/youtube.readonly"
+            }
+            """),
+            JsonResponse("""
+            {
+              "items": [
+                { "id": "channel-1", "snippet": { "title": "Channel One" } }
+              ]
+            }
+            """),
+            rateLimit,
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, youtubeHandler: youtube);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+            var client = new SockseekApiClient(http);
+
+            var start = await client.StartProviderAuthorizationAsync(
+                "youtube",
+                new ProviderAuthorizationStartRequestDto("http://127.0.0.1:49152/callback"));
+            var account = await client.CompleteProviderAuthorizationAsync(
+                "youtube",
+                new ProviderAuthorizationCallbackRequestDto(
+                    "http://127.0.0.1:49152/callback",
+                    start.State,
+                    "code-1"));
+
+            using var response = await http.GetAsync($"api/v1/accounts/{account.AccountId}/provider-playlists");
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.TooManyRequests, response.StatusCode);
+            StringAssert.Contains(body, "provider_rate_limited");
+            StringAssert.Contains(body, "Quota exceeded");
         }
         finally
         {
