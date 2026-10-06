@@ -8,6 +8,7 @@ Sprint 15 uses deterministic opt-in tests and benchmarks for large-data evidence
 | --- | --- | --- | --- |
 | Local library search | 100,000 canonical tracks with one available media file each | First page under 5 seconds | `LargeDataPerformanceTests.SearchAsync_HundredThousandTrackFixture_ReturnsFirstPageWithinBudget` |
 | Playlist detail projection | 10,000 imported playlist items | Detail projection under 10 seconds | `LargeDataPerformanceTests.GetDetailAsync_TenThousandItemPlaylist_ReturnsDetailWithinBudget` |
+| Soulseek result display mapping | 10,000 file candidates through the Desktop API client | Result refresh under 2 seconds | `DesktopSearchViewModelTests.RefreshResultsAsync_TrackMode_MapsTenThousandSoulseekResultsWithinBudget` |
 | Desktop playlist filtering | 10,000 playlist item view models | Search or status filter refresh under 1 second | `DesktopPlaylistsViewModelTests.SelectedPlaylistItems_FiltersTenThousandItemsWithinBudget` |
 
 ## How to run
@@ -42,6 +43,7 @@ Recorded on 2026-10-06:
 - 100k library search elapsed query time: `00:00:00.5956801`.
 - 10k playlist detail elapsed query time: `00:00:00.2506731`.
 - Total test process time, including fixture generation: `1.1649 Minutes`.
+- `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopSearchViewModelTests --logger "console;verbosity=detailed"` passed; the 10k Soulseek result display mapping test completed in `151 ms`.
 - `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopPlaylistsViewModelTests --logger "console;verbosity=detailed"` passed; the 10k playlist filtering test completed in `130 ms`.
 
 ## Notes

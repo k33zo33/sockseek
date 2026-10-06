@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -167,6 +168,39 @@ public sealed class DesktopSearchViewModelTests
     }
 
     [TestMethod]
+    public async Task RefreshResultsAsync_TrackMode_MapsTenThousandSoulseekResultsWithinBudget()
+    {
+        const int candidateCount = 10_000;
+        var jobId = Guid.NewGuid();
+        var snapshot = new SearchResultSnapshotDto<FileCandidateDto>(
+            11,
+            true,
+            Enumerable.Range(1, candidateCount).Select(CreateFileCandidate).ToArray());
+        var handler = new RecordingHandler(request => request.RequestUri?.AbsolutePath.EndsWith("/results/files") == true
+            ? snapshot
+            : new JobSummaryDto { JobId = jobId });
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSearchViewModel(new SockseekApiClient(httpClient))
+        {
+            Title = "Song"
+        };
+
+        await viewModel.SearchAsync();
+        var stopwatch = Stopwatch.StartNew();
+        var refreshed = await viewModel.RefreshResultsAsync();
+        stopwatch.Stop();
+
+        Assert.IsTrue(refreshed);
+        Assert.AreEqual(11, viewModel.ResultsRevision);
+        Assert.IsTrue(viewModel.IsResultsComplete);
+        Assert.AreEqual(candidateCount, viewModel.FileCandidates.Count);
+        Assert.AreEqual("Music/Artist/Album/Track 10000.flac", viewModel.FileCandidates[^1].Filename);
+        Assert.IsTrue(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(2),
+            $"Expected 10k Soulseek result mapping to stay under 2 seconds, actual elapsed was {stopwatch.Elapsed}.");
+    }
+
+    [TestMethod]
     public async Task DownloadFileAsync_SubmitsOnlyExplicitCandidateReference()
     {
         var searchJobId = Guid.NewGuid();
@@ -292,6 +326,19 @@ public sealed class DesktopSearchViewModelTests
         Assert.AreEqual("api/jobs/" + searchJobId + "/downloads/folder", handler.RequestUri);
         StringAssert.Contains(handler.RequestBody, "Artist\\\\Album");
     }
+
+    private static FileCandidateDto CreateFileCandidate(int position)
+        => new(
+            new FileCandidateRefDto($"user-{position % 50:D2}", $"Music/Artist/Album/Track {position:D5}.flac"),
+            $"user-{position % 50:D2}",
+            $"Music/Artist/Album/Track {position:D5}.flac",
+            new PeerInfoDto($"user-{position % 50:D2}", HasFreeUploadSlot: position % 3 != 0, UploadSpeed: 50_000 + position),
+            30_000_000 + position,
+            900,
+            48_000,
+            210,
+            "flac",
+            [new FileAttributeDto("BitDepth", 24)]);
 
     private sealed class RecordingHandler(
         Func<HttpRequestMessage, object> responseFactory,
