@@ -279,6 +279,22 @@ public sealed class DesktopSearchViewModelTests
         StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Search.FileCandidates}\"");
         StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Search.FolderCandidates}\"");
         StringAssert.Contains(xaml, "MaxHeight=\"420\"");
+        Assert.IsTrue(
+            CountOccurrences(xaml, "<VirtualizingStackPanel />") >= 2,
+            "Search result ListBox surfaces should explicitly use virtualized item panels.");
+    }
+
+    private static int CountOccurrences(string value, string pattern)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = value.IndexOf(pattern, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += pattern.Length;
+        }
+
+        return count;
     }
 
     [TestMethod]

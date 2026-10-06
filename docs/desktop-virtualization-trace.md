@@ -1,6 +1,6 @@
 # Desktop virtualization trace checklist
 
-Sprint 15 requires a rendered UI trace before public beta. XAML and view-model tests prove that the large library, search and playlist item collections are bounded, but they do not prove rendered scroll behavior or native UI memory stability.
+Sprint 15 requires a rendered UI trace before public beta. XAML and view-model tests prove that the large library, search and playlist item collections are bounded and explicitly use virtualized item panels, but they do not prove rendered scroll behavior or native UI memory stability.
 
 ## Required trace
 

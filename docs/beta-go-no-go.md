@@ -25,7 +25,7 @@ Recorded on 2026-10-06.
 | Security reporting | Root `SECURITY.md` and GitHub issue templates route private vulnerabilities and redacted diagnostics. | Passed |
 | Windows package smoke | Sprint 14 package smoke verified legal files, SBOM, SHA256 manifest, Desktop and daemon executables and native dependencies. | Passed for Windows RC |
 | Soak stability | `SoakStabilityTests.RepeatedWorkflowSoak_DoesNotExceedMemoryGrowthBudget` exists and a one-minute harness smoke passed. The required eight-hour run is not captured. | Incomplete |
-| Rendered UI virtualization trace | `docs/desktop-virtualization-trace.md` defines the trace checklist. XAML guards prove bounded `ListBox` surfaces for large library/search/playlist lists, but a rendered UI trace is not captured. | Incomplete |
+| Rendered UI virtualization trace | `docs/desktop-virtualization-trace.md` defines the trace checklist. XAML guards prove bounded `ListBox` surfaces with explicit `VirtualizingStackPanel` panels for large library/search/playlist lists, but a rendered UI trace is not captured. | Incomplete |
 | Docker/headless smoke | Docker CLI is installed, but `docker version` cannot reach `dockerDesktopLinuxEngine` (`open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.`). | Environment-blocked |
 
 ## Required before public beta

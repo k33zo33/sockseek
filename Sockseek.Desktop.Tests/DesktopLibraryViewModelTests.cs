@@ -186,6 +186,7 @@ public sealed class DesktopLibraryViewModelTests
 
         StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Library.Tracks}\"");
         StringAssert.Contains(xaml, "MaxHeight=\"420\"");
+        StringAssert.Contains(xaml, "<VirtualizingStackPanel />");
     }
 
     private sealed class RecordingHandler(

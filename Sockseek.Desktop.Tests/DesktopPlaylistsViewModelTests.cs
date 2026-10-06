@@ -445,6 +445,7 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "IsChecked=\"{Binding IsSelected}\"");
         StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Playlists.SelectedPlaylistItems}\"");
         StringAssert.Contains(xaml, "MaxHeight=\"520\"");
+        StringAssert.Contains(xaml, "<VirtualizingStackPanel />");
     }
 
     private static void AssertRequestBodyContains(RecordingHandler handler, string pathSuffix, string expected)

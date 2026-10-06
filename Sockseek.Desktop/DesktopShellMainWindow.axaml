@@ -258,6 +258,11 @@
                        Background="Transparent"
                        BorderThickness="0"
                        SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="desktop:DesktopFileCandidateViewModel">
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
@@ -278,6 +283,11 @@
                        Background="Transparent"
                        BorderThickness="0"
                        SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="desktop:DesktopAlbumFolderViewModel">
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
@@ -444,6 +454,11 @@
                            Background="Transparent"
                            BorderThickness="0"
                            SelectionMode="Single">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="desktop:DesktopPlaylistItemViewModel">
                         <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
@@ -557,6 +572,11 @@
                        Background="Transparent"
                        BorderThickness="0"
                        SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="desktop:DesktopLibraryTrackViewModel">
                     <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
