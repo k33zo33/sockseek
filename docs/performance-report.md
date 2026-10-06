@@ -35,6 +35,24 @@ dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj `
 Remove-Item Env:\SOCKSEEK_RUN_EVENT_PROFILE
 ```
 
+Eight-hour memory soak remains opt-in and is intentionally excluded from the default suite:
+
+```powershell
+$env:SOCKSEEK_RUN_SOAK='1'
+$env:SOCKSEEK_SOAK_MINUTES='480'
+$env:SOCKSEEK_SOAK_ITEMS_PER_CYCLE='100'
+$env:SOCKSEEK_SOAK_CYCLE_DELAY_MS='30000'
+dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj `
+  -c Release `
+  --no-build `
+  --filter SoakStabilityTests `
+  --logger "console;verbosity=detailed"
+Remove-Item Env:\SOCKSEEK_RUN_SOAK
+Remove-Item Env:\SOCKSEEK_SOAK_MINUTES
+Remove-Item Env:\SOCKSEEK_SOAK_ITEMS_PER_CYCLE
+Remove-Item Env:\SOCKSEEK_SOAK_CYCLE_DELAY_MS
+```
+
 ## Latest local results
 
 Recorded on 2026-10-06:
@@ -45,9 +63,11 @@ Recorded on 2026-10-06:
 - Total test process time, including fixture generation: `1.1649 Minutes`.
 - `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopSearchViewModelTests --logger "console;verbosity=detailed"` passed; the 10k Soulseek result display mapping test completed in `151 ms`.
 - `dotnet test Sockseek.Desktop.Tests\Sockseek.Desktop.Tests.csproj -c Release --no-build --filter DesktopPlaylistsViewModelTests --logger "console;verbosity=detailed"` passed; the 10k playlist filtering test completed in `130 ms`.
+- `dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj -c Release --no-build --filter SoakStabilityTests --logger "console;verbosity=detailed"` passed as a default no-op when `SOCKSEEK_RUN_SOAK` was unset.
+- A one-minute soak harness smoke with `SOCKSEEK_RUN_SOAK=1`, `SOCKSEEK_SOAK_MINUTES=1` and `SOCKSEEK_SOAK_ITEMS_PER_CYCLE=10` passed. It completed 1,016 unthrottled cycles with peak managed heap growth `57.20 MiB` and peak private memory growth `120.26 MiB`; this validates the harness only and does not satisfy the eight-hour acceptance gate.
 
 ## Notes
 
 - These tests use in-memory SQLite and measure query/projection paths after fixture creation.
-- They do not prove an eight-hour soak run or UI memory stability; those remain separate Sprint 15 gates.
+- The one-minute soak smoke does not prove an eight-hour soak run or UI memory stability; those remain separate Sprint 15 gates.
 - The current Desktop library, search candidate and playlist item lists have bounded `ListBox` surfaces, but a rendered virtualized performance trace still needs capture before beta go/no-go.

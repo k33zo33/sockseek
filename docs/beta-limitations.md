@@ -7,6 +7,7 @@ Sockseek is not approved for public beta distribution yet. Sprint 15 currently a
 - Public beta: blocked by ADR-0009 until Soulseek compliance is resolved.
 - Closed/internal beta: allowed for packaging, performance, diagnostics, provider import and local playback validation.
 - Stable release: blocked until public beta gates, code signing/rollback decisions and cross-platform packaging decisions are complete.
+- Current Sprint 15 go/no-go evidence is tracked in `docs/beta-go-no-go.md`.
 
 ## Legal-use notice
 

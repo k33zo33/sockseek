@@ -34,6 +34,7 @@
 - [Release checklist](release-checklist.md)
 - [Package smoke](package-smoke.md)
 - [Performance report](performance-report.md)
+- [Beta go/no-go](beta-go-no-go.md)
 - [Beta limitations](beta-limitations.md)
 - [AI helper workflow](10-ai-helper-workflow.md)
 - [Codex runbook](CODEX_RUNBOOK.md)
