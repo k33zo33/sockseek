@@ -6,6 +6,7 @@ using Sockseek.Core.Settings;
 using Sockseek.Server;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 
 namespace Tests.Cli;
@@ -57,6 +58,36 @@ public class RemoteCliBackendTests
             () => client.GetProfilesAsync(CancellationToken.None));
 
         StringAssert.Contains(ex.Message, "Bad request from daemon");
+    }
+
+    [DataTestMethod]
+    [DataRow("provider_reauthorization_required", 401, "Reconnect the provider account")]
+    [DataRow("provider_forbidden", 403, "allowlist")]
+    [DataRow("provider_rate_limited", 429, "Retry later")]
+    [DataRow("provider_error", 400, "Provider request failed")]
+    public async Task SockseekApiClient_AppErrorsIncludeProviderRecoveryGuidance(
+        string code,
+        int statusCode,
+        string expectedGuidance)
+    {
+        using var http = new HttpClient(new StaticResponseHandler(new HttpResponseMessage((HttpStatusCode)statusCode)
+        {
+            Content = JsonContent.Create(new AppErrorDto(code, "Provider operation failed.", "provider-correlation")),
+        }))
+        {
+            BaseAddress = new Uri("http://127.0.0.1:5030/"),
+        };
+        var client = new SockseekApiClient(http);
+
+        var ex = await Assert.ThrowsExceptionAsync<SockseekApiRequestException>(
+            () => client.GetProviderPlaylistsAsync(Guid.NewGuid(), CancellationToken.None));
+
+        StringAssert.Contains(ex.Message, expectedGuidance);
+        StringAssert.Contains(ex.Message, code);
+        StringAssert.Contains(ex.Message, "Provider operation failed.");
+        StringAssert.Contains(ex.Message, "provider-correlation");
+        Assert.IsFalse(ex.Message.Contains("playback", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(ex.Message.Contains("download", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

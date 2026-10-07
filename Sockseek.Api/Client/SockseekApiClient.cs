@@ -793,24 +793,44 @@ public sealed class SockseekApiClient
 
     private static string? TryReadApiError(string body)
     {
+        var options = SockseekApiJson.CreateSerializerOptions();
+        var apiError = TryDeserialize<ApiErrorDto>(body, options);
+        if (!string.IsNullOrWhiteSpace(apiError?.Error))
+            return apiError.Error;
+
+        var appError = TryDeserialize<AppErrorDto>(body, options);
+        return appError != null
+            && (!string.IsNullOrWhiteSpace(appError.Code)
+                || !string.IsNullOrWhiteSpace(appError.Message)
+                || !string.IsNullOrWhiteSpace(appError.CorrelationId))
+            ? FormatAppError(appError)
+            : null;
+    }
+
+    private static T? TryDeserialize<T>(string body, JsonSerializerOptions options)
+    {
         try
         {
-            var options = SockseekApiJson.CreateSerializerOptions();
-            var appError = JsonSerializer.Deserialize<AppErrorDto>(body, options);
-            if (appError != null
-                && (!string.IsNullOrWhiteSpace(appError.Code)
-                    || !string.IsNullOrWhiteSpace(appError.Message)
-                    || !string.IsNullOrWhiteSpace(appError.CorrelationId)))
-            {
-                return $"{appError.Code}: {appError.Message} (correlationId: {appError.CorrelationId})";
-            }
-
-            return JsonSerializer.Deserialize<ApiErrorDto>(body, options)?.Error;
+            return JsonSerializer.Deserialize<T>(body, options);
         }
         catch (JsonException)
         {
-            return null;
+            return default;
         }
+    }
+
+    private static string FormatAppError(AppErrorDto appError)
+    {
+        var recovery = appError.Code switch
+        {
+            "provider_reauthorization_required" => "Reconnect the provider account, then retry.",
+            "provider_forbidden" => "Provider access is blocked by an allowlist, quota, or development-mode restriction.",
+            "provider_rate_limited" => "Provider is throttling requests. Retry later.",
+            "provider_error" => "Provider request failed.",
+            _ => string.Empty,
+        };
+        var prefix = string.IsNullOrWhiteSpace(recovery) ? string.Empty : recovery + " ";
+        return $"{prefix}{appError.Code}: {appError.Message} (correlationId: {appError.CorrelationId})";
     }
 
     private static string QueryPart(string name, string? value)
