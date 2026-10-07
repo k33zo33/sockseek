@@ -69,6 +69,10 @@ public sealed class DesktopAboutViewModel : ObservableObject
 
     public string LicenseSummary => "GNU AGPL-3.0; no warranty. Corresponding source is available from the listed source URL.";
 
+    public string ReleaseStatusSummary => "Public beta is blocked; closed/internal testing only until Soulseek compliance and beta gates are resolved.";
+
+    public string LegalUseSummary => "Users are responsible for applicable law and service terms. Only use material you are legally allowed to use; external providers are metadata/import sources only.";
+
     public string ErrorMessage
     {
         get => errorMessage;

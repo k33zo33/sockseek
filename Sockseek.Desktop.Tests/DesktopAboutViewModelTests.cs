@@ -26,6 +26,9 @@ public sealed class DesktopAboutViewModelTests
         StringAssert.Contains(viewModel.VersionSummary, "3.0.5");
         StringAssert.Contains(viewModel.VersionSummary, "abc123");
         StringAssert.Contains(viewModel.LicenseSummary, "GNU AGPL-3.0");
+        StringAssert.Contains(viewModel.ReleaseStatusSummary, "closed/internal testing");
+        StringAssert.Contains(viewModel.LegalUseSummary, "legally allowed");
+        StringAssert.Contains(viewModel.LegalUseSummary, "metadata/import sources only");
         Assert.AreEqual(string.Empty, viewModel.ErrorMessage);
         Assert.AreEqual("/api/v1/system/info", handler.RequestPath);
     }
@@ -47,6 +50,8 @@ public sealed class DesktopAboutViewModelTests
         StringAssert.Contains(xaml, "About.RefreshCommand");
         StringAssert.Contains(xaml, "About.VersionSummary");
         StringAssert.Contains(xaml, "About.LicenseSummary");
+        StringAssert.Contains(xaml, "About.ReleaseStatusSummary");
+        StringAssert.Contains(xaml, "About.LegalUseSummary");
         StringAssert.Contains(xaml, "About.SourceUrl");
         StringAssert.Contains(xaml, "About.Commit");
     }

@@ -674,6 +674,8 @@
               <TextBlock Text="{Binding About.ProductName}" FontSize="18" FontWeight="SemiBold" />
               <TextBlock Text="{Binding About.VersionSummary}" Opacity="0.8" />
               <TextBlock Text="{Binding About.LicenseSummary}" TextWrapping="Wrap" Opacity="0.8" />
+              <TextBlock Text="{Binding About.ReleaseStatusSummary}" TextWrapping="Wrap" Opacity="0.8" />
+              <TextBlock Text="{Binding About.LegalUseSummary}" TextWrapping="Wrap" Opacity="0.8" />
               <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="License" FontWeight="SemiBold" Opacity="0.75" />
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding About.License}" TextWrapping="Wrap" />
