@@ -30,6 +30,23 @@ Capture a trace on the target public-beta OS and hardware class:
    - peak private memory delta;
    - observed UI defects or "none observed".
 
+## Optional capture helper
+
+Use `scripts/capture_desktop_virtualization_trace.ps1` after the packaged Desktop process is running to collect consistent process metrics while the operator performs the rendered interaction steps.
+
+Example:
+
+```powershell
+.\scripts\capture_desktop_virtualization_trace.ps1 `
+  -Surface search `
+  -FixtureSize 10000 `
+  -DurationSeconds 180 `
+  -OutputPath artifacts\desktop-virtualization-search.md `
+  -Notes "none observed"
+```
+
+Run one capture for each required surface: `library`, `search` and `playlist`. The helper writes a Markdown report under `artifacts/` by default, which is ignored by Git; copy the summarized metrics into this document or `docs/beta-go-no-go.md` only after the trace has actually been captured on the target public-beta OS and hardware class.
+
 ## Current automated guards
 
 - `DesktopLibraryViewModelTests.LibraryTrackList_UsesBoundedListBox`
