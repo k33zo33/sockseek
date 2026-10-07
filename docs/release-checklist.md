@@ -28,6 +28,14 @@ Use this checklist before publishing any public binary, installer, package, or h
 - [ ] Packaging scripts used for the release are committed in the repo
 - [ ] If Docker/container artifacts are published, they include the same AGPL/source-link/notices expectations as other public binaries
 
+## Public beta gates
+
+- [ ] `docs/beta-go-no-go.md` says public beta is GO for the exact commit/tag being shipped
+- [ ] Soulseek compliance is resolved by an accepted ADR that allows the planned public distribution
+- [ ] Eight-hour soak evidence is captured and recorded for the release candidate
+- [ ] Rendered Desktop virtualization traces are captured for library, search and playlist surfaces
+- [ ] Target OS package smoke has passed for every artifact being published
+
 ## Product scope guardrails
 
 - [ ] No provider playback capability is exposed
