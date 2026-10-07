@@ -4,6 +4,12 @@ Sockseek is a command-line downloader and local daemon for Soulseek. Point it at
 
 This fork is being extended into **Sockseek UI**: a local-first desktop music manager, Soulseek downloader, and local audio player. External services such as Spotify, YouTube, Bandcamp, and MusicBrainz are used only for playlist import or metadata enrichment. They are **not** audio sources for the internal player, and this project does not add provider-side audio downloading.
 
+## Fork release status
+
+Sockseek UI is not approved for public beta distribution yet. Sprint 15 currently allows closed/internal testing only; see [docs/beta-go-no-go.md](docs/beta-go-no-go.md) and [docs/beta-limitations.md](docs/beta-limitations.md).
+
+The upstream release link below refers to the existing CLI project, not a Sockseek UI public beta from this fork. This README still includes legacy CLI help for compatibility. Legacy CLI options that mention external-provider downloading, such as the historical YouTube `yt-dlp` fallback, are not part of the Sockseek UI desktop beta artifact and must not be presented as supported Sockseek UI provider playback or provider downloading without a superseding ADR.
+
 This project was formerly named `sldl` (and `slsk-batchdl` before that). See [here](https://github.com/fiso64/sockseek/releases/) for why it was renamed to something dumb.
 
 ## Quick Start
