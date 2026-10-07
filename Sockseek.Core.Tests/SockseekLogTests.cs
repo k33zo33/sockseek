@@ -269,19 +269,27 @@ public class SockseekLogTests
     public async Task FileLogging_AllowsConcurrentWritesToSameLogFile()
     {
         var logPath = Path.Combine(Path.GetTempPath(), "Sockseek-logger-concurrent-" + Guid.NewGuid() + ".log");
+        var messagePrefix = "concurrent-" + Guid.NewGuid().ToString("N") + "-";
 
         try
         {
             SockseekLog.AddOrReplaceFile(logPath, LogLevel.Debug, prependDate: false, prependLogLevel: false);
 
             await Task.WhenAll(Enumerable.Range(0, 100)
-                .Select(i => Task.Run(() => SockseekLog.Debug($"message-{i}"))));
+                .Select(i => Task.Run(() => SockseekLog.Debug($"{messagePrefix}message-{i}"))));
 
             var lines = File.ReadAllLines(logPath);
-            Assert.AreEqual(100, lines.Length);
+            var expectedLines = Enumerable.Range(0, 100)
+                .Select(i => $"[tests.core] {messagePrefix}message-{i}")
+                .ToArray();
+            var matchingLines = lines
+                .Where(line => line.StartsWith($"[tests.core] {messagePrefix}", StringComparison.Ordinal))
+                .ToArray();
+
+            Assert.AreEqual(100, matchingLines.Length);
             CollectionAssert.AreEquivalent(
-                Enumerable.Range(0, 100).Select(i => $"[tests.core] message-{i}").ToArray(),
-                lines);
+                expectedLines,
+                matchingLines);
         }
         finally
         {
