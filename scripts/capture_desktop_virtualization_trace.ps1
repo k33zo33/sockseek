@@ -17,6 +17,8 @@ param(
 
     [string]$OutputPath,
 
+    [string]$SamplesCsvPath,
+
     [string]$Notes = 'none observed'
 )
 
@@ -52,14 +54,40 @@ function Get-ShortCommit {
     return 'unknown'
 }
 
+function Get-OperatingSystemDescription {
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        return "$($os.Caption) $($os.Version)"
+    }
+    catch {
+    }
+
+    try {
+        return [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+    }
+    catch {
+    }
+
+    return 'unknown'
+}
+
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $safeTimestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $OutputPath = Join-Path (Get-Location) "artifacts/desktop-virtualization-$Surface-$safeTimestamp.md"
 }
 
+if ([string]::IsNullOrWhiteSpace($SamplesCsvPath)) {
+    $SamplesCsvPath = [System.IO.Path]::ChangeExtension($OutputPath, '.samples.csv')
+}
+
 $outputDirectory = Split-Path -Parent $OutputPath
 if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
     New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
+}
+
+$samplesDirectory = Split-Path -Parent $SamplesCsvPath
+if (-not [string]::IsNullOrWhiteSpace($samplesDirectory)) {
+    New-Item -ItemType Directory -Force -Path $samplesDirectory | Out-Null
 }
 
 $processes = @(Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
@@ -89,8 +117,8 @@ while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds $SampleIntervalSeconds
 }
 
-if ($samples.Count -eq 0) {
-    throw 'No samples captured.'
+if ($samples.Count -lt 2) {
+    throw "Expected at least two samples, captured $($samples.Count). Increase DurationSeconds or lower SampleIntervalSeconds."
 }
 
 $first = $samples[0]
@@ -102,8 +130,10 @@ $privateDelta = [long]$last.PrivateBytes - [long]$first.PrivateBytes
 $workingSetDelta = [long]$last.WorkingSetBytes - [long]$first.WorkingSetBytes
 $cpuDelta = [double]$last.CpuSeconds - [double]$first.CpuSeconds
 $commit = Get-ShortCommit
-$os = Get-CimInstance Win32_OperatingSystem
+$osDescription = Get-OperatingSystemDescription
 $displayScale = 'record manually if non-default'
+
+$samples | Export-Csv -Path $SamplesCsvPath -NoTypeInformation -Encoding UTF8
 
 $report = @"
 # Desktop virtualization trace capture
@@ -118,10 +148,11 @@ Recorded on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz').
 | Surface | `$Surface` |
 | Fixture size | `$FixtureSize` |
 | Process | `$ProcessName` PID `$processId` |
-| OS | $($os.Caption) $($os.Version) |
+| OS | $osDescription |
 | Display scaling | $displayScale |
 | Duration | $DurationSeconds seconds |
 | Sample interval | $SampleIntervalSeconds seconds |
+| Raw samples | `$SamplesCsvPath` |
 
 ## Operator actions
 
@@ -153,3 +184,4 @@ This capture is evidence for `docs/desktop-virtualization-trace.md`. Public beta
 
 Set-Content -Path $OutputPath -Value $report -Encoding UTF8
 Write-Host "Wrote trace report to $OutputPath"
+Write-Host "Wrote raw samples to $SamplesCsvPath"

@@ -42,10 +42,13 @@ Example:
   -FixtureSize 10000 `
   -DurationSeconds 180 `
   -OutputPath artifacts\desktop-virtualization-search.md `
+  -SamplesCsvPath artifacts\desktop-virtualization-search.samples.csv `
   -Notes "none observed"
 ```
 
-Run one capture for each required surface: `library`, `search` and `playlist`. The helper writes a Markdown report under `artifacts/` by default, which is ignored by Git; copy the summarized metrics into this document or `docs/beta-go-no-go.md` only after the trace has actually been captured on the target public-beta OS and hardware class.
+Run one capture for each required surface: `library`, `search` and `playlist`. The helper writes a Markdown report and raw CSV samples under `artifacts/` by default, which is ignored by Git; copy the summarized metrics into this document or `docs/beta-go-no-go.md` only after the trace has actually been captured on the target public-beta OS and hardware class.
+
+If local execution policy blocks unsigned scripts, run the same command through `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\capture_desktop_virtualization_trace.ps1 ...` without changing the machine-wide policy.
 
 ## Current automated guards
 
