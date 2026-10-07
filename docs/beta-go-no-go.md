@@ -22,7 +22,7 @@ Recorded on 2026-10-06.
 | Event traffic profiling | `EventTrafficProfilingTests` passed the cancellation, matching-result completion and no-result completion profile gates. The largest recorded profile was `112` network messages and `7.71 MiB` serialized payload for the 3,000-job no-result aggregate completion path. | Passed |
 | Provider recovery UX | `docs/provider-failure-matrix.md` documents recovery paths; provider endpoint tests cover rate-limit recovery and token/error surfaces. | Passed for covered providers |
 | Release limitations | `docs/beta-limitations.md` states Spotify quota limits, Bandcamp/MusicBrainz scope and provider no-audio policy. | Passed |
-| Security reporting | Root `SECURITY.md` and GitHub issue templates route private vulnerabilities and redacted diagnostics. | Passed |
+| Security and crash reporting | Root `SECURITY.md`, `docs/diagnostics-feedback.md` and GitHub issue templates route private vulnerabilities, crash reports and redacted diagnostics. | Passed |
 | Windows package smoke | Sprint 15 package smoke for commit `f157c5b` verified Windows Desktop and daemon publish, legal files, release metadata, 126-package SBOM, staging validation, SHA256 manifest, Desktop and daemon executables and native dependencies. Local publish emitted `NU1900` warnings because NuGet vulnerability data was unavailable. | Passed for Windows RC |
 | Soak stability | `SoakStabilityTests.RepeatedWorkflowSoak_DoesNotExceedMemoryGrowthBudget` exists, supports a JSON report artifact through `SOCKSEEK_SOAK_REPORT_PATH`, caps completed in-memory workflow history, and a one-minute harness smoke passed. The required eight-hour run is not captured. | Incomplete |
 | Rendered UI virtualization trace | `docs/desktop-virtualization-trace.md` defines the trace checklist and `scripts/capture_desktop_virtualization_trace.ps1` standardizes process metric capture. XAML guards prove bounded `ListBox` surfaces with explicit `VirtualizingStackPanel` panels for large library/search/playlist lists, but a rendered UI trace is not captured. | Incomplete |
@@ -41,5 +41,5 @@ Recorded on 2026-10-06.
 - Distribute only to internal or allowlisted testers.
 - Include `docs/beta-limitations.md`, root `SECURITY.md`, `LICENSE` and `THIRD-PARTY-NOTICES`.
 - Identify the exact commit in tester instructions.
-- Ask testers to use redacted diagnostics exports and never paste tokens, OAuth codes, client secrets, Soulseek passwords or full Authorization headers.
+- Ask testers to use the `Copy diagnostics` action when it is available and never paste tokens, OAuth codes, client secrets, Soulseek passwords or full Authorization headers.
 - Do not present the build as a public beta or stable release.

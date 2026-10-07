@@ -27,6 +27,7 @@
 - [Desktop UI/UX](UI_UX.md)
 - [Security and privacy](SECURITY.md)
 - [Threat model](threat-model.md)
+- [Diagnostics and crash feedback](diagnostics-feedback.md)
 - [Configuration](CONFIGURATION.md)
 - [Docker / container workflow](docker.md)
 - [Testing and CI/CD](TESTING.md)

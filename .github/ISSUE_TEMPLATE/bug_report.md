@@ -30,7 +30,7 @@ A clear and concise description of what you expected to happen.
 
 **Diagnostics**
 
-Attach the smallest redacted diagnostics export or log excerpt that reproduces the issue. Prefer the app's diagnostics/export flow over raw logs.
+Attach the smallest redacted diagnostics text or log excerpt that reproduces the issue. Prefer the app's `Copy diagnostics` action when it is available.
 
 **Additional context**
 

@@ -35,6 +35,7 @@ External services are playlist or metadata sources only. Spotify, YouTube, Bandc
 
 ## Diagnostics for closed beta testers
 
-- Use the app diagnostics/export flow or the smallest redacted log excerpt needed to reproduce an issue.
+- Use the app `Copy diagnostics` action when it is available, or the smallest redacted crash detail or log excerpt needed to reproduce an issue.
+- Follow `docs/diagnostics-feedback.md` for crash reports, reproducible diagnostics and routing.
 - Do not paste provider tokens, OAuth codes, PKCE code verifiers, client secrets, Soulseek passwords, full Authorization headers or private playlist URLs with sensitive query parameters.
 - Report vulnerabilities privately through the process in `SECURITY.md`.
