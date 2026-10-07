@@ -102,6 +102,7 @@ public sealed class SoakStabilityTests
             peak = MemorySample.Max(peak, end);
             var managedGrowth = peak.ManagedHeapBytes - start.ManagedHeapBytes;
             var privateGrowth = peak.PrivateBytes - start.PrivateBytes;
+            var retainedWorkflowCount = supervisor.StateStore.GetWorkflows().Count;
 
             TestContext.WriteLine(
                 $"Completed {cycle} soak cycles. Start managed={FormatBytes(start.ManagedHeapBytes)}, peak managed={FormatBytes(peak.ManagedHeapBytes)}, managed growth={FormatBytes(managedGrowth)}. Start private={FormatBytes(start.PrivateBytes)}, peak private={FormatBytes(peak.PrivateBytes)}, private growth={FormatBytes(privateGrowth)}.");
@@ -114,6 +115,7 @@ public sealed class SoakStabilityTests
                     RequestedDuration: duration.ToString(),
                     ActualDuration: (completedAtUtc - startedAtUtc).ToString(),
                     CycleCount: cycle,
+                    RetainedWorkflowCount: retainedWorkflowCount,
                     ItemsPerCycle: itemsPerCycle,
                     CycleDelayMilliseconds: (int)cycleDelay.TotalMilliseconds,
                     StartManagedHeapBytes: start.ManagedHeapBytes,
@@ -270,6 +272,7 @@ public sealed class SoakStabilityTests
         string RequestedDuration,
         string ActualDuration,
         int CycleCount,
+        int RetainedWorkflowCount,
         int ItemsPerCycle,
         int CycleDelayMilliseconds,
         long StartManagedHeapBytes,

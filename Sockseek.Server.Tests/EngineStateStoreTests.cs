@@ -365,6 +365,34 @@ public class EngineStateStoreTests
     }
 
     [TestMethod]
+    public void CompletedWorkflowHistory_PrunesOldTerminalWorkflowsButKeepsActiveWorkflows()
+    {
+        var store = new EngineStateStore(maxCompletedWorkflowHistory: 2);
+
+        var first = RegisterCompletedWorkflow(store, "first");
+        var second = RegisterCompletedWorkflow(store, "second");
+        var third = RegisterCompletedWorkflow(store, "third");
+
+        Assert.IsNull(store.GetWorkflowSummary(first.WorkflowId));
+        Assert.IsNull(store.GetJobSummary(first.Id));
+        Assert.IsNotNull(store.GetWorkflowSummary(second.WorkflowId));
+        Assert.IsNotNull(store.GetWorkflowSummary(third.WorkflowId));
+        Assert.AreEqual(2, store.GetWorkflows().Count);
+
+        var active = new SongJob(new SongQuery { Title = "active" });
+        Register(store, active);
+
+        var fourth = RegisterCompletedWorkflow(store, "fourth");
+
+        Assert.IsNull(store.GetWorkflowSummary(second.WorkflowId));
+        Assert.IsNotNull(store.GetWorkflowSummary(third.WorkflowId));
+        Assert.IsNotNull(store.GetWorkflowSummary(fourth.WorkflowId));
+        Assert.IsNotNull(store.GetWorkflowSummary(active.WorkflowId));
+        Assert.AreEqual(3, store.GetWorkflows().Count);
+        Assert.AreEqual(1, store.GetStatistics().ActiveWorkflowCount);
+    }
+
+    [TestMethod]
     public void AlbumAggregatePayload_CountsProducedAlbumDescendants()
     {
         var store = new EngineStateStore();
@@ -493,6 +521,15 @@ public class EngineStateStoreTests
         typeof(EngineStateStore)
             .GetMethod("OnJobRegistered", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(store, [job, parent]);
+    }
+
+    private static SongJob RegisterCompletedWorkflow(EngineStateStore store, string title)
+    {
+        var song = new SongJob(new SongQuery { Title = title });
+        Register(store, song);
+        song.SetDone();
+        UpdateState(store, song);
+        return song;
     }
 
     private static void UpdateState(EngineStateStore store, Job job)

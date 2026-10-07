@@ -70,8 +70,8 @@ Recorded on 2026-10-06:
 - Large aggregate completion with matching results stayed within budget: `2` network messages and `167.2 KiB` serialized payload.
 - Large no-result aggregate completion stayed within budget: `112` network messages and `7.71 MiB` serialized payload.
 - `dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj -c Release --no-build --filter SoakStabilityTests --logger "console;verbosity=detailed"` passed as a default no-op when `SOCKSEEK_RUN_SOAK` was unset.
-- A one-minute soak harness smoke with `SOCKSEEK_RUN_SOAK=1`, `SOCKSEEK_SOAK_MINUTES=1`, `SOCKSEEK_SOAK_ITEMS_PER_CYCLE=10`, `SOCKSEEK_SOAK_CYCLE_DELAY_MS=0` and `SOCKSEEK_SOAK_REPORT_PATH` passed. It completed 1,053 unthrottled cycles with peak managed heap growth `59.22 MiB` and peak private memory growth `133.46 MiB`; this validates the harness/report path only and does not satisfy the eight-hour acceptance gate.
-- The soak harness supports `SOCKSEEK_SOAK_REPORT_PATH` for a JSON evidence artifact containing start/end times, cycles, peak managed/private memory, growth and configured budgets.
+- A one-minute soak harness smoke with `SOCKSEEK_RUN_SOAK=1`, `SOCKSEEK_SOAK_MINUTES=1`, `SOCKSEEK_SOAK_ITEMS_PER_CYCLE=10`, `SOCKSEEK_SOAK_CYCLE_DELAY_MS=0` and `SOCKSEEK_SOAK_REPORT_PATH` passed after completed-workflow history pruning. It completed 1,211 unthrottled cycles, retained 250 workflows, and reported peak managed heap growth `52.48 MiB` and peak private memory growth `102.69 MiB`; this validates the harness/report path only and does not satisfy the eight-hour acceptance gate.
+- The soak harness supports `SOCKSEEK_SOAK_REPORT_PATH` for a JSON evidence artifact containing start/end times, cycles, retained workflow count, peak managed/private memory, growth and configured budgets.
 
 ## Notes
 

@@ -12,9 +12,11 @@ namespace Sockseek.Server;
 public sealed class EngineStateStore
 {
     private const string IncompleteDownloadSuffix = ".incomplete";
+    private const int DefaultMaxCompletedWorkflowHistory = 250;
 
     private readonly Lock gate = new();
     private readonly Func<DateTimeOffset> utcNow;
+    private readonly int maxCompletedWorkflowHistory;
     // Keep records and workflow aggregate indexes in sync only through UpdateJobRecord.
     private readonly Dictionary<Guid, Job> jobs = [];
     private readonly Dictionary<Guid, JobRecord> records = [];
@@ -31,8 +33,12 @@ public sealed class EngineStateStore
     public event Action<WorkflowSummaryDto>? WorkflowUpserted;
     public event Action<SearchUpdatedDto>? SearchUpdated;
 
-    public EngineStateStore(Func<DateTimeOffset>? utcNow = null)
-        => this.utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+    public EngineStateStore(Func<DateTimeOffset>? utcNow = null, int maxCompletedWorkflowHistory = DefaultMaxCompletedWorkflowHistory)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxCompletedWorkflowHistory, 1);
+        this.utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+        this.maxCompletedWorkflowHistory = maxCompletedWorkflowHistory;
+    }
 
     public void AttachEngine(DownloadEngine engine)
     {
@@ -243,7 +249,7 @@ public sealed class EngineStateStore
         List<WorkflowSummaryDto> changedWorkflows;
         lock (gate)
         {
-            foreach (var job in jobs.Values.Where(IsActiveJob))
+            foreach (var job in jobs.Values.Where(IsActiveJob).ToList())
             {
                 job.Fail(JobFailureReason.Other, "Infrastructure failure: " + reason, detail);
                 infrastructureFailedJobs.Add(job.Id);
@@ -473,6 +479,12 @@ public sealed class EngineStateStore
         searchJob.Session.Completed += OnSearchCompleted;
     }
 
+    private void UnsubscribeFromSearchJob(SearchJob searchJob)
+    {
+        searchJob.Session.RawResultAdded -= OnSearchRawResultAdded;
+        searchJob.Session.Completed -= OnSearchCompleted;
+    }
+
     private void OnSearchRawResultAdded(SearchSession session, SearchRawResult rawResult)
     {
         SearchJob? searchJob;
@@ -594,6 +606,7 @@ public sealed class EngineStateStore
             BuildPayload(job));
         records[job.Id] = record;
         AddWorkflowRecord(record);
+        PruneCompletedWorkflowHistory(protectedWorkflowId: record.WorkflowId);
         return record;
     }
 
@@ -618,10 +631,71 @@ public sealed class EngineStateStore
             workflows.Remove(record.WorkflowId);
     }
 
+    private void PruneCompletedWorkflowHistory(Guid protectedWorkflowId)
+    {
+        var completedCount = workflows.Values.Count(workflow => workflow.ActiveJobCount == 0);
+        var excess = completedCount - maxCompletedWorkflowHistory;
+        if (excess <= 0)
+            return;
+
+        var pruneIds = workflows.Values
+            .Where(workflow => workflow.ActiveJobCount == 0 && workflow.WorkflowId != protectedWorkflowId)
+            .OrderBy(workflow => workflow.FirstDisplayId)
+            .Take(excess)
+            .Select(workflow => workflow.WorkflowId)
+            .ToList();
+
+        foreach (var workflowId in pruneIds)
+            RemoveWorkflow(workflowId);
+    }
+
+    private void RemoveWorkflow(Guid workflowId)
+    {
+        var jobIds = records.Values
+            .Where(record => record.WorkflowId == workflowId)
+            .Select(record => record.Id)
+            .ToHashSet();
+
+        foreach (var jobId in jobIds)
+        {
+            if (jobs.TryGetValue(jobId, out var job) && job is SearchJob searchJob)
+                UnsubscribeFromSearchJob(searchJob);
+
+            jobs.Remove(jobId);
+            records.Remove(jobId);
+            parentJobIds.Remove(jobId);
+            resultJobIds.Remove(jobId);
+            sourceJobIds.Remove(jobId);
+            infrastructureFailedJobs.Remove(jobId);
+            executionCompletedJobs.Remove(jobId);
+            songTransferStates.Remove(jobId);
+            downloadProgressSamples.Remove(jobId);
+        }
+
+        foreach (var jobId in resultJobIds
+            .Where(pair => jobIds.Contains(pair.Value))
+            .Select(pair => pair.Key)
+            .ToList())
+        {
+            resultJobIds.Remove(jobId);
+        }
+
+        foreach (var jobId in sourceJobIds
+            .Where(pair => jobIds.Contains(pair.Value))
+            .Select(pair => pair.Key)
+            .ToList())
+        {
+            sourceJobIds.Remove(jobId);
+        }
+
+        workflows.Remove(workflowId);
+    }
+
     private List<JobRecord> UpdateRecordsContainingJob(Guid jobId)
     {
         return jobs.Values
             .Where(job => ContainsNestedJob(job, jobId))
+            .ToList()
             .Select(UpdateJobRecord)
             .ToList();
     }
@@ -1153,6 +1227,7 @@ public sealed class EngineStateStore
         private readonly SortedSet<WorkflowRecordRef> itemNameJobs = new(RecordRefComparer);
 
         public int Count => allJobs.Count;
+        public Guid WorkflowId => workflowId;
         public int ActiveJobCount { get; private set; }
         public int FailedJobCount { get; private set; }
         public int CompletedJobCount { get; private set; }
