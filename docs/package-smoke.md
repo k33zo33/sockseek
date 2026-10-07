@@ -61,7 +61,19 @@ The staging command validates that the staging directory contains:
 
 The archive command creates a Windows release zip plus a SHA256 manifest for the archive and every staged file.
 
-For the Sprint 14 Windows staging smoke, the generated SBOM contained 126 packages and the staging validator passed. The staged daemon output included `e_sqlite3.dll` and `libvlc` native assets. The staged installer creates user-level install and data directories; the uninstaller preserves user data unless `-RemoveUserData` is passed.
+## Latest local smoke results
+
+Recorded on 2026-10-07 for commit `ac571a1`:
+
+- `dotnet publish Sockseek.Desktop\Sockseek.Desktop.csproj -c Release -r win-x64 --self-contained true` passed.
+- `dotnet publish Sockseek.Server\Sockseek.Server.csproj -c Release -r win-x64 --self-contained true` passed.
+- `dotnet run --project Sockseek.Packager\Sockseek.Packager.csproj -c Release -- generate-sbom ...` generated an SPDX SBOM with 126 packages.
+- `dotnet run --project Sockseek.Packager\Sockseek.Packager.csproj -c Release -- stage-windows ...` passed staging validation.
+- `dotnet run --project Sockseek.Packager\Sockseek.Packager.csproj -c Release -- archive-windows ...` created `Sockseek-win-x64.zip` and `Sockseek-win-x64.sha256`.
+- `release-metadata.json` identified version `3.0.5`, commit `ac571a1`, source URL `https://github.com/k33zo33/sockseek` and license `AGPL-3.0`.
+- The staged daemon output included `e_sqlite3.dll` and `libvlc` native assets.
+
+For the Sprint 14 Windows staging smoke, the generated SBOM contained 126 packages and the staging validator passed. The staged installer creates user-level install and data directories; the uninstaller preserves user data unless `-RemoveUserData` is passed.
 
 Clean local smoke artifacts after review:
 
@@ -75,3 +87,5 @@ Remove-Item -LiteralPath `
   .tmp\release-sbom.spdx.json `
   -Recurse -Force
 ```
+
+Sprint 15 smoke artifacts recorded above were written under `.tmp\sprint15-package-smoke-ac571a1\`, which is ignored by Git.
