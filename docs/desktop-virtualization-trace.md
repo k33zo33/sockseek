@@ -50,6 +50,8 @@ Run one capture for each required surface: `library`, `search` and `playlist`. T
 
 If local execution policy blocks unsigned scripts, run the same command through `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\capture_desktop_virtualization_trace.ps1 ...` without changing the machine-wide policy.
 
+The helper now requires the target process to have a main window by default so a headless or background process cannot be mistaken for rendered UI evidence. `-AllowHeadlessProcess` is only for validating the harness itself and does not satisfy the public-beta rendered trace gate.
+
 ## Current automated guards
 
 - `DesktopLibraryViewModelTests.LibraryTrackList_UsesBoundedListBox`

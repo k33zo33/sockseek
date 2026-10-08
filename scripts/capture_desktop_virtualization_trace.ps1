@@ -19,26 +19,35 @@ param(
 
     [string]$SamplesCsvPath,
 
-    [string]$Notes = 'none observed'
+    [string]$Notes = 'none observed',
+
+    [switch]$AllowHeadlessProcess
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Format-Bytes([long]$Value) {
-    if ($Value -ge 1GB) {
-        return ('{0:N2} GiB' -f ($Value / 1GB))
+    $sign = ''
+    $absoluteValue = $Value
+    if ($Value -lt 0) {
+        $sign = '-'
+        $absoluteValue = -$Value
     }
 
-    if ($Value -ge 1MB) {
-        return ('{0:N2} MiB' -f ($Value / 1MB))
+    if ($absoluteValue -ge 1GB) {
+        return ('{0}{1:N2} GiB' -f $sign, ($absoluteValue / 1GB))
     }
 
-    if ($Value -ge 1KB) {
-        return ('{0:N2} KiB' -f ($Value / 1KB))
+    if ($absoluteValue -ge 1MB) {
+        return ('{0}{1:N2} MiB' -f $sign, ($absoluteValue / 1MB))
     }
 
-    return "$Value B"
+    if ($absoluteValue -ge 1KB) {
+        return ('{0}{1:N2} KiB' -f $sign, ($absoluteValue / 1KB))
+    }
+
+    return "$sign$absoluteValue B"
 }
 
 function Get-ShortCommit {
@@ -96,11 +105,24 @@ if ($processes.Count -ne 1) {
 }
 
 $processId = $processes[0].Id
+$mainWindowTitle = $processes[0].MainWindowTitle
+if (-not $AllowHeadlessProcess -and $processes[0].MainWindowHandle -eq [IntPtr]::Zero) {
+    throw "Process '$ProcessName' ($processId) does not have a main window. Start the rendered packaged Desktop app, or pass -AllowHeadlessProcess only for harness validation that is not public-beta evidence."
+}
+
+$processStartTime = 'unknown'
+try {
+    $processStartTime = $processes[0].StartTime.ToString('o')
+}
+catch {
+}
+
 $startedAt = Get-Date
 $deadline = $startedAt.AddSeconds($DurationSeconds)
 $samples = New-Object System.Collections.Generic.List[object]
 
 Write-Host "Capturing $Surface virtualization trace for process $ProcessName ($processId)."
+Write-Host "Main window title: $mainWindowTitle"
 Write-Host "During capture, open the $Surface surface, scroll top-to-bottom and back, and resize the window once."
 Write-Host "Capture duration: $DurationSeconds seconds. Output: $OutputPath"
 
@@ -148,6 +170,8 @@ Recorded on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz').
 | Surface | `$Surface` |
 | Fixture size | `$FixtureSize` |
 | Process | `$ProcessName` PID `$processId` |
+| Process start time | `$processStartTime` |
+| Main window title | `$mainWindowTitle` |
 | OS | $osDescription |
 | Display scaling | $displayScale |
 | Duration | $DurationSeconds seconds |
