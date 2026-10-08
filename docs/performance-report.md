@@ -38,22 +38,14 @@ Remove-Item Env:\SOCKSEEK_RUN_EVENT_PROFILE
 Eight-hour memory soak remains opt-in and is intentionally excluded from the default suite:
 
 ```powershell
-$env:SOCKSEEK_RUN_SOAK='1'
-$env:SOCKSEEK_SOAK_MINUTES='480'
-$env:SOCKSEEK_SOAK_ITEMS_PER_CYCLE='100'
-$env:SOCKSEEK_SOAK_CYCLE_DELAY_MS='30000'
-$env:SOCKSEEK_SOAK_REPORT_PATH=(Join-Path (Get-Location) 'artifacts/sprint-15-soak-report.json')
-dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj `
-  -c Release `
-  --no-build `
-  --filter SoakStabilityTests `
-  --logger "console;verbosity=detailed"
-Remove-Item Env:\SOCKSEEK_RUN_SOAK
-Remove-Item Env:\SOCKSEEK_SOAK_MINUTES
-Remove-Item Env:\SOCKSEEK_SOAK_ITEMS_PER_CYCLE
-Remove-Item Env:\SOCKSEEK_SOAK_CYCLE_DELAY_MS
-Remove-Item Env:\SOCKSEEK_SOAK_REPORT_PATH
+.\scripts\run_sprint15_soak.ps1 `
+  -Minutes 480 `
+  -ItemsPerCycle 100 `
+  -CycleDelayMs 30000 `
+  -ReportPath artifacts\sprint-15-soak-report.json
 ```
+
+For harness smoke validation, run the same helper with `-Minutes 1 -ItemsPerCycle 10 -CycleDelayMs 0 -ReportPath artifacts\sprint-15-soak-smoke.json`. A one-minute smoke validates the harness and report path only; it does not satisfy the eight-hour acceptance gate.
 
 ## Latest local results
 
@@ -71,7 +63,8 @@ Recorded on 2026-10-06:
 - Large no-result aggregate completion stayed within budget: `112` network messages and `7.71 MiB` serialized payload.
 - `dotnet test Sockseek.Server.Tests\Sockseek.Server.Tests.csproj -c Release --no-build --filter SoakStabilityTests --logger "console;verbosity=detailed"` passed as a default no-op when `SOCKSEEK_RUN_SOAK` was unset.
 - A one-minute soak harness smoke with `SOCKSEEK_RUN_SOAK=1`, `SOCKSEEK_SOAK_MINUTES=1`, `SOCKSEEK_SOAK_ITEMS_PER_CYCLE=10`, `SOCKSEEK_SOAK_CYCLE_DELAY_MS=0` and `SOCKSEEK_SOAK_REPORT_PATH` passed after completed-workflow history pruning. It completed 1,211 unthrottled cycles, retained 250 workflows, and reported peak managed heap growth `52.48 MiB` and peak private memory growth `102.69 MiB`; this validates the harness/report path only and does not satisfy the eight-hour acceptance gate.
-- The soak harness supports `SOCKSEEK_SOAK_REPORT_PATH` for a JSON evidence artifact containing start/end times, cycles, retained workflow count, peak managed/private memory, growth and configured budgets.
+- The soak harness supports `SOCKSEEK_SOAK_REPORT_PATH` for a JSON evidence artifact containing start/end times, cycles, retained workflow count, peak managed/private memory, growth and configured budgets. Use `scripts/run_sprint15_soak.ps1` to set and restore the required environment variables consistently.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_sprint15_soak.ps1 -Minutes 1 -ItemsPerCycle 10 -CycleDelayMs 0 -ReportPath artifacts\sprint-15-soak-script-smoke-absolute.json` passed on 2026-10-07 and wrote the JSON report under the repository `artifacts\` directory. It completed 1,125 unthrottled cycles, retained 250 workflows, and reported managed heap growth `49.12 MiB` and private memory growth `99.30 MiB`; this validates the helper script and report path only and does not satisfy the eight-hour acceptance gate.
 
 ## Notes
 
