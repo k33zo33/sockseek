@@ -18,6 +18,7 @@ public sealed class SoakStabilityTests
     private const string ManagedBudgetMiBEnvVar = "SOCKSEEK_SOAK_MAX_MANAGED_GROWTH_MIB";
     private const string PrivateBudgetMiBEnvVar = "SOCKSEEK_SOAK_MAX_PRIVATE_GROWTH_MIB";
     private const string SoakReportPathEnvVar = "SOCKSEEK_SOAK_REPORT_PATH";
+    private const string SoakCommitEnvVar = "SOCKSEEK_SOAK_COMMIT";
     private const int DefaultSoakMinutes = 480;
     private const int DefaultItemsPerCycle = 100;
     private const int DefaultCycleDelayMs = 30_000;
@@ -44,6 +45,7 @@ public sealed class SoakStabilityTests
         var maxManagedGrowthBytes = MiB(ReadPositiveInt(ManagedBudgetMiBEnvVar, DefaultMaxManagedGrowthMiB));
         var maxPrivateGrowthBytes = MiB(ReadPositiveInt(PrivateBudgetMiBEnvVar, DefaultMaxPrivateGrowthMiB));
         var reportPath = Environment.GetEnvironmentVariable(SoakReportPathEnvVar);
+        var commit = Environment.GetEnvironmentVariable(SoakCommitEnvVar) ?? "unknown";
 
         string workDir = Path.Combine(Path.GetTempPath(), "Sockseek-soak-work-" + Guid.NewGuid());
         string musicRoot = Path.Combine(workDir, "music");
@@ -110,6 +112,7 @@ public sealed class SoakStabilityTests
             WriteReportIfRequested(
                 reportPath,
                 new SoakStabilityReport(
+                    Commit: commit,
                     StartedAtUtc: startedAtUtc,
                     CompletedAtUtc: completedAtUtc,
                     RequestedDuration: duration.ToString(),
@@ -267,6 +270,7 @@ public sealed class SoakStabilityTests
     }
 
     private sealed record SoakStabilityReport(
+        string Commit,
         DateTimeOffset StartedAtUtc,
         DateTimeOffset CompletedAtUtc,
         string RequestedDuration,

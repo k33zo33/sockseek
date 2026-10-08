@@ -38,6 +38,11 @@ else {
     $LogPath = [System.IO.Path]::GetFullPath($LogPath)
 }
 
+$commit = (& git rev-parse --short HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commit)) {
+    $commit = 'unknown'
+}
+
 $environmentValues = @{
     SOCKSEEK_RUN_SOAK = '1'
     SOCKSEEK_SOAK_MINUTES = $Minutes.ToString()
@@ -46,6 +51,7 @@ $environmentValues = @{
     SOCKSEEK_SOAK_MAX_MANAGED_GROWTH_MIB = $MaxManagedGrowthMiB.ToString()
     SOCKSEEK_SOAK_MAX_PRIVATE_GROWTH_MIB = $MaxPrivateGrowthMiB.ToString()
     SOCKSEEK_SOAK_REPORT_PATH = $ReportPath
+    SOCKSEEK_SOAK_COMMIT = $commit
 }
 
 $previousValues = @{}
@@ -83,6 +89,7 @@ Start-Transcript -Path $LogPath -Force | Out-Null
 $transcriptStarted = $true
 
 Write-Host "Running Sprint 15 soak gate for $Minutes minute(s)."
+Write-Host "Commit: $commit"
 Write-Host "Items per cycle: $ItemsPerCycle; cycle delay: $CycleDelayMs ms."
 Write-Host "Managed budget: $MaxManagedGrowthMiB MiB; private budget: $MaxPrivateGrowthMiB MiB."
 Write-Host "Report path: $ReportPath"
@@ -101,6 +108,7 @@ try {
     if (Test-Path -LiteralPath $ReportPath) {
         $report = Get-Content -LiteralPath $ReportPath -Raw | ConvertFrom-Json
         Write-Host "Soak report summary:"
+        Write-Host "  Commit: $($report.Commit)"
         Write-Host "  Actual duration: $($report.ActualDuration)"
         Write-Host "  Cycles: $($report.CycleCount); retained workflows: $($report.RetainedWorkflowCount)"
         Write-Host "  Managed growth: $(Format-MiB ([long]$report.ManagedHeapGrowthBytes)) / budget $(Format-MiB ([long]$report.MaxManagedHeapGrowthBytes))"
