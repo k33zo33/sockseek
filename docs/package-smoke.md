@@ -1,6 +1,14 @@
 # Package smoke
 
-Use these commands before publishing a Windows release candidate. They assume a clean worktree and run from the repository root.
+Use the Sprint 15 helper before publishing a Windows release candidate. It assumes a clean worktree and writes ignored artifacts under `.tmp\sprint15-package-smoke-<commit>\`.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_windows_package_smoke.ps1 -Force
+```
+
+The helper runs the same publish, SBOM, staging and archive steps shown below. Keep the console output and generated SHA256 manifest with the release-candidate evidence.
+
+Manual equivalent:
 
 ```powershell
 $commit = git rev-parse --short HEAD
@@ -63,14 +71,14 @@ The archive command creates a Windows release zip plus a SHA256 manifest for the
 
 ## Latest local smoke results
 
-Recorded on 2026-10-07 for commit `f157c5b`:
+Recorded on 2026-10-08 for commit `08967e1` with `scripts\run_windows_package_smoke.ps1 -Force`:
 
-- `dotnet publish Sockseek.Desktop\Sockseek.Desktop.csproj -c Release -r win-x64 --self-contained true` passed.
-- `dotnet publish Sockseek.Server\Sockseek.Server.csproj -c Release -r win-x64 --self-contained true` passed.
+- `dotnet publish Sockseek.Desktop\Sockseek.Desktop.csproj -c Release -r win-x64 --self-contained true` passed in the helper.
+- `dotnet publish Sockseek.Server\Sockseek.Server.csproj -c Release -r win-x64 --self-contained true` passed in the helper.
 - `dotnet run --project Sockseek.Packager\Sockseek.Packager.csproj -c Release -- generate-sbom ...` generated an SPDX SBOM with 126 packages.
 - `dotnet run --project Sockseek.Packager\Sockseek.Packager.csproj -c Release -- stage-windows ...` passed staging validation.
 - `dotnet run --project Sockseek.Packager\Sockseek.Packager.csproj -c Release -- archive-windows ...` created `Sockseek-win-x64.zip` and `Sockseek-win-x64.sha256`.
-- `release-metadata.json` identified version `3.0.5`, commit `f157c5b`, source URL `https://github.com/k33zo33/sockseek` and license `AGPL-3.0`.
+- `release-metadata.json` identified version `3.0.5`, commit `08967e1`, source URL `https://github.com/k33zo33/sockseek` and license `AGPL-3.0`.
 - The staged daemon output included `e_sqlite3.dll` and `libvlc` native assets.
 - Local publish emitted `NU1900` package-vulnerability-source warnings because `https://api.nuget.org/v3/index.json` was unavailable in the environment; the publish, staging validation, SBOM generation and archive creation completed.
 
@@ -89,4 +97,4 @@ Remove-Item -LiteralPath `
   -Recurse -Force
 ```
 
-Sprint 15 smoke artifacts recorded above were written under `.tmp\sprint15-package-smoke-f157c5b\`, which is ignored by Git.
+Sprint 15 smoke artifacts recorded above were written under `.tmp\sprint15-package-smoke-08967e1\`, which is ignored by Git.

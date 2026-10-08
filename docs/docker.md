@@ -74,7 +74,7 @@ The helper checks Docker engine availability, validates `docker compose config`,
 
 If the image has already been built, pass `-SkipBuild`. If only the Dockerfile path is under review and compose is intentionally unavailable, pass `-SkipComposeConfig` and record that limitation in `docs/beta-go-no-go.md`.
 
-On Windows, if Docker Desktop is installed but the Linux engine is stopped or unavailable, the helper stops at the initial `docker version` check. Start Docker Desktop and confirm the active context can reach the Linux engine before treating Docker smoke as passed.
+On Windows, if Docker Desktop is installed but the Linux engine is stopped or unavailable, the helper stops at the initial `docker version` check. Start Docker Desktop and confirm the active context can reach the Linux engine before treating Docker smoke as passed. If the UI is open but the engine still hangs, check `wsl -l -v`, `docker context ls`, `docker version` and `sc.exe query com.docker.service` from an elevated shell; Docker smoke is not passed until `docker version` returns both client and server data.
 
 If Docker Desktop reports `read-only file system` from BuildKit or Docker commands hang after a failed build, restart Docker Desktop before rerunning the helper. Keep the helper output with the beta evidence; do not treat a partial image build as a passed Docker smoke.
 
