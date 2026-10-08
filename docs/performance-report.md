@@ -42,10 +42,11 @@ Eight-hour memory soak remains opt-in and is intentionally excluded from the def
   -Minutes 480 `
   -ItemsPerCycle 100 `
   -CycleDelayMs 30000 `
-  -ReportPath artifacts\sprint-15-soak-report.json
+  -ReportPath artifacts\sprint-15-soak-report.json `
+  -LogPath artifacts\sprint-15-soak-report.log
 ```
 
-For harness smoke validation, run the same helper with `-Minutes 1 -ItemsPerCycle 10 -CycleDelayMs 0 -ReportPath artifacts\sprint-15-soak-smoke.json`. A one-minute smoke validates the harness and report path only; it does not satisfy the eight-hour acceptance gate.
+For harness smoke validation, run the same helper with `-Minutes 1 -ItemsPerCycle 10 -CycleDelayMs 0 -ReportPath artifacts\sprint-15-soak-smoke.json -LogPath artifacts\sprint-15-soak-smoke.log`. A one-minute smoke validates the harness, transcript log and report path only; it does not satisfy the eight-hour acceptance gate.
 
 ## Latest local results
 
@@ -65,6 +66,7 @@ Recorded on 2026-10-06:
 - A one-minute soak harness smoke with `SOCKSEEK_RUN_SOAK=1`, `SOCKSEEK_SOAK_MINUTES=1`, `SOCKSEEK_SOAK_ITEMS_PER_CYCLE=10`, `SOCKSEEK_SOAK_CYCLE_DELAY_MS=0` and `SOCKSEEK_SOAK_REPORT_PATH` passed after completed-workflow history pruning. It completed 1,211 unthrottled cycles, retained 250 workflows, and reported peak managed heap growth `52.48 MiB` and peak private memory growth `102.69 MiB`; this validates the harness/report path only and does not satisfy the eight-hour acceptance gate.
 - The soak harness supports `SOCKSEEK_SOAK_REPORT_PATH` for a JSON evidence artifact containing start/end times, cycles, retained workflow count, peak managed/private memory, growth and configured budgets. Use `scripts/run_sprint15_soak.ps1` to set and restore the required environment variables consistently.
 - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_sprint15_soak.ps1 -Minutes 1 -ItemsPerCycle 10 -CycleDelayMs 0 -ReportPath artifacts\sprint-15-soak-script-smoke-absolute.json` passed on 2026-10-07 and wrote the JSON report under the repository `artifacts\` directory. It completed 1,125 unthrottled cycles, retained 250 workflows, and reported managed heap growth `49.12 MiB` and private memory growth `99.30 MiB`; this validates the helper script and report path only and does not satisfy the eight-hour acceptance gate.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_sprint15_soak.ps1 -Minutes 1 -ItemsPerCycle 10 -CycleDelayMs 0 -ReportPath artifacts\sprint-15-soak-log-helper-smoke.json -LogPath artifacts\sprint-15-soak-log-helper-smoke.log` passed on 2026-10-08 and wrote both JSON and transcript evidence artifacts. It completed 1,039 unthrottled cycles, retained 250 workflows, and reported managed heap growth `45.77 MiB` and private memory growth `95.78 MiB`; this validates the helper script, summary output and log/report paths only and does not satisfy the eight-hour acceptance gate.
 
 ## Notes
 

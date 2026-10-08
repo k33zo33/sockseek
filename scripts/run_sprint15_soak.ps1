@@ -16,6 +16,8 @@ param(
 
     [string]$ReportPath = 'artifacts/sprint-15-soak-report.json',
 
+    [string]$LogPath = '',
+
     [string]$Configuration = 'Release',
 
     [bool]$NoBuild = $true
@@ -24,7 +26,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Format-MiB([long]$Bytes) {
+    return ('{0:N2} MiB' -f ($Bytes / 1MB))
+}
+
 $ReportPath = [System.IO.Path]::GetFullPath($ReportPath)
+if ([string]::IsNullOrWhiteSpace($LogPath)) {
+    $LogPath = [System.IO.Path]::ChangeExtension($ReportPath, '.log')
+}
+else {
+    $LogPath = [System.IO.Path]::GetFullPath($LogPath)
+}
 
 $environmentValues = @{
     SOCKSEEK_RUN_SOAK = '1'
@@ -46,6 +58,11 @@ if (-not [string]::IsNullOrWhiteSpace($reportDirectory)) {
     New-Item -ItemType Directory -Force -Path $reportDirectory | Out-Null
 }
 
+$logDirectory = Split-Path -Parent $LogPath
+if (-not [string]::IsNullOrWhiteSpace($logDirectory)) {
+    New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+}
+
 $arguments = @(
     'test',
     'Sockseek.Server.Tests\Sockseek.Server.Tests.csproj',
@@ -61,10 +78,15 @@ if ($NoBuild) {
     $arguments += '--no-build'
 }
 
+$transcriptStarted = $false
+Start-Transcript -Path $LogPath -Force | Out-Null
+$transcriptStarted = $true
+
 Write-Host "Running Sprint 15 soak gate for $Minutes minute(s)."
 Write-Host "Items per cycle: $ItemsPerCycle; cycle delay: $CycleDelayMs ms."
 Write-Host "Managed budget: $MaxManagedGrowthMiB MiB; private budget: $MaxPrivateGrowthMiB MiB."
 Write-Host "Report path: $ReportPath"
+Write-Host "Log path: $LogPath"
 
 try {
     foreach ($entry in $environmentValues.GetEnumerator()) {
@@ -75,9 +97,25 @@ try {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+
+    if (Test-Path -LiteralPath $ReportPath) {
+        $report = Get-Content -LiteralPath $ReportPath -Raw | ConvertFrom-Json
+        Write-Host "Soak report summary:"
+        Write-Host "  Actual duration: $($report.ActualDuration)"
+        Write-Host "  Cycles: $($report.CycleCount); retained workflows: $($report.RetainedWorkflowCount)"
+        Write-Host "  Managed growth: $(Format-MiB ([long]$report.ManagedHeapGrowthBytes)) / budget $(Format-MiB ([long]$report.MaxManagedHeapGrowthBytes))"
+        Write-Host "  Private growth: $(Format-MiB ([long]$report.PrivateGrowthBytes)) / budget $(Format-MiB ([long]$report.MaxPrivateGrowthBytes))"
+    }
+    else {
+        throw "Soak test completed but report file was not written: $ReportPath"
+    }
 }
 finally {
     foreach ($entry in $previousValues.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
+    }
+
+    if ($transcriptStarted) {
+        Stop-Transcript | Out-Null
     }
 }
