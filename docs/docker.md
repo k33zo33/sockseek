@@ -62,6 +62,20 @@ The default compose file does not publish the daemon API port. Host/LAN daemon e
 
 Because this path has not had the same release-candidate review as the desktop package, treat it as manual advanced usage rather than a polished default deployment.
 
+## Smoke test
+
+Use the Sprint 15 helper to validate the Docker/headless path on a machine with a working Docker engine:
+
+```powershell
+.\scripts\run_docker_smoke.ps1 -ImageName sockseek:sprint15-smoke
+```
+
+The helper checks Docker engine availability, validates `docker compose config`, builds the image, runs `/usr/bin/sockseek --help`, starts `/usr/bin/sockseek-daemon` in a temporary container, and waits for the loopback `/health` endpoint from inside that container.
+
+If the image has already been built, pass `-SkipBuild`. If only the Dockerfile path is under review and compose is intentionally unavailable, pass `-SkipComposeConfig` and record that limitation in `docs/beta-go-no-go.md`.
+
+On Windows, if Docker Desktop is installed but the Linux engine is stopped or unavailable, the helper stops at the initial `docker version` check. Start Docker Desktop and confirm the active context can reach the Linux engine before treating Docker smoke as passed.
+
 ## File Permissions
 
 If you are running Docker on a **Linux Host** you should specify `user:group` permissions of the user who owns the **configuration and data directory** on the host to avoid [docker file permission problems.](https://ikriv.com/blog/?p=4698) These can be specified using the [environmental variables **PUID** and **PGID**.](https://docs.linuxserver.io/general/understanding-puid-and-pgid)
