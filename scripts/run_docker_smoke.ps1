@@ -71,6 +71,8 @@ try {
     Invoke-Docker @('exec', $ContainerName, 'sh', '-c', $healthScript)
 }
 finally {
+    Write-Host "Daemon container logs:"
+    & $DockerCli logs $ContainerName 2>&1 | ForEach-Object { Write-Host $_ }
     Write-Host "Removing daemon smoke container $ContainerName."
     & $DockerCli rm -f $ContainerName | Out-Null
 }

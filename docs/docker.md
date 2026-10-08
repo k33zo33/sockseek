@@ -76,6 +76,8 @@ If the image has already been built, pass `-SkipBuild`. If only the Dockerfile p
 
 On Windows, if Docker Desktop is installed but the Linux engine is stopped or unavailable, the helper stops at the initial `docker version` check. Start Docker Desktop and confirm the active context can reach the Linux engine before treating Docker smoke as passed.
 
+If Docker Desktop reports `read-only file system` from BuildKit or Docker commands hang after a failed build, restart Docker Desktop before rerunning the helper. Keep the helper output with the beta evidence; do not treat a partial image build as a passed Docker smoke.
+
 ## File Permissions
 
 If you are running Docker on a **Linux Host** you should specify `user:group` permissions of the user who owns the **configuration and data directory** on the host to avoid [docker file permission problems.](https://ikriv.com/blog/?p=4698) These can be specified using the [environmental variables **PUID** and **PGID**.](https://docs.linuxserver.io/general/understanding-puid-and-pgid)
