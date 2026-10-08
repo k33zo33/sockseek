@@ -38,6 +38,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 
 ## Product scope guardrails
 
+- [ ] `scripts/run_provider_audio_guard.ps1` passed for the exact commit/tag being shipped
 - [ ] No provider playback capability is exposed
 - [ ] No provider audio downloading capability is exposed
 - [ ] UI language still frames Spotify/YouTube/Bandcamp/MusicBrainz as import/metadata sources only
