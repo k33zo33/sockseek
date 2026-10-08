@@ -508,8 +508,17 @@ public sealed class DesktopShellWindowViewModelTests
     private sealed class ControlledDesktopEventHubConnection : IDesktopEventHubConnection
     {
         public event Func<Exception?, Task>? Reconnecting;
-        public event Func<string?, Task>? Reconnected;
-        public event Func<Exception?, Task>? Closed;
+        public event Func<string?, Task>? Reconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public event Func<Exception?, Task>? Closed
+        {
+            add { }
+            remove { }
+        }
 
         public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
             => _ = handler;

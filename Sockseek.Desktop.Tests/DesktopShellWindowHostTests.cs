@@ -89,8 +89,17 @@ public sealed class DesktopShellWindowHostTests
 
         public DesktopBackendEventsConnectionState EventsState => DesktopBackendEventsConnectionState.Disconnected;
 
-        public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged;
-        public event EventHandler<Sockseek.Api.WorkflowUpdateBatchDto>? WorkflowUpdateBatchReceived;
+        public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<Sockseek.Api.WorkflowUpdateBatchDto>? WorkflowUpdateBatchReceived
+        {
+            add { }
+            remove { }
+        }
 
         public bool CanStartDaemon => false;
 
