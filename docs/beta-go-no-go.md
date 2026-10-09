@@ -6,7 +6,7 @@ Recorded on 2026-10-06.
 
 | Release type | Decision | Reason |
 | --- | --- | --- |
-| Public beta | NO-GO | ADR-0009 blocks public beta until Soulseek compliance coverage is resolved. The latest eight-hour soak failed before the retention fix, and the post-fix eight-hour rerun plus rendered UI virtualization trace are not yet captured. |
+| Public beta | NO-GO | ADR-0009 blocks public beta until Soulseek compliance coverage is resolved. Rendered UI virtualization trace and Docker/headless smoke remain incomplete. |
 | Closed/internal beta | CONDITIONAL GO | Closed testing can continue for packaging, provider metadata import, local library, local/progressive playback, diagnostics and performance validation when testers receive the beta limitations notice. |
 | Stable release | NO-GO | Stable release still needs public beta gates, code signing/rollback decisions and broader packaging evidence. |
 
@@ -25,19 +25,18 @@ Recorded on 2026-10-06.
 | Provider-audio scope guard | `scripts/run_provider_audio_guard.ps1` passed on 2026-10-08, scanning 428 production source files and 278 provider-boundary files for forbidden provider playback/download/audio markers while preserving legacy Core/CLI compatibility boundaries. | Passed |
 | Security and crash reporting | Root `SECURITY.md`, `docs/diagnostics-feedback.md` and GitHub issue templates route private vulnerabilities, crash reports and redacted diagnostics. | Passed |
 | Dependency vulnerability scan | `dotnet list package --vulnerable --include-transitive` passed on 2026-10-08 for commit `2a6b53a` using `https://api.nuget.org/v3/index.json`; no project reported known vulnerable packages. | Passed |
-| Full solution validation | `dotnet build -c Release` passed on 2026-10-08 after cleaning Desktop test fake-event warnings with `0 Warning(s), 0 Error(s)`. `dotnet test -c Release --no-build` passed on commit `72450b0` across all test projects: Architecture 5, Application 55, Domain 26, Packager 13, Infrastructure 74, Core 578, Player 34, CLI 258, Desktop 229 and Server 159 tests. Release build regenerated `docs/openapi.json` with no Git drift, and `scripts/run_provider_audio_guard.ps1` passed. | Passed |
+| Full solution validation | `dotnet build -c Release` passed on commit `93a8c63` with `0 Warning(s), 0 Error(s)`. `dotnet test -c Release --no-build` passed on commit `93a8c63` across all test projects: Architecture 5, Application 55, Domain 26, Packager 13, Infrastructure 74, Core 579, Player 34, CLI 258, Desktop 229 and Server 159 tests. Release build regenerated `docs/openapi.json` with no Git drift, and `scripts/run_provider_audio_guard.ps1` passed. | Passed |
 | Windows package smoke | `scripts/run_windows_package_smoke.ps1 -Force` passed for commit `e5f8efc`: Windows Desktop and daemon publish, legal files, release metadata, 126-package SBOM, staging validation, SHA256 manifest, Desktop and daemon executables and native dependencies. This run completed without `NU1900` package-vulnerability-source warnings. | Passed for Windows RC |
-| Soak stability | `SoakStabilityTests.RepeatedWorkflowSoak_DoesNotExceedMemoryGrowthBudget` exists, `scripts/run_sprint15_soak.ps1` standardizes the opt-in run, JSON report artifact and transcript log artifact. An eight-hour local run on 2026-10-09 against commit `acea78d` completed 952 cycles but failed managed heap growth at `346.93 MiB` against the `256.00 MiB` budget. Core workflow pruning is now tied to server history eviction; the post-fix three-minute retention smoke completed 427 unthrottled cycles, held retained workflows at 250 after the cap, and reported managed growth `125.33 MiB` and private growth `213.64 MiB`. The required post-fix eight-hour run is not captured. | Incomplete |
+| Soak stability | `SoakStabilityTests.RepeatedWorkflowSoak_DoesNotExceedMemoryGrowthBudget` exists, `scripts/run_sprint15_soak.ps1` standardizes the opt-in run, JSON report artifact and transcript log artifact. An eight-hour local run on 2026-10-09 against commit `acea78d` completed 952 cycles but failed managed heap growth at `346.93 MiB` against the `256.00 MiB` budget. Core workflow pruning is now tied to server history eviction; the post-fix eight-hour run on commit `93a8c63` completed 992 cycles, held retained workflows at 250 after the cap, and passed with managed growth `146.33 MiB` against the `256.00 MiB` budget and private growth `241.13 MiB` against the `512.00 MiB` budget. | Passed |
 | Rendered UI virtualization trace | `docs/desktop-virtualization-trace.md` defines the trace checklist and `scripts/capture_desktop_virtualization_trace.ps1` standardizes process metric capture. The helper now requires a rendered main window by default and its `-AllowHeadlessProcess` harness smoke passed. XAML guards prove bounded `ListBox` surfaces with explicit `VirtualizingStackPanel` panels for large library/search/playlist lists, but the required rendered Desktop traces are not captured. | Incomplete |
 | Docker/headless smoke | `scripts/run_docker_smoke.ps1` standardizes compose validation, image build, CLI help and daemon `/health` checks, and now bounds each Docker CLI command with `-DockerCommandTimeoutSeconds` so engine hangs fail with a clear timeout. Adding `.dockerignore` reduced build context from more than `3.35 GiB` to about `66 KiB`; `Dockerfile` now restores `Sockseek.HelpGenerator` and installs `vlc-libs` for daemon startup. The latest local rerun saw `desktop-linux` selected, but `docker version`/`docker info` still hung from this session; the bounded helper failed as expected after `5s` on `docker version`, and `wsl --status` returned `The file cannot be accessed by the system`. Full build/run validation remains incomplete until the Docker engine responds and the helper passes end to end. | Environment-blocked |
 
 ## Required before public beta
 
 1. Resolve ADR-0009 by either implementing the missing Soulseek compliance work or accepting a superseding decision.
-2. Run the eight-hour soak command in `docs/performance-report.md` and record the memory growth results here.
-3. Capture the rendered Desktop UI virtualization trace described in `docs/desktop-virtualization-trace.md`.
-4. Complete target OS package smoke for every public beta artifact.
-5. Update release notes with the exact commit/tag, beta limitations, legal-use notice and source availability.
+2. Capture the rendered Desktop UI virtualization trace described in `docs/desktop-virtualization-trace.md`.
+3. Complete target OS package smoke for every public beta artifact, including Docker/headless validation once the local Docker engine responds.
+4. Update release notes with the exact commit/tag, beta limitations, legal-use notice and source availability.
 
 ## Closed beta requirements
 
