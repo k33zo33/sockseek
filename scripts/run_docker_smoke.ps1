@@ -13,7 +13,9 @@ param(
     [int]$HealthTimeoutSeconds = 30,
 
     [ValidateRange(1, 3600)]
-    [int]$DockerCommandTimeoutSeconds = 300
+    [int]$DockerCommandTimeoutSeconds = 300,
+
+    [string]$DiagnosticsPath = ''
 )
 
 Set-StrictMode -Version Latest
@@ -24,11 +26,44 @@ if ([string]::IsNullOrWhiteSpace($ContainerName)) {
     $ContainerName = "sockseek-smoke-$safeSuffix"
 }
 
+$script:DiagnosticLines = New-Object System.Collections.Generic.List[string]
+
+function Add-Diagnostic {
+    param([string]$Line)
+
+    $script:DiagnosticLines.Add($Line)
+}
+
+function Save-Diagnostics {
+    if ([string]::IsNullOrWhiteSpace($DiagnosticsPath)) {
+        return
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($DiagnosticsPath)
+    $directory = Split-Path -Parent $fullPath
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+
+    Set-Content -Path $fullPath -Value $script:DiagnosticLines -Encoding UTF8
+}
+
 function Invoke-Docker {
     param(
         [Parameter(Mandatory = $true)]
-        [string[]]$Arguments
+        [string[]]$Arguments,
+
+        [switch]$AllowFailure
     )
+
+    $commandText = "$DockerCli $($Arguments -join ' ')"
+    Add-Diagnostic ""
+    Add-Diagnostic "## $commandText"
+    Add-Diagnostic ""
+    Add-Diagnostic "- Started: $((Get-Date).ToString('o'))"
+    Add-Diagnostic "- Timeout: ${DockerCommandTimeoutSeconds}s"
+    Add-Diagnostic ""
+    Add-Diagnostic '```text'
 
     $job = Start-Job -ScriptBlock {
         param(
@@ -44,7 +79,15 @@ function Invoke-Docker {
     try {
         if (-not (Wait-Job -Job $job -Timeout $DockerCommandTimeoutSeconds)) {
             Stop-Job -Job $job
-            throw "Docker command timed out after ${DockerCommandTimeoutSeconds}s: $DockerCli $($Arguments -join ' ')"
+            Add-Diagnostic "TIMEOUT after ${DockerCommandTimeoutSeconds}s"
+            Add-Diagnostic '```'
+            Save-Diagnostics
+            if ($AllowFailure) {
+                Write-Host "Docker command timed out after ${DockerCommandTimeoutSeconds}s: $commandText"
+                return $false
+            }
+
+            throw "Docker command timed out after ${DockerCommandTimeoutSeconds}s: $commandText"
         }
 
         foreach ($item in Receive-Job -Job $job) {
@@ -54,20 +97,56 @@ function Invoke-Docker {
             }
 
             Write-Host $item
+            Add-Diagnostic ([string]$item)
         }
 
         if ($null -eq $exitCode) {
-            throw "Docker command did not report an exit code: $DockerCli $($Arguments -join ' ')"
+            Add-Diagnostic '```'
+            Add-Diagnostic ""
+            Add-Diagnostic "- Exit code: missing"
+            Save-Diagnostics
+            if ($AllowFailure) {
+                Write-Host "Docker command did not report an exit code: $commandText"
+                return $false
+            }
+
+            throw "Docker command did not report an exit code: $commandText"
         }
     }
     finally {
         Remove-Job -Job $job -Force
     }
 
+    Add-Diagnostic '```'
+    Add-Diagnostic ""
+    Add-Diagnostic "- Exit code: $exitCode"
+    Save-Diagnostics
+
     if ($exitCode -ne 0) {
-        throw "Docker command failed with exit code ${exitCode}: $DockerCli $($Arguments -join ' ')"
+        if ($AllowFailure) {
+            Write-Host "Docker command failed with exit code ${exitCode}: $commandText"
+            return $false
+        }
+
+        throw "Docker command failed with exit code ${exitCode}: $commandText"
     }
+
+    return $true
 }
+
+Add-Diagnostic "# Docker smoke diagnostics"
+Add-Diagnostic ""
+Add-Diagnostic "- Generated: $((Get-Date).ToString('o'))"
+Add-Diagnostic "- Image: $ImageName"
+Add-Diagnostic "- Container: $ContainerName"
+Add-Diagnostic "- Docker CLI: $DockerCli"
+Add-Diagnostic "- Working directory: $((Get-Location).Path)"
+Add-Diagnostic "- Windows user: $(& whoami)"
+Add-Diagnostic "- PowerShell: $($PSVersionTable.PSVersion)"
+Save-Diagnostics
+
+Write-Host "Capturing Docker context."
+Invoke-Docker @('context', 'ls') -AllowFailure | Out-Null
 
 Write-Host "Checking Docker engine availability."
 Invoke-Docker @('version')
@@ -108,9 +187,10 @@ try {
 }
 finally {
     Write-Host "Daemon container logs:"
-    & $DockerCli logs $ContainerName 2>&1 | ForEach-Object { Write-Host $_ }
+    Invoke-Docker @('logs', $ContainerName) -AllowFailure | Out-Null
     Write-Host "Removing daemon smoke container $ContainerName."
-    & $DockerCli rm -f $ContainerName | Out-Null
+    Invoke-Docker @('rm', '-f', $ContainerName) -AllowFailure | Out-Null
 }
 
 Write-Host "Docker smoke completed successfully for $ImageName."
+Save-Diagnostics
