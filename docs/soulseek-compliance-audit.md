@@ -26,7 +26,7 @@ The Terms of Use also place responsibility on users to obey intellectual-propert
 | Upload / sharing | Not implemented or verified as a first-class desktop/daemon feature. | High; explicitly listed in Soulseek rules. |
 | Chat | Not implemented. | High; explicitly listed in Soulseek rules. |
 | Privileges | Not implemented or verified as a visible/respected feature. | High; explicitly listed in Soulseek rules. |
-| Legal-use guidance | Present in planning docs; not yet a polished beta onboarding/release-note surface. | Medium; required before any external beta. |
+| Legal-use guidance | Present in Desktop About/License surface, `docs/beta-limitations.md`, generated closed-beta tester instructions and staged Windows package notices. | Low for closed/internal beta; re-review exact public release notes before any public beta. |
 
 ## Decision summary
 
@@ -43,6 +43,6 @@ The corresponding ADR is `docs/adr/0009-closed-beta-until-soulseek-compliance.md
 ## Required follow-up before public beta
 
 - Decide whether to implement wishlist, upload/sharing, chat and privilege recognition in scope.
-- Add user-facing legal-use and user-responsibility messaging to onboarding/release notes.
+- Re-review user-facing legal-use and user-responsibility messaging in onboarding, About/License and release notes for the exact public beta artifact.
 - Add feature/compliance tests or manual smoke checklist for every Soulseek feature claim.
 - Re-review Soulseek rules and Terms of Use before tagging any public beta.
