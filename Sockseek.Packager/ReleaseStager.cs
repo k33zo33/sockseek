@@ -20,6 +20,8 @@ public static class ReleaseStager
         RequireDirectory(daemonPublishDirectory, "Daemon publish directory", errors);
         RequireFile(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "LICENSE", errors);
         RequireFile(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "THIRD-PARTY-NOTICES", errors);
+        RequireFile(Path.Combine(repoRoot, ReleaseArtifactValidator.SecurityFileName), "SECURITY.md", errors);
+        RequireFile(Path.Combine(repoRoot, ReleaseArtifactValidator.BetaLimitationsFileName), "docs/beta-limitations.md", errors);
         RequireFile(Path.Combine(desktopPublishDirectory, request.DesktopExecutableName), "Desktop executable", errors);
         RequireFile(Path.Combine(daemonPublishDirectory, request.DaemonExecutableName), "Daemon executable", errors);
         RequireFile(sbomPath, "SBOM", errors);
@@ -42,8 +44,10 @@ public static class ReleaseStager
         Directory.CreateDirectory(daemonStagingDirectory);
         CopyDirectory(daemonPublishDirectory, daemonStagingDirectory);
 
-        File.Copy(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), Path.Combine(stagingDirectory, ReleaseArtifactValidator.LicenseFileName), overwrite: true);
-        File.Copy(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), Path.Combine(stagingDirectory, ReleaseArtifactValidator.ThirdPartyNoticesFileName), overwrite: true);
+        CopyFile(repoRoot, stagingDirectory, ReleaseArtifactValidator.LicenseFileName);
+        CopyFile(repoRoot, stagingDirectory, ReleaseArtifactValidator.ThirdPartyNoticesFileName);
+        CopyFile(repoRoot, stagingDirectory, ReleaseArtifactValidator.SecurityFileName);
+        CopyFile(repoRoot, stagingDirectory, ReleaseArtifactValidator.BetaLimitationsFileName);
         File.Copy(sbomPath, Path.Combine(stagingDirectory, ReleaseArtifactValidator.SbomFileName), overwrite: true);
         File.WriteAllText(Path.Combine(stagingDirectory, ReleaseArtifactValidator.WindowsInstallerFileName), WindowsInstallScript);
         File.WriteAllText(Path.Combine(stagingDirectory, ReleaseArtifactValidator.WindowsUninstallerFileName), WindowsUninstallScript);
@@ -94,6 +98,13 @@ public static class ReleaseStager
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             File.Copy(file, destinationPath, overwrite: true);
         }
+    }
+
+    private static void CopyFile(string sourceRoot, string destinationRoot, string relativePath)
+    {
+        string destinationPath = Path.Combine(destinationRoot, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        File.Copy(Path.Combine(sourceRoot, relativePath), destinationPath, overwrite: true);
     }
 
     private static bool IsSameOrUnderDirectory(string directory, string path)

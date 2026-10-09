@@ -6,6 +6,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 
 - [ ] Root `LICENSE` is included unchanged in the release artifact or installer payload
 - [ ] Root `THIRD-PARTY-NOTICES` (or a more complete release-specific equivalent) is included in the release artifact or linked from the installer/app
+- [ ] Root `SECURITY.md` is included in the release artifact or tester package
 - [ ] The product exposes the exact source URL for the released build
 - [ ] The exact corresponding source is available to users for the released build
 - [ ] A source tag matching the public release has been created and pushed
@@ -19,7 +20,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 - [ ] The release notes or artifact metadata identify the exact commit/tag being shipped
 - [ ] Release artifact includes an SPDX SBOM at `sbom.spdx.json`
 - [ ] Release artifact has a SHA256 manifest for internal verification
-- [ ] Release notes include beta limitations and legal-use notice
+- [ ] Release artifact or tester package includes `docs/beta-limitations.md` with beta limitations and legal-use notice
 
 ## Security / packaging
 

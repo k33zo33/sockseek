@@ -20,8 +20,7 @@ public sealed class ReleaseStagerTests
         Directory.CreateDirectory(daemonPublish);
         Directory.CreateDirectory(Path.Combine(daemonPublish, "native"));
 
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteRequiredRepoArtifacts(repoRoot);
         File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop.exe"), "desktop");
         File.WriteAllText(Path.Combine(desktopPublish, "Avalonia.dll"), "desktop dependency");
         File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server.exe"), "daemon");
@@ -48,6 +47,8 @@ public sealed class ReleaseStagerTests
         Assert.IsTrue(File.Exists(Path.Combine(staging, "daemon", "native", "e_sqlite3.dll")));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.LicenseFileName)));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.ThirdPartyNoticesFileName)));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.SecurityFileName)));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.BetaLimitationsFileName)));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.SbomFileName)));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.MetadataFileName)));
         Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.WindowsInstallerFileName)));
@@ -95,8 +96,7 @@ public sealed class ReleaseStagerTests
         Directory.CreateDirectory(repoRoot);
         Directory.CreateDirectory(desktopPublish);
         Directory.CreateDirectory(daemonPublish);
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteRequiredRepoArtifacts(repoRoot);
         File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop.exe"), "desktop");
         File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server.exe"), "daemon");
         string sbomPath = Path.Combine(temp.Path, "sbom.spdx.json");
@@ -135,8 +135,7 @@ public sealed class ReleaseStagerTests
         Directory.CreateDirectory(repoRoot);
         Directory.CreateDirectory(desktopPublish);
         Directory.CreateDirectory(daemonPublish);
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteRequiredRepoArtifacts(repoRoot);
         File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop.exe"), "desktop");
         File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server.exe"), "daemon");
         string sbomPath = Path.Combine(temp.Path, "sbom.spdx.json");
@@ -252,8 +251,7 @@ public sealed class ReleaseStagerTests
         Directory.CreateDirectory(repoRoot);
         Directory.CreateDirectory(desktopPublish);
         Directory.CreateDirectory(daemonPublish);
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
-        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        WriteRequiredRepoArtifacts(repoRoot);
         File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop.exe"), "desktop");
         File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server.exe"), "daemon");
         string sbomPath = Path.Combine(temp.Path, "sbom.spdx.json");
@@ -291,6 +289,15 @@ public sealed class ReleaseStagerTests
               ]
             }
             """);
+    }
+
+    private static void WriteRequiredRepoArtifacts(string repoRoot)
+    {
+        Directory.CreateDirectory(Path.Combine(repoRoot, "docs"));
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.LicenseFileName), "GNU AGPL-3.0");
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.ThirdPartyNoticesFileName), "notices");
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.SecurityFileName), "security");
+        File.WriteAllText(Path.Combine(repoRoot, ReleaseArtifactValidator.BetaLimitationsFileName), "beta limitations");
     }
 
     private static void RunPowerShellScript(string scriptPath, params string[] arguments)

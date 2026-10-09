@@ -6,6 +6,8 @@ public static class ReleaseArtifactValidator
 {
     public const string LicenseFileName = "LICENSE";
     public const string ThirdPartyNoticesFileName = "THIRD-PARTY-NOTICES";
+    public const string SecurityFileName = "SECURITY.md";
+    public const string BetaLimitationsFileName = "docs/beta-limitations.md";
     public const string MetadataFileName = "release-metadata.json";
     public const string SbomFileName = "sbom.spdx.json";
     public const string WindowsInstallerFileName = "install.ps1";
@@ -30,6 +32,8 @@ public static class ReleaseArtifactValidator
 
         RequireFile(fullStagingDirectory, LicenseFileName, errors);
         RequireFile(fullStagingDirectory, ThirdPartyNoticesFileName, errors);
+        RequireFile(fullStagingDirectory, SecurityFileName, errors);
+        RequireFile(fullStagingDirectory, BetaLimitationsFileName, errors);
         RequireFile(fullStagingDirectory, desktopExecutableName, errors);
         RequireFile(fullStagingDirectory, daemonExecutableName, errors);
         RequireFile(fullStagingDirectory, WindowsInstallerFileName, errors);
