@@ -10,7 +10,10 @@ param(
     [switch]$SkipComposeConfig,
 
     [ValidateRange(1, 120)]
-    [int]$HealthTimeoutSeconds = 30
+    [int]$HealthTimeoutSeconds = 30,
+
+    [ValidateRange(1, 3600)]
+    [int]$DockerCommandTimeoutSeconds = 300
 )
 
 Set-StrictMode -Version Latest
@@ -27,9 +30,42 @@ function Invoke-Docker {
         [string[]]$Arguments
     )
 
-    & $DockerCli @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker command failed with exit code ${LASTEXITCODE}: $DockerCli $($Arguments -join ' ')"
+    $job = Start-Job -ScriptBlock {
+        param(
+            [string]$DockerCli,
+            [string[]]$Arguments
+        )
+
+        & $DockerCli @Arguments 2>&1 | ForEach-Object { $_ }
+        [pscustomobject]@{ __SockseekDockerExitCode = $LASTEXITCODE }
+    } -ArgumentList $DockerCli, $Arguments
+
+    $exitCode = $null
+    try {
+        if (-not (Wait-Job -Job $job -Timeout $DockerCommandTimeoutSeconds)) {
+            Stop-Job -Job $job
+            throw "Docker command timed out after ${DockerCommandTimeoutSeconds}s: $DockerCli $($Arguments -join ' ')"
+        }
+
+        foreach ($item in Receive-Job -Job $job) {
+            if ($item.PSObject.Properties.Name -contains '__SockseekDockerExitCode') {
+                $exitCode = [int]$item.__SockseekDockerExitCode
+                continue
+            }
+
+            Write-Host $item
+        }
+
+        if ($null -eq $exitCode) {
+            throw "Docker command did not report an exit code: $DockerCli $($Arguments -join ' ')"
+        }
+    }
+    finally {
+        Remove-Job -Job $job -Force
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Docker command failed with exit code ${exitCode}: $DockerCli $($Arguments -join ' ')"
     }
 }
 
