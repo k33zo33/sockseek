@@ -35,6 +35,15 @@ External services are playlist or metadata sources only. Spotify, YouTube, Bandc
 
 ## Diagnostics for closed beta testers
 
+Generate per-build tester instructions with the exact commit, source URL, legal-use notice, limitations and redaction guidance before sharing a closed/internal beta build:
+
+```powershell
+.\scripts\write_closed_beta_tester_instructions.ps1 `
+  -ArtifactName "Sockseek Windows closed beta" `
+  -Version "3.0.5" `
+  -OutputPath artifacts\closed-beta-tester-instructions.md
+```
+
 - Use the app `Copy diagnostics` action when it is available, or the smallest redacted crash detail or log excerpt needed to reproduce an issue.
 - Follow `docs/diagnostics-feedback.md` for crash reports, reproducible diagnostics and routing.
 - Do not paste provider tokens, OAuth codes, PKCE code verifiers, client secrets, Soulseek passwords, full Authorization headers or private playlist URLs with sensitive query parameters.

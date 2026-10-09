@@ -21,7 +21,7 @@ Recorded on 2026-10-06.
 | Desktop playlist filtering | `DesktopPlaylistsViewModelTests.SelectedPlaylistItems_FiltersTenThousandItemsWithinBudget` passed in `130 ms`. | Passed |
 | Event traffic profiling | `EventTrafficProfilingTests` passed the cancellation, matching-result completion and no-result completion profile gates. The largest recorded profile was `112` network messages and `7.71 MiB` serialized payload for the 3,000-job no-result aggregate completion path. | Passed |
 | Provider recovery UX | `docs/provider-failure-matrix.md` documents recovery paths; provider endpoint tests cover rate-limit recovery and token/error surfaces. | Passed for covered providers |
-| Release limitations | `docs/beta-limitations.md` states Spotify quota limits, Bandcamp/MusicBrainz scope and provider no-audio policy. | Passed |
+| Release limitations | `docs/beta-limitations.md` states Spotify quota limits, Bandcamp/MusicBrainz scope and provider no-audio policy. `scripts/write_closed_beta_tester_instructions.ps1` generates per-build closed/internal beta tester instructions with exact commit/source, legal-use notice, limitations and diagnostics redaction guidance. | Passed |
 | Provider-audio scope guard | `scripts/run_provider_audio_guard.ps1` passed on 2026-10-08, scanning 428 production source files and 278 provider-boundary files for forbidden provider playback/download/audio markers while preserving legacy Core/CLI compatibility boundaries. | Passed |
 | Security and crash reporting | Root `SECURITY.md`, `docs/diagnostics-feedback.md` and GitHub issue templates route private vulnerabilities, crash reports and redacted diagnostics. | Passed |
 | Dependency vulnerability scan | `dotnet list package --vulnerable --include-transitive` passed on 2026-10-08 for commit `2a6b53a` using `https://api.nuget.org/v3/index.json`; no project reported known vulnerable packages. | Passed |
@@ -42,6 +42,6 @@ Recorded on 2026-10-06.
 
 - Distribute only to internal or allowlisted testers.
 - Include `docs/beta-limitations.md`, root `SECURITY.md`, `LICENSE` and `THIRD-PARTY-NOTICES`.
-- Identify the exact commit in tester instructions.
+- Identify the exact commit in tester instructions; use `scripts/write_closed_beta_tester_instructions.ps1` for reproducible per-build instructions.
 - Ask testers to use the `Copy diagnostics` action when it is available and never paste tokens, OAuth codes, client secrets, Soulseek passwords or full Authorization headers.
 - Do not present the build as a public beta or stable release.
