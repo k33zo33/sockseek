@@ -53,6 +53,20 @@ public class DownloadEngine : IDisposable, IAsyncDisposable
     public Job? GetJob(int displayId) => _jobs.GetJob(displayId);
     public IReadOnlyList<Job> GetJobsByWorkflow(Guid workflowId) => _jobs.GetJobsByWorkflow(workflowId);
 
+    public bool PruneTerminalWorkflow(Guid workflowId)
+    {
+        if (!_jobs.TryRemoveTerminalWorkflow(workflowId, out var removedJobs))
+            return false;
+
+        var removedIds = removedJobs.Select(job => job.Id).ToHashSet();
+        Queue.Jobs.RemoveAll(job => job.WorkflowId == workflowId);
+        _contexts.Remove(removedIds);
+        _manualSelections.RemoveWorkflowJobs(removedIds);
+        _autoProfiles.RemoveWorkflow(workflowId);
+        _musicDirectoryIndexBuildLoggedByWorkflow.TryRemove(workflowId, out _);
+        return true;
+    }
+
     public bool TryNextCandidate(Guid jobId)
     {
         var job = _commandTargets.Resolve(jobId);
@@ -276,6 +290,7 @@ public class DownloadEngine : IDisposable, IAsyncDisposable
     public async Task RunAsync(CancellationToken ct)
     {
         var rootTasks = new List<Task>();
+        var rootTasksGate = new object();
 
         SockseekLog.Jobs.Trace("RunAsync: Starting to read from job channel.");
         await foreach (var queuedJob in _jobQueue.ReadAllAsync(ct))
@@ -303,11 +318,29 @@ public class DownloadEngine : IDisposable, IAsyncDisposable
                 await _runtime.EnsureServicesInitializedAsync(ct, AutomaticStaleChecksEnabled);
             }
 
-            rootTasks.Add(_orchestrator.ProcessRootJob(rootJob));
+            var rootTask = _orchestrator.ProcessRootJob(rootJob);
+            lock (rootTasksGate)
+                rootTasks.Add(rootTask);
+
+            _ = rootTask.ContinueWith(
+                completedTask =>
+                {
+                    if (completedTask.IsFaulted)
+                        return;
+
+                    lock (rootTasksGate)
+                        rootTasks.Remove(completedTask);
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         SockseekLog.Jobs.Trace("RunAsync: Channel fully drained. Waiting for rootTasks to complete.");
-        await Task.WhenAll(rootTasks);
+        Task[] remainingRootTasks;
+        lock (rootTasksGate)
+            remainingRootTasks = rootTasks.ToArray();
+        await Task.WhenAll(remainingRootTasks);
         SockseekLog.Jobs.Trace("RunAsync: All rootTasks completed.");
 
         CleanupEmptyStagingDirectories();

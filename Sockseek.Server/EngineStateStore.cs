@@ -32,6 +32,7 @@ public sealed class EngineStateStore
     public event Action<JobSummaryDto>? JobUpserted;
     public event Action<WorkflowSummaryDto>? WorkflowUpserted;
     public event Action<SearchUpdatedDto>? SearchUpdated;
+    public event Action<Guid>? WorkflowPruned;
 
     public EngineStateStore(Func<DateTimeOffset>? utcNow = null, int maxCompletedWorkflowHistory = DefaultMaxCompletedWorkflowHistory)
     {
@@ -689,6 +690,7 @@ public sealed class EngineStateStore
         }
 
         workflows.Remove(workflowId);
+        WorkflowPruned?.Invoke(workflowId);
     }
 
     private List<JobRecord> UpdateRecordsContainingJob(Guid jobId)

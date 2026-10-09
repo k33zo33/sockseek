@@ -94,6 +94,9 @@ internal sealed class AutoProfileWorkflowReporter
             events.RaiseWorkflowMessage(rootJob.WorkflowId, LogLevel.Debug, null, $"Auto profiles applied: {summary}");
     }
 
+    public void RemoveWorkflow(Guid workflowId)
+        => stateByWorkflow.TryRemove(workflowId, out _);
+
     private static IEnumerable<Job> EnumerateAutoProfileLogJobs(Job root)
     {
         yield return root;

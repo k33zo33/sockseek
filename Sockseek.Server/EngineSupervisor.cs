@@ -46,6 +46,7 @@ public sealed class EngineSupervisor
         jobSettingsResolver = new ServerJobSettingsResolver(defaultDownloadSettings, profileCatalog, this.options.LaunchDownloadSettings, pathContext);
 
         StateStore = new EngineStateStore();
+        StateStore.WorkflowPruned += OnStateStoreWorkflowPruned;
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -726,6 +727,15 @@ public sealed class EngineSupervisor
             currentEngine = engine;
         EngineCreated?.Invoke(engine);
         return (engine, clientManager);
+    }
+
+    private void OnStateStoreWorkflowPruned(Guid workflowId)
+    {
+        DownloadEngine? engine;
+        lock (engineGate)
+            engine = currentEngine;
+
+        engine?.PruneTerminalWorkflow(workflowId);
     }
 
     private ConcurrentDictionary<string, int> GetCurrentEngineUserSuccessCounts()

@@ -20,4 +20,10 @@ internal sealed class DownloadJobContextStore
 
     public bool TryGetValue(Guid jobId, out JobContext context)
         => contexts.TryGetValue(jobId, out context!);
+
+    public void Remove(IEnumerable<Guid> jobIds)
+    {
+        foreach (var jobId in jobIds)
+            contexts.TryRemove(jobId, out _);
+    }
 }

@@ -26,6 +26,31 @@ internal sealed class DownloadJobTracker
         .OrderBy(job => job.DisplayId)
         .ToList();
 
+    public bool TryRemoveTerminalWorkflow(Guid workflowId, out IReadOnlyList<Job> removedJobs)
+    {
+        var workflowJobs = GetJobsByWorkflow(workflowId);
+        if (workflowJobs.Count == 0)
+        {
+            removedJobs = [];
+            return false;
+        }
+
+        if (workflowJobs.Any(job => !job.IsTerminal))
+        {
+            removedJobs = [];
+            return false;
+        }
+
+        foreach (var job in workflowJobs)
+        {
+            jobsById.TryRemove(job.Id, out _);
+            jobsByDisplayId.TryRemove(job.DisplayId, out _);
+        }
+
+        removedJobs = workflowJobs;
+        return true;
+    }
+
     public void Register(Job job, Job? parent)
     {
         job.EnsureDisplayId();

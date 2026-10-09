@@ -358,6 +358,51 @@ namespace Tests.Cancellation
         }
 
         [TestMethod]
+        public async Task PruneTerminalWorkflow_RemovesCompletedWorkflowRuntimeState()
+        {
+            var workflowId = Guid.NewGuid();
+            var retainedWorkflowId = Guid.NewGuid();
+            var outputDir = Path.Combine(Path.GetTempPath(), "slsk-workflow-prune-" + Guid.NewGuid());
+            System.IO.Directory.CreateDirectory(outputDir);
+
+            try
+            {
+                var eng = new EngineSettings { Username = "u", Password = "p" };
+                var dl = new DownloadSettings();
+                dl.Output.ParentDir = outputDir;
+
+                var clientManager = TestHelpers.CreateMockClientManager(
+                    new ClientTests.MockSoulseekClient(TestHelpers.CreateTestIndex()),
+                    eng);
+                var engine = new DownloadEngine(eng, clientManager);
+
+                var pruned = new SongJob(new SongQuery { Artist = "testartist", Title = "testsong" }) { WorkflowId = workflowId };
+                var retained = new SongJob(new SongQuery { Artist = "testartist", Title = "testsong2" }) { WorkflowId = retainedWorkflowId };
+
+                engine.Enqueue(pruned, dl);
+                engine.Enqueue(retained, dl);
+                engine.CompleteEnqueue();
+
+                await engine.RunAsync(CancellationToken.None);
+
+                Assert.IsTrue(engine.PruneTerminalWorkflow(workflowId));
+                Assert.AreEqual(0, engine.GetJobsByWorkflow(workflowId).Count);
+                Assert.IsNull(engine.GetJob(pruned.Id));
+                Assert.IsFalse(engine.Queue.Jobs.Any(job => job.WorkflowId == workflowId));
+
+                CollectionAssert.AreEqual(
+                    new[] { retained },
+                    engine.GetJobsByWorkflow(retainedWorkflowId).ToArray(),
+                    "Pruning one completed workflow must not remove retained workflow jobs.");
+            }
+            finally
+            {
+                if (System.IO.Directory.Exists(outputDir))
+                    System.IO.Directory.Delete(outputDir, recursive: true);
+            }
+        }
+
+        [TestMethod]
         public async Task CancelWorkflow_CancelsOnlyMatchingWorkflowJobs()
         {
             var workflowId = Guid.NewGuid();

@@ -368,6 +368,8 @@ public class EngineStateStoreTests
     public void CompletedWorkflowHistory_PrunesOldTerminalWorkflowsButKeepsActiveWorkflows()
     {
         var store = new EngineStateStore(maxCompletedWorkflowHistory: 2);
+        var prunedWorkflowIds = new List<Guid>();
+        store.WorkflowPruned += prunedWorkflowIds.Add;
 
         var first = RegisterCompletedWorkflow(store, "first");
         var second = RegisterCompletedWorkflow(store, "second");
@@ -375,6 +377,7 @@ public class EngineStateStoreTests
 
         Assert.IsNull(store.GetWorkflowSummary(first.WorkflowId));
         Assert.IsNull(store.GetJobSummary(first.Id));
+        CollectionAssert.Contains(prunedWorkflowIds, first.WorkflowId);
         Assert.IsNotNull(store.GetWorkflowSummary(second.WorkflowId));
         Assert.IsNotNull(store.GetWorkflowSummary(third.WorkflowId));
         Assert.AreEqual(2, store.GetWorkflows().Count);
@@ -385,6 +388,7 @@ public class EngineStateStoreTests
         var fourth = RegisterCompletedWorkflow(store, "fourth");
 
         Assert.IsNull(store.GetWorkflowSummary(second.WorkflowId));
+        CollectionAssert.Contains(prunedWorkflowIds, second.WorkflowId);
         Assert.IsNotNull(store.GetWorkflowSummary(third.WorkflowId));
         Assert.IsNotNull(store.GetWorkflowSummary(fourth.WorkflowId));
         Assert.IsNotNull(store.GetWorkflowSummary(active.WorkflowId));

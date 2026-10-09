@@ -106,6 +106,18 @@ internal sealed class ManualSelectionCoordinator
         }
     }
 
+    public void RemoveWorkflowJobs(IReadOnlySet<Guid> jobIds)
+    {
+        foreach (var jobId in jobIds)
+            closedAggregateSelections.TryRemove(jobId, out _);
+
+        foreach (var pair in aggregateParentByAlbumId.ToArray())
+        {
+            if (jobIds.Contains(pair.Key) || jobIds.Contains(pair.Value))
+                aggregateParentByAlbumId.TryRemove(pair.Key, out _);
+        }
+    }
+
     private void StartExistingAlbumSelection(AlbumJob albumJob, AlbumFolder selectedFolder, Action<AlbumJob>? configureSelection)
     {
         albumJob.ClearFailure();
