@@ -29,9 +29,9 @@ External services are playlist or metadata sources only. Spotify, YouTube, Bandc
 
 - Windows release-candidate packaging is internally verified with legal artifacts, SBOM and SHA256 manifest.
 - The Windows installer is currently script-based PowerShell, not a signed MSI/MSIX.
-- Docker is a secondary headless path and was not fully smoke-tested locally because Docker Desktop's engine was unavailable.
+- Docker is a secondary headless path and was not fully smoke-tested locally because Docker Desktop's engine did not respond from the validation session. The Docker smoke helper now fails hung Docker CLI commands with a bounded timeout instead of blocking indefinitely.
 - Linux desktop packaging is not complete; the current native media package path is Windows-focused.
-- Eight-hour soak and rendered UI virtualization traces are still open Sprint 15 gates.
+- The Sprint 15 eight-hour soak gate passed for commit `93a8c63`; rendered UI virtualization traces are still open and require manual capture in a real Desktop window.
 
 ## Diagnostics for closed beta testers
 
