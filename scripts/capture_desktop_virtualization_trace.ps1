@@ -89,6 +89,9 @@ if ([string]::IsNullOrWhiteSpace($SamplesCsvPath)) {
     $SamplesCsvPath = [System.IO.Path]::ChangeExtension($OutputPath, '.samples.csv')
 }
 
+$OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
+$SamplesCsvPath = [System.IO.Path]::GetFullPath($SamplesCsvPath)
+
 $outputDirectory = Split-Path -Parent $OutputPath
 if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
     New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null

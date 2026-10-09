@@ -52,6 +52,17 @@ If local execution policy blocks unsigned scripts, run the same command through 
 
 The helper now requires the target process to have a main window by default so a headless or background process cannot be mistaken for rendered UI evidence. `-AllowHeadlessProcess` is only for validating the harness itself and does not satisfy the public-beta rendered trace gate.
 
+After all three captures are complete, validate the captured reports before recording the gate result:
+
+```powershell
+.\scripts\validate_desktop_virtualization_traces.ps1 `
+  -LibraryReportPath artifacts\desktop-virtualization-library.md `
+  -SearchReportPath artifacts\desktop-virtualization-search.md `
+  -PlaylistReportPath artifacts\desktop-virtualization-playlist.md
+```
+
+The validator checks that all three surfaces are present, use the same concrete commit, meet the required fixture sizes and reference existing raw sample CSV files. Passing validation still does not replace the manual operator check for visible text overlap, row actions and responsiveness; record those observations in each capture's notes.
+
 ## Current automated guards
 
 - `DesktopLibraryViewModelTests.LibraryTrackList_UsesBoundedListBox`
