@@ -58,6 +58,24 @@ function Read-TraceDefects {
     return $defects
 }
 
+function Read-TraceBoolean {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Content,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Field
+    )
+
+    $valueText = Read-TraceField -Content $Content -Field $Field
+    $value = $false
+    if (-not [bool]::TryParse($valueText, [ref]$value)) {
+        throw "Trace report has invalid boolean value for '$Field': '$valueText'."
+    }
+
+    return $value
+}
+
 function Test-TraceReport {
     param(
         [Parameter(Mandatory = $true)]
@@ -94,6 +112,16 @@ function Test-TraceReport {
     $commit = Read-TraceField -Content $content -Field 'Commit'
     if ([string]::IsNullOrWhiteSpace($commit) -or $commit -eq 'unknown') {
         throw "Trace report '$fullPath' does not identify a concrete commit."
+    }
+
+    $hasMainWindow = Read-TraceBoolean -Content $content -Field 'Main window present'
+    if (-not $hasMainWindow) {
+        throw "Trace report '$fullPath' was not captured from a rendered main window."
+    }
+
+    $allowHeadlessProcess = Read-TraceBoolean -Content $content -Field 'Headless process allowed'
+    if ($allowHeadlessProcess) {
+        throw "Trace report '$fullPath' was captured with -AllowHeadlessProcess and cannot satisfy the rendered UI gate."
     }
 
     $rawSamples = Read-TraceField -Content $content -Field 'Raw samples'

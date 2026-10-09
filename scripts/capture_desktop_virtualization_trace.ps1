@@ -109,7 +109,8 @@ if ($processes.Count -ne 1) {
 
 $processId = $processes[0].Id
 $mainWindowTitle = $processes[0].MainWindowTitle
-if (-not $AllowHeadlessProcess -and $processes[0].MainWindowHandle -eq [IntPtr]::Zero) {
+$hasMainWindow = $processes[0].MainWindowHandle -ne [IntPtr]::Zero
+if (-not $AllowHeadlessProcess -and -not $hasMainWindow) {
     throw "Process '$ProcessName' ($processId) does not have a main window. Start the rendered packaged Desktop app, or pass -AllowHeadlessProcess only for harness validation that is not public-beta evidence."
 }
 
@@ -175,6 +176,8 @@ Recorded on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz').
 | Process | `$ProcessName` PID `$processId` |
 | Process start time | `$processStartTime` |
 | Main window title | `$mainWindowTitle` |
+| Main window present | `$hasMainWindow` |
+| Headless process allowed | `$AllowHeadlessProcess` |
 | OS | $osDescription |
 | Display scaling | $displayScale |
 | Duration | $DurationSeconds seconds |

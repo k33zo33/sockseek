@@ -50,7 +50,7 @@ Run one capture for each required surface: `library`, `search` and `playlist`. T
 
 If local execution policy blocks unsigned scripts, run the same command through `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\capture_desktop_virtualization_trace.ps1 ...` without changing the machine-wide policy.
 
-The helper now requires the target process to have a main window by default so a headless or background process cannot be mistaken for rendered UI evidence. `-AllowHeadlessProcess` is only for validating the harness itself and does not satisfy the public-beta rendered trace gate.
+The helper now requires the target process to have a main window by default so a headless or background process cannot be mistaken for rendered UI evidence. It records both `Main window present` and `Headless process allowed` in each report. `-AllowHeadlessProcess` is only for validating the harness itself; reports captured with it are rejected by the validator and do not satisfy the public-beta rendered trace gate.
 
 After all three captures are complete, validate the captured reports before recording the gate result:
 
