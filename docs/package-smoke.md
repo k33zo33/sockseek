@@ -8,6 +8,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_windows_package_
 
 The helper runs the same publish, SBOM, staging and archive steps shown below. Keep the console output and generated SHA256 manifest with the release-candidate evidence.
 
+Run the fast tester-instructions smoke when changing beta limitation, diagnostics, security or tester-instruction text:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test_closed_beta_tester_instructions.ps1
+```
+
 Manual equivalent:
 
 ```powershell
@@ -62,6 +68,9 @@ The staging command validates that the staging directory contains:
 - `daemon/Sockseek.Server.exe`
 - `LICENSE`
 - `THIRD-PARTY-NOTICES`
+- `SECURITY.md`
+- `docs/beta-limitations.md`
+- `closed-beta-tester-instructions.md`
 - `release-metadata.json`
 - `sbom.spdx.json`
 - `install.ps1`

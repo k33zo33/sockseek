@@ -14,6 +14,7 @@ Ensure Windows release-candidate smoke artifacts include generated closed/intern
 
 - Generate `closed-beta-tester-instructions.md` into the Windows staging directory during package smoke.
 - Verify the instructions file is present in staging, ZIP archive and SHA256 manifest.
+- Add a standalone generator smoke so closed/internal-only status, ADR-0009 notice, provider no-audio language and diagnostics redaction guidance are validated without a full package run.
 - Update beta go/no-go evidence to describe the strengthened smoke.
 
 ## Out of scope
@@ -37,11 +38,13 @@ No application API, schema or event changes.
 1. Add a staged tester instructions path in `run_windows_package_smoke.ps1`.
 2. Invoke `scripts/write_closed_beta_tester_instructions.ps1` after staging and before archive creation.
 3. Validate the staged file, archive entry and manifest entry.
-4. Run Windows package smoke where feasible.
+4. Add and run `scripts/test_closed_beta_tester_instructions.ps1`.
+5. Run Windows package smoke where feasible.
 
 ## Testing strategy
 
 - Run `scripts/run_windows_package_smoke.ps1 -Force` and inspect archive/manifest evidence.
+- Run `scripts/test_closed_beta_tester_instructions.ps1` for fast generator coverage without publishing artifacts.
 - Run `git diff --check`.
 
 ## Migration and rollback
