@@ -83,6 +83,18 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke is marked passed while public beta remains blocked.'
     }
 
+    $packageWithoutWarning = $baseline -replace ' The publish steps emitted `NU1900` package-vulnerability-source warnings because `https://api\.nuget\.org/v3/index\.json` was unavailable during this run; the separate dependency vulnerability scan gate remains recorded above\.', ''
+    $packageWithoutWarningPath = Write-Case 'package-without-warning.md' $packageWithoutWarning
+    if ((Invoke-Validator $packageWithoutWarningPath) -eq 0) {
+        throw 'Expected validation to fail when Windows package smoke omits the documented NU1900 warning evidence.'
+    }
+
+    $packageWithoutTesterInstructions = $baseline -replace 'closed-beta-tester-instructions\.md', 'closed-beta-instructions-omitted.md'
+    $packageWithoutTesterInstructionsPath = Write-Case 'package-without-tester-instructions.md' $packageWithoutTesterInstructions
+    if ((Invoke-Validator $packageWithoutTesterInstructionsPath) -eq 0) {
+        throw 'Expected validation to fail when Windows package smoke omits closed beta tester instructions evidence.'
+    }
+
     Write-Host 'Beta go/no-go validator smoke passed.'
 }
 finally {
