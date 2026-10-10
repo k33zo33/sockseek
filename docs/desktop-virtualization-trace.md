@@ -63,6 +63,8 @@ After all three captures are complete, validate the captured reports before reco
 
 The validator checks that all three surfaces are present, use the same concrete commit, meet the required fixture sizes and reference existing raw sample CSV files. Passing validation still does not replace the manual operator check for visible text overlap, row actions and responsiveness; record those observations in each capture's notes.
 
+Use `scripts/test_desktop_virtualization_trace_validator.ps1` to smoke-test the validator itself. The smoke creates synthetic valid and invalid reports, including headless, undersized fixture and mixed-commit cases; it does not satisfy the rendered UI trace gate.
+
 ## Current automated guards
 
 - `DesktopLibraryViewModelTests.LibraryTrackList_UsesBoundedListBox`

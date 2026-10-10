@@ -170,23 +170,23 @@ Recorded on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz').
 
 | Field | Value |
 | --- | --- |
-| Commit | `$commit` |
-| Surface | `$Surface` |
-| Fixture size | `$FixtureSize` |
-| Process | `$ProcessName` PID `$processId` |
-| Process start time | `$processStartTime` |
-| Main window title | `$mainWindowTitle` |
-| Main window present | `$hasMainWindow` |
-| Headless process allowed | `$AllowHeadlessProcess` |
+| Commit | ``$commit`` |
+| Surface | ``$Surface`` |
+| Fixture size | ``$FixtureSize`` |
+| Process | ``$ProcessName`` PID ``$processId`` |
+| Process start time | ``$processStartTime`` |
+| Main window title | ``$mainWindowTitle`` |
+| Main window present | ``$hasMainWindow`` |
+| Headless process allowed | ``$AllowHeadlessProcess`` |
 | OS | $osDescription |
 | Display scaling | $displayScale |
 | Duration | $DurationSeconds seconds |
 | Sample interval | $SampleIntervalSeconds seconds |
-| Raw samples | `$SamplesCsvPath` |
+| Raw samples | ``$SamplesCsvPath`` |
 
 ## Operator actions
 
-- Opened the `$Surface` surface with the stated fixture loaded.
+- Opened the $Surface surface with the stated fixture loaded.
 - Scrolled from top to bottom and back.
 - Resized the Desktop window between narrow and wide desktop widths.
 - Checked row actions and visible text for overlap.
