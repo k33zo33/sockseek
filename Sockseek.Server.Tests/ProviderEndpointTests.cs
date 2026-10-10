@@ -1015,6 +1015,59 @@ public sealed class ProviderEndpointTests
     }
 
     [TestMethod]
+    public async Task ImportProviderPublicUrl_WhenBandcampMetadataIsMissing_ReturnsProviderErrorWithoutAccountState()
+    {
+        var bandcamp = new QueueBandcampHandler(
+        [
+            HtmlResponse("""
+            <html>
+              <head><title>Unsupported Bandcamp page</title></head>
+              <body>No supported structured metadata here.</body>
+            </html>
+            """),
+        ]);
+        var app = CreateApp(out var url, out var sessionToken, out var tempRoot, bandcampHandler: bandcamp);
+        await app.StartAsync();
+        try
+        {
+            using var http = SockseekApiClient.CreateHttpClient(url, sessionToken);
+
+            using var response = await http.PostAsync(
+                "api/v1/providers/bandcamp/public-playlists/import",
+                new StringContent(
+                    """
+                    {
+                      "url": "https://artist.bandcamp.com/album/unsupported",
+                      "importMode": "Copy"
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json"));
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+            StringAssert.Contains(body, "provider_error");
+            StringAssert.Contains(body, "Bandcamp public page did not contain supported structured metadata.");
+            Assert.AreEqual(1, bandcamp.Requests.Count);
+            CollectionAssert.DoesNotContain(bandcamp.Requests[0].Headers.ToArray(), "Cookie");
+            CollectionAssert.DoesNotContain(bandcamp.Requests[0].Headers.ToArray(), "Authorization");
+
+            await using var verifyScope = app.Services.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<SockseekDbContext>();
+            Assert.AreEqual(0, await db.ExternalAccounts.CountAsync());
+            Assert.AreEqual(0, await db.ExternalPlaylists.CountAsync());
+            Assert.AreEqual(0, await db.Playlists.CountAsync());
+            Assert.AreEqual(0, await db.PlaylistItems.CountAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
+    [TestMethod]
     public async Task BandcampImportedPlaylist_DownloadMissingItemsBecomeLocalAvailable()
     {
         var bandcamp = new QueueBandcampHandler(
