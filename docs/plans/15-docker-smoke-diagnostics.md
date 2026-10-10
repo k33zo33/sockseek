@@ -44,6 +44,7 @@ No application API, schema or event changes.
 ## Testing strategy
 
 - Run `scripts/run_docker_smoke.ps1 -SkipBuild -SkipComposeConfig -DockerCommandTimeoutSeconds 5 -DockerDesktopPipeDiagnosticTimeoutSeconds 5 -DiagnosticsPath ...` and verify it fails clearly when `docker version` hangs or the process cannot access the Docker Desktop pipe.
+- Run `scripts/test_docker_smoke_diagnostics.ps1` to verify the diagnostic artifact shape without requiring a working Docker engine.
 - Run `git diff --check`.
 
 ## Migration and rollback
