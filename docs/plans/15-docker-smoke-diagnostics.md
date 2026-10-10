@@ -7,13 +7,15 @@ Make Docker/headless smoke failures reproducible and bounded when Docker Desktop
 ## Current-state findings
 
 - `scripts/run_docker_smoke.ps1` bounds most Docker CLI calls with `-DockerCommandTimeoutSeconds`.
-- The cleanup block still calls `docker logs` and `docker rm -f` directly, so cleanup can hang if the Docker engine is unresponsive.
-- The Sprint 15 go/no-go currently records Docker/headless smoke as environment-blocked, but the helper does not emit a structured diagnostic artifact for that failure.
+- Cleanup now routes `docker logs` and `docker rm -f` through the same bounded Docker invocation path.
+- The Sprint 15 go/no-go records Docker/headless smoke as environment-blocked, and the helper emits a structured diagnostic artifact for context, command output and timeout evidence.
+- Windows Docker Desktop failures can involve either user Docker config access or the Docker Desktop engine pipe; the helper now records a non-fatal isolated-config pipe diagnostic to distinguish those cases.
 
 ## In scope
 
 - Reuse the bounded Docker invocation path for cleanup commands.
 - Add an optional diagnostics Markdown report path for command, output, timeout and environment evidence.
+- Add a bounded Windows Docker Desktop pipe diagnostic that does not make the smoke pass or fail by itself.
 - Document the diagnostic option in the Docker/headless go/no-go evidence.
 
 ## Out of scope
@@ -36,11 +38,12 @@ No application API, schema or event changes.
 1. Add optional `-DiagnosticsPath` support.
 2. Record environment context and each Docker command result in the diagnostics report.
 3. Route daemon logs and container removal through the bounded Docker helper.
-4. Smoke-test the timeout path with a short Docker command timeout.
+4. Add a non-fatal Windows direct-pipe diagnostic with isolated `DOCKER_CONFIG`.
+5. Smoke-test the timeout and access-denied paths with short Docker command timeouts.
 
 ## Testing strategy
 
-- Run `scripts/run_docker_smoke.ps1 -SkipBuild -SkipComposeConfig -DockerCommandTimeoutSeconds 5 -DiagnosticsPath ...` and verify it fails clearly when `docker version` hangs.
+- Run `scripts/run_docker_smoke.ps1 -SkipBuild -SkipComposeConfig -DockerCommandTimeoutSeconds 5 -DockerDesktopPipeDiagnosticTimeoutSeconds 5 -DiagnosticsPath ...` and verify it fails clearly when `docker version` hangs or the process cannot access the Docker Desktop pipe.
 - Run `git diff --check`.
 
 ## Migration and rollback

@@ -15,6 +15,9 @@ param(
     [ValidateRange(1, 3600)]
     [int]$DockerCommandTimeoutSeconds = 300,
 
+    [ValidateRange(1, 120)]
+    [int]$DockerDesktopPipeDiagnosticTimeoutSeconds = 10,
+
     [string]$DiagnosticsPath = ''
 )
 
@@ -48,12 +51,26 @@ function Save-Diagnostics {
     Set-Content -Path $fullPath -Value $script:DiagnosticLines -Encoding UTF8
 }
 
+function Test-IsWindows {
+    try {
+        return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+            [System.Runtime.InteropServices.OSPlatform]::Windows)
+    }
+    catch {
+        return $env:OS -eq 'Windows_NT'
+    }
+}
+
 function Invoke-Docker {
     param(
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments,
 
-        [switch]$AllowFailure
+        [switch]$AllowFailure,
+
+        [int]$TimeoutSeconds = $DockerCommandTimeoutSeconds,
+
+        [string]$DockerConfigOverride = ''
     )
 
     $commandText = "$DockerCli $($Arguments -join ' ')"
@@ -61,33 +78,42 @@ function Invoke-Docker {
     Add-Diagnostic "## $commandText"
     Add-Diagnostic ""
     Add-Diagnostic "- Started: $((Get-Date).ToString('o'))"
-    Add-Diagnostic "- Timeout: ${DockerCommandTimeoutSeconds}s"
+    Add-Diagnostic "- Timeout: ${TimeoutSeconds}s"
+    if (-not [string]::IsNullOrWhiteSpace($DockerConfigOverride)) {
+        Add-Diagnostic "- DOCKER_CONFIG override: $DockerConfigOverride"
+    }
+
     Add-Diagnostic ""
     Add-Diagnostic '```text'
 
     $job = Start-Job -ScriptBlock {
         param(
             [string]$DockerCli,
-            [string[]]$Arguments
+            [string[]]$Arguments,
+            [string]$DockerConfigOverride
         )
+
+        if (-not [string]::IsNullOrWhiteSpace($DockerConfigOverride)) {
+            $env:DOCKER_CONFIG = $DockerConfigOverride
+        }
 
         & $DockerCli @Arguments 2>&1 | ForEach-Object { $_ }
         [pscustomobject]@{ __SockseekDockerExitCode = $LASTEXITCODE }
-    } -ArgumentList $DockerCli, $Arguments
+    } -ArgumentList $DockerCli, $Arguments, $DockerConfigOverride
 
     $exitCode = $null
     try {
-        if (-not (Wait-Job -Job $job -Timeout $DockerCommandTimeoutSeconds)) {
+        if (-not (Wait-Job -Job $job -Timeout $TimeoutSeconds)) {
             Stop-Job -Job $job
-            Add-Diagnostic "TIMEOUT after ${DockerCommandTimeoutSeconds}s"
+            Add-Diagnostic "TIMEOUT after ${TimeoutSeconds}s"
             Add-Diagnostic '```'
             Save-Diagnostics
             if ($AllowFailure) {
-                Write-Host "Docker command timed out after ${DockerCommandTimeoutSeconds}s: $commandText"
+                Write-Host "Docker command timed out after ${TimeoutSeconds}s: $commandText"
                 return $false
             }
 
-            throw "Docker command timed out after ${DockerCommandTimeoutSeconds}s: $commandText"
+            throw "Docker command timed out after ${TimeoutSeconds}s: $commandText"
         }
 
         foreach ($item in Receive-Job -Job $job) {
@@ -134,6 +160,35 @@ function Invoke-Docker {
     return $true
 }
 
+function Invoke-WindowsDockerDesktopPipeDiagnostic {
+    if (-not (Test-IsWindows)) {
+        return
+    }
+
+    $dockerLeafName = Split-Path -Leaf $DockerCli
+    if ($dockerLeafName -notin @('docker', 'docker.exe')) {
+        return
+    }
+
+    $isolatedDockerConfig = Join-Path (Get-Location) ".tmp/docker-smoke-isolated-config-$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Force -Path $isolatedDockerConfig | Out-Null
+
+    try {
+        Write-Host "Checking Docker Desktop Linux engine pipe with isolated Docker config."
+        Add-Diagnostic ""
+        Add-Diagnostic "## Windows Docker Desktop pipe diagnostic"
+        Add-Diagnostic ""
+        Add-Diagnostic "This non-fatal check helps distinguish Docker config access failures from Docker Desktop engine-pipe access or timeout failures."
+        Invoke-Docker @('-H', 'npipe:////./pipe/dockerDesktopLinuxEngine', 'version') `
+            -AllowFailure `
+            -TimeoutSeconds $DockerDesktopPipeDiagnosticTimeoutSeconds `
+            -DockerConfigOverride $isolatedDockerConfig | Out-Null
+    }
+    finally {
+        Remove-Item -LiteralPath $isolatedDockerConfig -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Add-Diagnostic "# Docker smoke diagnostics"
 Add-Diagnostic ""
 Add-Diagnostic "- Generated: $((Get-Date).ToString('o'))"
@@ -147,6 +202,8 @@ Save-Diagnostics
 
 Write-Host "Capturing Docker context."
 Invoke-Docker @('context', 'ls') -AllowFailure | Out-Null
+
+Invoke-WindowsDockerDesktopPipeDiagnostic
 
 Write-Host "Checking Docker engine availability."
 Invoke-Docker @('version')

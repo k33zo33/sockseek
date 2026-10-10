@@ -74,6 +74,8 @@ The helper checks Docker engine availability, validates `docker compose config`,
 
 If the image has already been built, pass `-SkipBuild`. If only the Dockerfile path is under review and compose is intentionally unavailable, pass `-SkipComposeConfig` and record that limitation in `docs/beta-go-no-go.md`.
 
+On Windows, the helper also runs a non-fatal Docker Desktop Linux engine pipe diagnostic with an isolated `DOCKER_CONFIG` before the required `docker version` gate. Tune that diagnostic with `-DockerDesktopPipeDiagnosticTimeoutSeconds` if Docker Desktop is slow to answer. The diagnostic does not make Docker smoke pass; it only records whether the current process can reach `npipe:////./pipe/dockerDesktopLinuxEngine` without relying on the user's Docker config directory.
+
 On Windows, if Docker Desktop is installed but the Linux engine is stopped or unavailable, the helper stops at the initial `docker version` check. Start Docker Desktop and confirm the active context can reach the Linux engine before treating Docker smoke as passed. If the UI is open but the engine still hangs, check `wsl -l -v`, `docker context ls`, `docker version` and `sc.exe query com.docker.service` from an elevated shell; Docker smoke is not passed until `docker version` returns both client and server data.
 
 If Docker works from a normal or elevated terminal but fails from an IDE, CI runner or Codex session, compare the exact process identity and engine-pipe access rather than reinstalling Docker first:
