@@ -76,6 +76,20 @@ If the image has already been built, pass `-SkipBuild`. If only the Dockerfile p
 
 On Windows, if Docker Desktop is installed but the Linux engine is stopped or unavailable, the helper stops at the initial `docker version` check. Start Docker Desktop and confirm the active context can reach the Linux engine before treating Docker smoke as passed. If the UI is open but the engine still hangs, check `wsl -l -v`, `docker context ls`, `docker version` and `sc.exe query com.docker.service` from an elevated shell; Docker smoke is not passed until `docker version` returns both client and server data.
 
+If Docker works from a normal or elevated terminal but fails from an IDE, CI runner or Codex session, compare the exact process identity and engine-pipe access rather than reinstalling Docker first:
+
+```powershell
+whoami
+docker context ls
+docker version
+
+$env:DOCKER_CONFIG = Join-Path (Get-Location) '.tmp/docker-config-isolated'
+New-Item -ItemType Directory -Force -Path $env:DOCKER_CONFIG | Out-Null
+docker -H npipe:////./pipe/dockerDesktopLinuxEngine version
+```
+
+`Access is denied` on `//./pipe/dockerDesktopLinuxEngine` means the process cannot access Docker Desktop's engine pipe. A timeout with the direct pipe while `docker version` succeeds in another shell means the blocker is specific to that host process/session. Keep that diagnostic output with the Sprint 15 evidence and rerun `scripts/run_docker_smoke.ps1` only after the same process that runs the helper can return Docker client and server data.
+
 If Docker Desktop reports `read-only file system` from BuildKit or Docker commands hang after a failed build, restart Docker Desktop before rerunning the helper. Keep the helper output with the beta evidence; do not treat a partial image build as a passed Docker smoke.
 
 ## File Permissions
