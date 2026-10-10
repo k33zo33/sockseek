@@ -31,6 +31,7 @@ Use this checklist before publishing any public binary, installer, package, or h
 
 ## Public beta gates
 
+- [ ] `scripts/validate_beta_go_no_go.ps1` passed for the exact release candidate state
 - [ ] `docs/beta-go-no-go.md` says public beta is GO for the exact commit/tag being shipped
 - [ ] Soulseek compliance is resolved by an accepted ADR that allows the planned public distribution
 - [ ] Eight-hour soak evidence is captured and recorded for the release candidate
