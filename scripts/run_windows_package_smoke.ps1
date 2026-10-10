@@ -66,6 +66,8 @@ $stageDir = Join-Path $artifactsRootFullPath "stage-$Runtime"
 $sbomPath = Join-Path $artifactsRootFullPath 'release-sbom.spdx.json'
 $archivePath = Join-Path $artifactsRootFullPath "Sockseek-$Runtime.zip"
 $manifestPath = Join-Path $artifactsRootFullPath "Sockseek-$Runtime.sha256"
+$testerInstructionsFileName = 'closed-beta-tester-instructions.md'
+$testerInstructionsPath = Join-Path $stageDir $testerInstructionsFileName
 
 New-Item -ItemType Directory -Force -Path $artifactsRootFullPath | Out-Null
 
@@ -134,6 +136,28 @@ Invoke-CheckedCommand $DotNetCli @(
     $SourceUrl,
     $sbomPath)
 
+Write-Host "Generating closed beta tester instructions."
+Invoke-CheckedCommand 'powershell' @(
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    'scripts\write_closed_beta_tester_instructions.ps1',
+    '-Commit',
+    $Commit,
+    '-SourceUrl',
+    $SourceUrl,
+    '-ArtifactName',
+    "Sockseek $Runtime closed beta",
+    '-Version',
+    $Version,
+    '-OutputPath',
+    $testerInstructionsPath)
+
+if (-not (Test-Path -LiteralPath $testerInstructionsPath)) {
+    throw "Closed beta tester instructions were not generated: $testerInstructionsPath"
+}
+
 Write-Host "Creating Windows release archive and SHA256 manifest."
 Invoke-CheckedCommand $DotNetCli @(
     'run',
@@ -149,7 +173,24 @@ Invoke-CheckedCommand $DotNetCli @(
     'Sockseek.Desktop.exe',
     'Sockseek.Server.exe')
 
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
+try {
+    if (-not ($archive.Entries | Where-Object { $_.FullName -eq $testerInstructionsFileName })) {
+        throw "Windows release archive is missing $testerInstructionsFileName"
+    }
+}
+finally {
+    $archive.Dispose()
+}
+
+$manifest = Get-Content -LiteralPath $manifestPath -Raw
+if ($manifest -notmatch [Regex]::Escape($testerInstructionsFileName)) {
+    throw "SHA256 manifest is missing $testerInstructionsFileName"
+}
+
 Write-Host "Windows package smoke completed successfully."
 Write-Host "Stage: $stageDir"
 Write-Host "Archive: $archivePath"
 Write-Host "Manifest: $manifestPath"
+Write-Host "Tester instructions: $testerInstructionsPath"
