@@ -215,11 +215,19 @@ public sealed class ReleaseStagerTests
         CollectionAssert.Contains(
             archive.Entries.Select(entry => entry.FullName).ToArray(),
             "install.ps1");
+        CollectionAssert.Contains(
+            archive.Entries.Select(entry => entry.FullName).ToArray(),
+            ReleaseArtifactValidator.SecurityFileName);
+        CollectionAssert.Contains(
+            archive.Entries.Select(entry => entry.FullName).ToArray(),
+            ReleaseArtifactValidator.BetaLimitationsFileName.Replace(Path.DirectorySeparatorChar, '/'));
         var manifest = File.ReadAllText(manifestPath);
         StringAssert.Contains(manifest, "Sockseek-win-x64.zip");
         StringAssert.Contains(manifest, "Sockseek.Desktop.exe");
         StringAssert.Contains(manifest, "daemon/Sockseek.Server.exe");
         StringAssert.Contains(manifest, "sbom.spdx.json");
+        StringAssert.Contains(manifest, ReleaseArtifactValidator.SecurityFileName);
+        StringAssert.Contains(manifest, ReleaseArtifactValidator.BetaLimitationsFileName.Replace(Path.DirectorySeparatorChar, '/'));
     }
 
     [TestMethod]
