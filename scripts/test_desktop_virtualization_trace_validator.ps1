@@ -8,6 +8,11 @@ if (-not (Test-Path -LiteralPath $validator)) {
     throw "Validator script was not found: $validator"
 }
 
+$captureHelper = Join-Path $PSScriptRoot 'capture_desktop_virtualization_trace.ps1'
+if (-not (Test-Path -LiteralPath $captureHelper)) {
+    throw "Capture helper script was not found: $captureHelper"
+}
+
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sockseek-desktop-trace-validator-" + [System.Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
 
@@ -130,7 +135,58 @@ function Invoke-Validator {
     }
 }
 
+function Invoke-CaptureHelperSmoke {
+    $powershellCommand = Get-Command 'powershell.exe' -ErrorAction Stop
+    $probeName = 'SockseekTraceProbe' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8)
+    $probeExe = Join-Path $tempRoot "$probeName.exe"
+    Copy-Item -LiteralPath $powershellCommand.Source -Destination $probeExe
+
+    $probe = Start-Process -FilePath $probeExe `
+        -ArgumentList @('-NoProfile', '-Command', 'Start-Sleep -Seconds 30') `
+        -PassThru `
+        -WindowStyle Hidden
+
+    try {
+        $captureReport = Join-Path $tempRoot 'capture-helper-library.md'
+        $captureSamples = Join-Path $tempRoot 'capture-helper-library.samples.csv'
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $captureHelper `
+            -Surface library `
+            -FixtureSize 100000 `
+            -DurationSeconds 10 `
+            -SampleIntervalSeconds 1 `
+            -ProcessName $probeName `
+            -OutputPath $captureReport `
+            -SamplesCsvPath $captureSamples `
+            -Notes 'capture helper smoke' `
+            -AllowHeadlessProcess *> $null
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Capture helper smoke failed with exit code $LASTEXITCODE."
+        }
+
+        $report = Get-Content -LiteralPath $captureReport -Raw
+        if ($report -notmatch '\| Surface \| `library` \|') {
+            throw 'Capture helper report did not render the concrete surface metadata value.'
+        }
+
+        if ($report -match '\$(Surface|FixtureSize|SamplesCsvPath|AllowHeadlessProcess|commit)') {
+            throw 'Capture helper report contains an unexpanded metadata variable.'
+        }
+
+        if (-not (Test-Path -LiteralPath $captureSamples)) {
+            throw 'Capture helper did not write raw sample CSV output.'
+        }
+    }
+    finally {
+        if ($null -ne $probe -and -not $probe.HasExited) {
+            Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 try {
+    Invoke-CaptureHelperSmoke
+
     $library = Write-TraceReport -Surface 'library' -FixtureSize 100000
     $search = Write-TraceReport -Surface 'search' -FixtureSize 10000
     $playlist = Write-TraceReport -Surface 'playlist' -FixtureSize 10000
