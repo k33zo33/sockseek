@@ -58,6 +58,23 @@ function Assert-TableRowStatus {
     }
 }
 
+function Assert-TableRowContains {
+    param(
+        [string]$Text,
+        [string]$FirstCell,
+        [string]$Needle,
+        [string]$Description
+    )
+
+    $pattern = "(?im)^\|\s*$([regex]::Escape($FirstCell))\s*\|(?<row>.*)\|.*\|$"
+    $match = [regex]::Match($Text, $pattern)
+    if (-not $match.Success) {
+        throw "Missing table row: $FirstCell"
+    }
+
+    Assert-Contains $match.Groups['row'].Value $Needle $Description
+}
+
 $decisionPattern = '(?im)^\|\s*Public beta\s*\|\s*NO-GO\s*\|\s*(?<reason>.*?)\s*\|$'
 $decisionMatch = [regex]::Match($document, $decisionPattern)
 if (-not $decisionMatch.Success) {
@@ -75,6 +92,12 @@ Assert-TableRowStatus $document 'Docker/headless smoke' 'Environment-blocked'
 Assert-TableRowStatus $document 'Release limitations' 'Passed'
 Assert-TableRowStatus $document 'Security and crash reporting' 'Passed'
 Assert-TableRowStatus $document 'Provider-audio scope guard' 'Passed'
+
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/test_desktop_virtualization_trace_validator.ps1' 'rendered trace validator smoke evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'literal variable names' 'rendered trace capture metadata regression evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'isolated-`DOCKER_CONFIG`' 'Docker isolated config diagnostic evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'npipe:////./pipe/dockerDesktopLinuxEngine' 'Docker Desktop pipe diagnostic evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'engine-pipe access or timeout failures' 'Docker pipe failure classification evidence'
 
 $requiredBeforePublicBeta = Get-Section $document 'Required before public beta'
 Assert-Contains $requiredBeforePublicBeta 'Resolve ADR-0009' 'required public beta Soulseek compliance item'
