@@ -20,6 +20,7 @@ try {
     @'
 @echo off
 echo FAKE_DOCKER_ARGS:%*
+echo FAKE_DOCKER_CWD:%CD%
 if "%1"=="context" (
   echo NAME              DESCRIPTION    DOCKER ENDPOINT
   echo desktop-linux *   Docker Desktop npipe:////./pipe/dockerDesktopLinuxEngine
@@ -85,6 +86,7 @@ exit /b 99
     $requiredEvidence = @(
         '# Docker smoke diagnostics',
         'FAKE_DOCKER_ARGS:context ls',
+        "FAKE_DOCKER_CWD:$repoRoot",
         '## Windows Docker Desktop pipe diagnostic',
         'FAKE_DOCKER_ARGS:-H npipe:////./pipe/dockerDesktopLinuxEngine version',
         'DOCKER_CONFIG override:',

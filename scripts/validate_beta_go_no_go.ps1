@@ -109,6 +109,10 @@ Assert-TableRowContains $document 'Docker/headless smoke' 'isolated-`DOCKER_CONF
 Assert-TableRowContains $document 'Docker/headless smoke' 'npipe:////./pipe/dockerDesktopLinuxEngine' 'Docker Desktop pipe diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'engine-pipe access or timeout failures' 'Docker pipe failure classification evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/test_docker_smoke_diagnostics.ps1' 'Docker diagnostics artifact smoke evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'repo working-directory handoff' 'Docker helper working-directory regression evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'BuildKit' 'Docker host BuildKit blocker evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'read-only file system' 'Docker host read-only filesystem blocker evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'full Alpine `vlc` runtime package' 'Docker VLC runtime evidence'
 
 $requiredBeforePublicBeta = Get-Section $document 'Required before public beta'
 Assert-Contains $requiredBeforePublicBeta 'Resolve ADR-0009' 'required public beta Soulseek compliance item'

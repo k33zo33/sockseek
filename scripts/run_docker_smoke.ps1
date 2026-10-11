@@ -79,6 +79,7 @@ function Invoke-Docker {
     Add-Diagnostic ""
     Add-Diagnostic "- Started: $((Get-Date).ToString('o'))"
     Add-Diagnostic "- Timeout: ${TimeoutSeconds}s"
+    Add-Diagnostic "- Working directory: $((Get-Location).Path)"
     if (-not [string]::IsNullOrWhiteSpace($DockerConfigOverride)) {
         Add-Diagnostic "- DOCKER_CONFIG override: $DockerConfigOverride"
     }
@@ -86,12 +87,16 @@ function Invoke-Docker {
     Add-Diagnostic ""
     Add-Diagnostic '```text'
 
+    $workingDirectory = (Get-Location).Path
     $job = Start-Job -ScriptBlock {
         param(
             [string]$DockerCli,
             [string[]]$Arguments,
-            [string]$DockerConfigOverride
+            [string]$DockerConfigOverride,
+            [string]$WorkingDirectory
         )
+
+        Set-Location -LiteralPath $WorkingDirectory
 
         if (-not [string]::IsNullOrWhiteSpace($DockerConfigOverride)) {
             $env:DOCKER_CONFIG = $DockerConfigOverride
@@ -99,7 +104,7 @@ function Invoke-Docker {
 
         & $DockerCli @Arguments 2>&1 | ForEach-Object { $_ }
         [pscustomobject]@{ __SockseekDockerExitCode = $LASTEXITCODE }
-    } -ArgumentList $DockerCli, $Arguments, $DockerConfigOverride
+    } -ArgumentList $DockerCli, $Arguments, $DockerConfigOverride, $workingDirectory
 
     $exitCode = $null
     try {

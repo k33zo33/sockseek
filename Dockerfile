@@ -30,8 +30,10 @@ RUN \
     icu-libs \
     libgcc \
     libstdc++ \
-    vlc-libs \
+    vlc \
     zlib && \
+  ln -sf /usr/lib/libvlc.so.5 /usr/lib/libvlc.so && \
+  ln -sf /usr/lib/libvlccore.so.9 /usr/lib/libvlccore.so && \
   echo "**** cleanup ****" && \
   rm -rf \
     /root/.cache \

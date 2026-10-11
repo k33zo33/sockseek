@@ -83,6 +83,12 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke is marked passed while public beta remains blocked.'
     }
 
+    $dockerWithoutReadOnlyEvidence = $baseline -replace 'read-only file system', 'filesystem issue'
+    $dockerWithoutReadOnlyEvidencePath = Write-Case 'docker-without-read-only-evidence.md' $dockerWithoutReadOnlyEvidence
+    if ((Invoke-Validator $dockerWithoutReadOnlyEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when Docker/headless smoke omits the current BuildKit read-only filesystem blocker.'
+    }
+
     $packageWithoutWarning = $baseline -replace ' The publish steps emitted `NU1900` package-vulnerability-source warnings because `https://api\.nuget\.org/v3/index\.json` was unavailable during this run; the separate dependency vulnerability scan gate remains recorded above\.', ''
     $packageWithoutWarningPath = Write-Case 'package-without-warning.md' $packageWithoutWarning
     if ((Invoke-Validator $packageWithoutWarningPath) -eq 0) {
