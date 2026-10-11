@@ -89,6 +89,12 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke omits the current BuildKit read-only filesystem blocker.'
     }
 
+    $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers\.', ''
+    $soulseekWithoutGateValidatorPath = Write-Case 'soulseek-without-gate-validator.md' $soulseekWithoutGateValidator
+    if ((Invoke-Validator $soulseekWithoutGateValidatorPath) -eq 0) {
+        throw 'Expected validation to fail when Soulseek compliance decision omits the dedicated gate validator evidence.'
+    }
+
     $packageWithoutWarning = $baseline -replace ' The publish steps emitted `NU1900` package-vulnerability-source warnings because `https://api\.nuget\.org/v3/index\.json` was unavailable during this run; the separate dependency vulnerability scan gate remains recorded above\.', ''
     $packageWithoutWarningPath = Write-Case 'package-without-warning.md' $packageWithoutWarning
     if ((Invoke-Validator $packageWithoutWarningPath) -eq 0) {

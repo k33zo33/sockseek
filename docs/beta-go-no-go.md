@@ -14,7 +14,7 @@ Last updated on 2026-10-11.
 
 | Gate | Current evidence | Status |
 | --- | --- | --- |
-| Soulseek compliance decision | `docs/soulseek-compliance-audit.md` and `docs/adr/0009-closed-beta-until-soulseek-compliance.md` document the closed-beta-only decision. | Public beta blocked |
+| Soulseek compliance decision | `docs/soulseek-compliance-audit.md` and `docs/adr/0009-closed-beta-until-soulseek-compliance.md` document the closed-beta-only decision. `scripts/validate_soulseek_compliance_gate.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator.ps1` covers negative cases for accidentally removing those blockers. | Public beta blocked |
 | 100k library search | `LargeDataPerformanceTests.SearchAsync_HundredThousandTrackFixture_ReturnsFirstPageWithinBudget` passed opt-in large-data run at `00:00:00.5956801`. | Passed |
 | 10k playlist detail projection | `LargeDataPerformanceTests.GetDetailAsync_TenThousandItemPlaylist_ReturnsDetailWithinBudget` passed opt-in large-data run at `00:00:00.2506731`. | Passed |
 | Large Soulseek result display | `DesktopSearchViewModelTests.RefreshResultsAsync_TrackMode_MapsTenThousandSoulseekResultsWithinBudget` passed in `151 ms`. | Passed |
