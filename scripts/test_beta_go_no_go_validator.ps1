@@ -95,6 +95,12 @@ try {
         throw 'Expected validation to fail when Soulseek compliance decision omits the dedicated gate validator evidence.'
     }
 
+    $securityWithoutDiagnosticsValidator = $baseline -replace ' `scripts/validate_diagnostics_feedback_gate\.ps1` verifies private vulnerability routing, closed-beta/public-beta-blocker language, exact build evidence fields, `Copy diagnostics` guidance and public issue redaction warnings for tokens, OAuth material, Soulseek passwords, Authorization headers and private playlist URLs; `scripts/test_diagnostics_feedback_gate_validator\.ps1` covers negative cases for missing redaction warnings, blank public issues and missing public-beta blocker language\.', ''
+    $securityWithoutDiagnosticsValidatorPath = Write-Case 'security-without-diagnostics-validator.md' $securityWithoutDiagnosticsValidator
+    if ((Invoke-Validator $securityWithoutDiagnosticsValidatorPath) -eq 0) {
+        throw 'Expected validation to fail when security/crash reporting omits diagnostics feedback validator evidence.'
+    }
+
     $packageWithoutWarning = $baseline -replace ' The publish steps emitted `NU1900` package-vulnerability-source warnings because `https://api\.nuget\.org/v3/index\.json` was unavailable during this run; the separate dependency vulnerability scan gate remains recorded above\.', ''
     $packageWithoutWarningPath = Write-Case 'package-without-warning.md' $packageWithoutWarning
     if ((Invoke-Validator $packageWithoutWarningPath) -eq 0) {
