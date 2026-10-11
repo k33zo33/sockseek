@@ -124,6 +124,13 @@ function Test-TraceReport {
         throw "Trace report '$fullPath' was captured with -AllowHeadlessProcess and cannot satisfy the rendered UI gate."
     }
 
+    $displayScaling = Read-TraceField -Content $content -Field 'Display scaling'
+    if ([string]::IsNullOrWhiteSpace($displayScaling) -or
+        $displayScaling.IndexOf('unknown', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $displayScaling.IndexOf('record manually', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "Trace report '$fullPath' must record concrete display scaling."
+    }
+
     $rawSamples = Read-TraceField -Content $content -Field 'Raw samples'
     $rawSamplesPath = if ([System.IO.Path]::IsPathRooted($rawSamples)) {
         $rawSamples

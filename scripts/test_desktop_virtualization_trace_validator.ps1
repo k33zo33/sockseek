@@ -38,6 +38,7 @@ function Write-TraceReport {
         [string]$Commit = 'abc1234',
         [bool]$MainWindowPresent = $true,
         [bool]$HeadlessProcessAllowed = $false,
+        [string]$DisplayScaling = '100%',
         [string]$Defects = 'none observed'
     )
 
@@ -61,7 +62,7 @@ Recorded on 2026-10-10 10:00:00 +02:00.
 | Main window present | ``$MainWindowPresent`` |
 | Headless process allowed | ``$HeadlessProcessAllowed`` |
 | OS | Windows test fixture |
-| Display scaling | 100% |
+| Display scaling | $DisplayScaling |
 | Duration | 10 seconds |
 | Sample interval | 2 seconds |
 | Raw samples | ``$samplesPath`` |
@@ -157,6 +158,7 @@ function Invoke-CaptureHelperSmoke {
             -ProcessName $probeName `
             -OutputPath $captureReport `
             -SamplesCsvPath $captureSamples `
+            -DisplayScaling '100%' `
             -Notes 'capture helper smoke' `
             -AllowHeadlessProcess *> $null
 
@@ -198,6 +200,11 @@ try {
     $headlessSearch = Write-TraceReport -Surface 'search' -FixtureSize 10000 -HeadlessProcessAllowed $true
     if ((Invoke-Validator -LibraryReport $library -SearchReport $headlessSearch -PlaylistReport $playlist).ExitCode -eq 0) {
         throw 'Expected validation to reject a report captured with headless process allowance.'
+    }
+
+    $unknownScaleSearch = Write-TraceReport -Surface 'search' -FixtureSize 10000 -DisplayScaling 'unknown - rerun with -DisplayScaling'
+    if ((Invoke-Validator -LibraryReport $library -SearchReport $unknownScaleSearch -PlaylistReport $playlist).ExitCode -eq 0) {
+        throw 'Expected validation to reject a report without concrete display scaling.'
     }
 
     $smallPlaylist = Write-TraceReport -Surface 'playlist' -FixtureSize 9999

@@ -41,6 +41,7 @@ Example:
   -Surface search `
   -FixtureSize 10000 `
   -DurationSeconds 180 `
+  -DisplayScaling "100%" `
   -OutputPath artifacts\desktop-virtualization-search.md `
   -SamplesCsvPath artifacts\desktop-virtualization-search.samples.csv `
   -Notes "none observed"
@@ -61,7 +62,9 @@ After all three captures are complete, validate the captured reports before reco
   -PlaylistReportPath artifacts\desktop-virtualization-playlist.md
 ```
 
-The validator checks that all three surfaces are present, use the same concrete commit, meet the required fixture sizes and reference existing raw sample CSV files. Passing validation still does not replace the manual operator check for visible text overlap, row actions and responsiveness; record those observations in each capture's notes.
+The helper attempts to detect Windows display scaling automatically. If the report records `unknown - rerun with -DisplayScaling`, rerun the capture with the concrete scaling value from Windows display settings, for example `-DisplayScaling "125%"`.
+
+The validator checks that all three surfaces are present, use the same concrete commit, meet the required fixture sizes, record concrete display scaling and reference existing raw sample CSV files. Passing validation still does not replace the manual operator check for visible text overlap, row actions and responsiveness; record those observations in each capture's notes.
 
 Use `scripts/test_desktop_virtualization_trace_validator.ps1` to smoke-test the validator itself. The smoke creates synthetic valid and invalid reports, including headless, undersized fixture and mixed-commit cases; it does not satisfy the rendered UI trace gate.
 

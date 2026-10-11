@@ -19,6 +19,8 @@ param(
 
     [string]$SamplesCsvPath,
 
+    [string]$DisplayScaling = '',
+
     [string]$Notes = 'none observed',
 
     [switch]$AllowHeadlessProcess
@@ -78,6 +80,40 @@ function Get-OperatingSystemDescription {
     }
 
     return 'unknown'
+}
+
+function Get-DisplayScalingDescription {
+    param([string]$ConfiguredValue)
+
+    if (-not [string]::IsNullOrWhiteSpace($ConfiguredValue)) {
+        return $ConfiguredValue.Trim()
+    }
+
+    try {
+        if (-not ('Sockseek.DisplayDpi' -as [type])) {
+            Add-Type -TypeDefinition @'
+namespace Sockseek
+{
+    using System.Runtime.InteropServices;
+
+    public static class DisplayDpi
+    {
+        [DllImport("user32.dll")]
+        public static extern int GetDpiForSystem();
+    }
+}
+'@
+        }
+
+        $dpi = [Sockseek.DisplayDpi]::GetDpiForSystem()
+        if ($dpi -gt 0) {
+            return ('{0:N0}%' -f (($dpi / 96.0) * 100.0))
+        }
+    }
+    catch {
+    }
+
+    return 'unknown - rerun with -DisplayScaling'
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
@@ -157,7 +193,7 @@ $workingSetDelta = [long]$last.WorkingSetBytes - [long]$first.WorkingSetBytes
 $cpuDelta = [double]$last.CpuSeconds - [double]$first.CpuSeconds
 $commit = Get-ShortCommit
 $osDescription = Get-OperatingSystemDescription
-$displayScale = 'record manually if non-default'
+$displayScale = Get-DisplayScalingDescription -ConfiguredValue $DisplayScaling
 
 $samples | Export-Csv -Path $SamplesCsvPath -NoTypeInformation -Encoding UTF8
 
