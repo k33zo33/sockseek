@@ -38,7 +38,8 @@ try {
         'Soulseek compliance is unresolved under ADR-0009',
         'External services are playlist or metadata sources only.',
         'Spotify, YouTube, Bandcamp and MusicBrainz are never audio sources',
-        'Docker smoke helper now fails hung Docker CLI commands with a bounded timeout and records Windows Docker Desktop pipe/config diagnostics',
+        'Docker is a secondary headless path.',
+        'passed the full image build, CLI help and daemon `/health` smoke on 2026-10-11',
         'Use the app Copy diagnostics action when available.',
         'Never paste provider tokens, OAuth codes, PKCE code verifiers, client secrets, Soulseek passwords, full Authorization headers or private playlist URLs with sensitive query parameters.'
     )

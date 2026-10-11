@@ -84,11 +84,10 @@ if (-not $decisionMatch.Success) {
 $publicBetaReason = $decisionMatch.Groups['reason'].Value
 Assert-Contains $publicBetaReason 'ADR-0009' 'public beta Soulseek compliance blocker'
 Assert-Contains $publicBetaReason 'Rendered UI virtualization trace' 'public beta rendered UI trace blocker'
-Assert-Contains $publicBetaReason 'Docker/headless smoke' 'public beta Docker/headless smoke blocker'
 
 Assert-TableRowStatus $document 'Soulseek compliance decision' 'Public beta blocked'
 Assert-TableRowStatus $document 'Rendered UI virtualization trace' 'Incomplete'
-Assert-TableRowStatus $document 'Docker/headless smoke' 'Environment-blocked'
+Assert-TableRowStatus $document 'Docker/headless smoke' 'Passed'
 Assert-TableRowStatus $document 'Release limitations' 'Passed'
 Assert-TableRowStatus $document 'Security and crash reporting' 'Passed'
 Assert-TableRowStatus $document 'Provider-audio scope guard' 'Passed'
@@ -120,14 +119,16 @@ Assert-TableRowContains $document 'Docker/headless smoke' 'npipe:////./pipe/dock
 Assert-TableRowContains $document 'Docker/headless smoke' 'engine-pipe access or timeout failures' 'Docker pipe failure classification evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/test_docker_smoke_diagnostics.ps1' 'Docker diagnostics artifact smoke evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'repo working-directory handoff' 'Docker helper working-directory regression evidence'
-Assert-TableRowContains $document 'Docker/headless smoke' 'BuildKit' 'Docker host BuildKit blocker evidence'
-Assert-TableRowContains $document 'Docker/headless smoke' 'read-only file system' 'Docker host read-only filesystem blocker evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'full Alpine `vlc` runtime package' 'Docker VLC runtime evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/run_docker_smoke.ps1` passed end to end' 'Docker full smoke pass evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Desktop `4.94.0`' 'Docker Desktop version evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Server `29.8.2`' 'Docker Server version evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'F:\Docker\DockerDesktopWSL' 'Docker F drive data-root evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'daemon container `/health` returning `{"status":"ok"}`' 'Docker daemon health evidence'
 
 $requiredBeforePublicBeta = Get-Section $document 'Required before public beta'
 Assert-Contains $requiredBeforePublicBeta 'Resolve ADR-0009' 'required public beta Soulseek compliance item'
 Assert-Contains $requiredBeforePublicBeta 'rendered Desktop UI virtualization trace' 'required rendered Desktop trace item'
-Assert-Contains $requiredBeforePublicBeta 'Docker/headless validation' 'required Docker/headless validation item'
 Assert-Contains $requiredBeforePublicBeta 'release notes' 'required release notes item'
 Assert-Contains $requiredBeforePublicBeta 'source availability' 'required source availability item'
 

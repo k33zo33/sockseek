@@ -77,16 +77,16 @@ try {
         throw 'Expected validation to fail when public beta is marked GO.'
     }
 
-    $dockerPassed = $baseline -replace '\|\s*Docker/headless smoke\s*\|(.*?)\|\s*Environment-blocked\s*\|', '| Docker/headless smoke |$1| Passed |'
-    $dockerPassedPath = Write-Case 'docker-passed.md' $dockerPassed
-    if ((Invoke-Validator $dockerPassedPath) -eq 0) {
-        throw 'Expected validation to fail when Docker/headless smoke is marked passed while public beta remains blocked.'
+    $dockerRegressed = $baseline -replace '\|\s*Docker/headless smoke\s*\|(.*?)\|\s*Passed\s*\|', '| Docker/headless smoke |$1| Environment-blocked |'
+    $dockerRegressedPath = Write-Case 'docker-regressed.md' $dockerRegressed
+    if ((Invoke-Validator $dockerRegressedPath) -eq 0) {
+        throw 'Expected validation to fail when Docker/headless smoke regresses to environment-blocked.'
     }
 
-    $dockerWithoutReadOnlyEvidence = $baseline -replace 'read-only file system', 'filesystem issue'
-    $dockerWithoutReadOnlyEvidencePath = Write-Case 'docker-without-read-only-evidence.md' $dockerWithoutReadOnlyEvidence
-    if ((Invoke-Validator $dockerWithoutReadOnlyEvidencePath) -eq 0) {
-        throw 'Expected validation to fail when Docker/headless smoke omits the current BuildKit read-only filesystem blocker.'
+    $dockerWithoutHealthEvidence = $baseline -replace 'daemon container `/health` returning `\{"status":"ok"\}`', 'daemon health result omitted'
+    $dockerWithoutHealthEvidencePath = Write-Case 'docker-without-health-evidence.md' $dockerWithoutHealthEvidence
+    if ((Invoke-Validator $dockerWithoutHealthEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when Docker/headless smoke omits daemon health evidence.'
     }
 
     $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers\.', ''
