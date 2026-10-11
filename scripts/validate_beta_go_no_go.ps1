@@ -105,6 +105,8 @@ Assert-TableRowContains $document 'Security and crash reporting' 'scripts/test_d
 Assert-TableRowContains $document 'Security and crash reporting' 'private vulnerability routing' 'diagnostics private vulnerability routing evidence'
 Assert-TableRowContains $document 'Security and crash reporting' 'Authorization headers' 'diagnostics authorization header redaction evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/test_desktop_virtualization_trace_validator.ps1' 'rendered trace validator smoke evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/run_desktop_virtualization_trace_capture.ps1' 'rendered trace capture runner evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/test_desktop_virtualization_trace_capture_runner.ps1' 'rendered trace capture runner smoke evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'literal variable names' 'rendered trace capture metadata regression evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'concrete display scaling' 'rendered trace display scaling evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'missing-display-scaling' 'rendered trace missing display scaling negative evidence'

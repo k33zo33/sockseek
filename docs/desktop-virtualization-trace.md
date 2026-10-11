@@ -51,6 +51,17 @@ Run one capture for each required surface: `library`, `search` and `playlist`. T
 
 If local execution policy blocks unsigned scripts, run the same command through `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\capture_desktop_virtualization_trace.ps1 ...` without changing the machine-wide policy.
 
+To run the three captures in sequence and validate them immediately after the last capture, use:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_desktop_virtualization_trace_capture.ps1 `
+  -DurationSeconds 180 `
+  -DisplayScaling "100%" `
+  -OutputDirectory artifacts
+```
+
+The runner pauses before each surface unless `-SkipPrompts` is passed. Load the requested fixture in the rendered Desktop window before continuing each capture. The runner does not generate fixture data and does not replace the operator check for visible defects.
+
 The helper now requires the target process to have a main window by default so a headless or background process cannot be mistaken for rendered UI evidence. It records both `Main window present` and `Headless process allowed` in each report. `-AllowHeadlessProcess` is only for validating the harness itself; reports captured with it are rejected by the validator and do not satisfy the public-beta rendered trace gate.
 
 After all three captures are complete, validate the captured reports before recording the gate result:
@@ -66,7 +77,7 @@ The helper attempts to detect Windows display scaling automatically. If the repo
 
 The validator checks that all three surfaces are present, use the same concrete commit, meet the required fixture sizes, record concrete display scaling and reference existing raw sample CSV files. Passing validation still does not replace the manual operator check for visible text overlap, row actions and responsiveness; record those observations in each capture's notes.
 
-Use `scripts/test_desktop_virtualization_trace_validator.ps1` to smoke-test the validator itself. The smoke creates synthetic valid and invalid reports, including headless, undersized fixture and mixed-commit cases; it does not satisfy the rendered UI trace gate.
+Use `scripts/test_desktop_virtualization_trace_validator.ps1` to smoke-test the validator itself. The smoke creates synthetic valid and invalid reports, including headless, undersized fixture and mixed-commit cases; it does not satisfy the rendered UI trace gate. Use `scripts/test_desktop_virtualization_trace_capture_runner.ps1` to smoke-test the three-surface runner without launching the Desktop app.
 
 ## Current automated guards
 

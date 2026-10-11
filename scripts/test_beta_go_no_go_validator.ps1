@@ -89,6 +89,12 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke omits daemon health evidence.'
     }
 
+    $renderedTraceWithoutRunner = $baseline -replace ' `scripts/test_desktop_virtualization_trace_capture_runner\.ps1` smokes the three-surface runner with a fake capture helper,', ''
+    $renderedTraceWithoutRunnerPath = Write-Case 'rendered-trace-without-runner.md' $renderedTraceWithoutRunner
+    if ((Invoke-Validator $renderedTraceWithoutRunnerPath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits the three-surface runner smoke.'
+    }
+
     $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers\.', ''
     $soulseekWithoutGateValidatorPath = Write-Case 'soulseek-without-gate-validator.md' $soulseekWithoutGateValidator
     if ((Invoke-Validator $soulseekWithoutGateValidatorPath) -eq 0) {
