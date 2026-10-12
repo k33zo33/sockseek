@@ -39,7 +39,7 @@ try {
         'External services are playlist or metadata sources only.',
         'Spotify, YouTube, Bandcamp and MusicBrainz are never audio sources',
         'Docker is a secondary headless path.',
-        'passed the full image build, CLI help and daemon `/health` smoke on 2026-10-11',
+        'passed the full image build, CLI help and daemon `/health` smoke on 2026-10-13',
         'Use the app Copy diagnostics action when available.',
         'Never paste provider tokens, OAuth codes, PKCE code verifiers, client secrets, Soulseek passwords, full Authorization headers or private playlist URLs with sensitive query parameters.'
     )
