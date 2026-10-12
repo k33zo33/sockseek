@@ -29,7 +29,7 @@ External services are playlist or metadata sources only. Spotify, YouTube, Bandc
 
 - Windows release-candidate packaging is internally verified with legal artifacts, SBOM and SHA256 manifest.
 - The Windows installer is currently script-based PowerShell, not a signed MSI/MSIX.
-- Docker is a secondary headless path. The Sprint 15 helper reaches Docker Desktop from the validation session, records Windows Docker Desktop pipe/config diagnostics, preserves the repo working directory inside bounded Docker jobs and passed the full image build, CLI help and daemon `/health` smoke on 2026-10-11 after Docker Desktop WSL storage was moved to `F:\Docker\DockerDesktopWSL`.
+- Docker is a secondary headless path. The Sprint 15 helper reaches Docker Desktop from the validation session, records Windows Docker Desktop pipe/config diagnostics, preserves the repo working directory inside bounded Docker jobs and passed the full image build, CLI help and daemon `/health` smoke on 2026-10-13 after Docker Desktop WSL storage was moved to `F:\Docker\DockerDesktopWSL`.
 - Linux desktop packaging is not complete; the current native media package path is Windows-focused.
 - The Sprint 15 eight-hour soak gate passed for commit `93a8c63`; rendered UI virtualization traces are still open and require manual capture in a real Desktop window.
 

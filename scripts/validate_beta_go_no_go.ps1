@@ -104,6 +104,8 @@ Assert-TableRowContains $document 'Security and crash reporting' 'scripts/valida
 Assert-TableRowContains $document 'Security and crash reporting' 'scripts/test_diagnostics_feedback_gate_validator.ps1' 'diagnostics feedback gate validator smoke evidence'
 Assert-TableRowContains $document 'Security and crash reporting' 'private vulnerability routing' 'diagnostics private vulnerability routing evidence'
 Assert-TableRowContains $document 'Security and crash reporting' 'Authorization headers' 'diagnostics authorization header redaction evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/prepare_desktop_virtualization_fixture.ps1' 'rendered trace fixture preparation evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'DesktopVirtualizationTraceFixtureWriterTests' 'rendered trace fixture writer opt-in test evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/test_desktop_virtualization_trace_validator.ps1' 'rendered trace validator smoke evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/run_desktop_virtualization_trace_capture.ps1' 'rendered trace capture runner evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/test_desktop_virtualization_trace_capture_runner.ps1' 'rendered trace capture runner smoke evidence'

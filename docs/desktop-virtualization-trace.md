@@ -30,6 +30,31 @@ Capture a trace on the target public-beta OS and hardware class:
    - peak private memory delta;
    - observed UI defects or "none observed".
 
+## Optional fixture preparation
+
+Use `scripts/prepare_desktop_virtualization_fixture.ps1` to prepare an isolated local fixture before launching the rendered Desktop app. The script creates:
+
+- a migrated SQLite config directory with 100,000 library tracks;
+- a 10,000 item imported playlist;
+- a 10,000 file mock Soulseek tree that can be searched without real Soulseek network access.
+
+Example:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\prepare_desktop_virtualization_fixture.ps1 -Force
+```
+
+The script writes a `desktop-trace-fixture-readme.md` under `.tmp\sprint15-desktop-trace-fixture\` with the exact launch environment. Start Desktop from the same shell after setting:
+
+```powershell
+$env:SOCKSEEK_DESKTOP_CONFIG_DIR = ".tmp\sprint15-desktop-trace-fixture\config"
+$env:SockseekServer__Engine__MockFilesDir = ".tmp\sprint15-desktop-trace-fixture\mock-soulseek"
+$env:SockseekServer__Engine__MockFilesReadTags = "false"
+dotnet run --project Sockseek.Desktop\Sockseek.Desktop.csproj -c Release
+```
+
+The fixture writer is opt-in and covered by `DesktopVirtualizationTraceFixtureWriterTests`; default test runs skip database generation unless `SOCKSEEK_WRITE_DESKTOP_TRACE_FIXTURE=1` is set. Fixture preparation does not satisfy the rendered UI trace gate by itself.
+
 ## Optional capture helper
 
 Use `scripts/capture_desktop_virtualization_trace.ps1` after the packaged Desktop process is running to collect consistent process metrics while the operator performs the rendered interaction steps.

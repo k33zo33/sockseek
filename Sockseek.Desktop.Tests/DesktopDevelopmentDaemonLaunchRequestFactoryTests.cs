@@ -27,6 +27,56 @@ public class DesktopDevelopmentDaemonLaunchRequestFactoryTests
     }
 
     [TestMethod]
+    public void Create_UsesEnvironmentConfigDirWhenExplicitConfigDirIsMissing()
+    {
+        var previous = Environment.GetEnvironmentVariable(DesktopDevelopmentDaemonLaunchRequestFactory.ConfigDirEnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                DesktopDevelopmentDaemonLaunchRequestFactory.ConfigDirEnvironmentVariable,
+                "trace-config");
+
+            var request = DesktopDevelopmentDaemonLaunchRequestFactory.Create("/workspace/sockseek");
+
+            Assert.AreEqual(
+                Path.GetFullPath("trace-config"),
+                request.EnvironmentVariables["SockseekServer__ConfigDir"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                DesktopDevelopmentDaemonLaunchRequestFactory.ConfigDirEnvironmentVariable,
+                previous);
+        }
+    }
+
+    [TestMethod]
+    public void Create_ExplicitConfigDirOverridesEnvironmentConfigDir()
+    {
+        var previous = Environment.GetEnvironmentVariable(DesktopDevelopmentDaemonLaunchRequestFactory.ConfigDirEnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                DesktopDevelopmentDaemonLaunchRequestFactory.ConfigDirEnvironmentVariable,
+                "trace-config-env");
+
+            var request = DesktopDevelopmentDaemonLaunchRequestFactory.Create(
+                "/workspace/sockseek",
+                configDir: "trace-config-explicit");
+
+            Assert.AreEqual(
+                Path.GetFullPath("trace-config-explicit"),
+                request.EnvironmentVariables["SockseekServer__ConfigDir"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                DesktopDevelopmentDaemonLaunchRequestFactory.ConfigDirEnvironmentVariable,
+                previous);
+        }
+    }
+
+    [TestMethod]
     public void Create_EmptyWorkspaceRoot_ThrowsArgumentException()
     {
         Assert.ThrowsException<ArgumentException>(() => DesktopDevelopmentDaemonLaunchRequestFactory.Create(" "));
