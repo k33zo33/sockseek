@@ -54,9 +54,10 @@ namespace Tests.FastSearch
         {
             // Search delay simulates the search still running when the fast download fires.
             // The download is near-instant, so the search should be cancelled mid-delay.
+            const int backgroundSearchDelayMs = 1000;
             var client = new ClientTests.MockSoulseekClient(
                 new[] { FastUser() }.ToList(),
-                searchDelayMs: 30);
+                searchDelayMs: backgroundSearchDelayMs);
 
             var (app, outputDir) = CreateApp(client,
                 "testartist - testsong",
