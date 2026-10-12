@@ -107,10 +107,10 @@ try {
         throw 'Expected validation to fail when security/crash reporting omits diagnostics feedback validator evidence.'
     }
 
-    $packageWithoutWarning = $baseline -replace ' The publish steps emitted `NU1900` package-vulnerability-source warnings because `https://api\.nuget\.org/v3/index\.json` was unavailable during this run; the separate dependency vulnerability scan gate remains recorded above\.', ''
-    $packageWithoutWarningPath = Write-Case 'package-without-warning.md' $packageWithoutWarning
-    if ((Invoke-Validator $packageWithoutWarningPath) -eq 0) {
-        throw 'Expected validation to fail when Windows package smoke omits the documented NU1900 warning evidence.'
+    $packageWithoutMetadata = $baseline -replace 'release-metadata\.json', 'release-metadata-omitted.json'
+    $packageWithoutMetadataPath = Write-Case 'package-without-release-metadata.md' $packageWithoutMetadata
+    if ((Invoke-Validator $packageWithoutMetadataPath) -eq 0) {
+        throw 'Expected validation to fail when Windows package smoke omits release metadata evidence.'
     }
 
     $packageWithoutTesterInstructions = $baseline -replace 'closed-beta-tester-instructions\.md', 'closed-beta-instructions-omitted.md'
