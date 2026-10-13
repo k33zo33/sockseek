@@ -108,6 +108,12 @@ try {
         throw 'Expected validation to fail when rendered trace evidence omits fixture preparation.'
     }
 
+    $renderedTraceWithoutLauncher = $baseline -replace ' `scripts/start_desktop_virtualization_fixture\.ps1` launches Desktop with that fixture environment and supports `-DesktopExecutablePath` for packaged artifact traces,', ''
+    $renderedTraceWithoutLauncherPath = Write-Case 'rendered-trace-without-launcher.md' $renderedTraceWithoutLauncher
+    if ((Invoke-Validator $renderedTraceWithoutLauncherPath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits fixture launcher coverage.'
+    }
+
     $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, the public beta checklist remains linked from the audit, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers or checklist evidence\.', ''
     $soulseekWithoutGateValidatorPath = Write-Case 'soulseek-without-gate-validator.md' $soulseekWithoutGateValidator
     if ((Invoke-Validator $soulseekWithoutGateValidatorPath) -eq 0) {

@@ -55,6 +55,14 @@ dotnet run --project Sockseek.Desktop\Sockseek.Desktop.csproj -c Release
 
 The fixture writer is opt-in and covered by `DesktopVirtualizationTraceFixtureWriterTests`; default test runs skip database generation unless `SOCKSEEK_WRITE_DESKTOP_TRACE_FIXTURE=1` is set. Fixture preparation does not satisfy the rendered UI trace gate by itself.
 
+To launch Desktop with the fixture environment consistently, use:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_desktop_virtualization_fixture.ps1
+```
+
+By default the launch helper uses `dotnet run --project Sockseek.Desktop\Sockseek.Desktop.csproj -c Release --no-build`, which is useful for rehearsal. For public-beta rendered trace evidence, pass `-DesktopExecutablePath` pointing at the packaged Desktop executable being evaluated so the trace covers the shipped artifact.
+
 ## Optional capture helper
 
 Use `scripts/capture_desktop_virtualization_trace.ps1` after the packaged Desktop process is running to collect consistent process metrics while the operator performs the rendered interaction steps.

@@ -173,6 +173,14 @@ dotnet run --project Sockseek.Desktop\Sockseek.Desktop.csproj -c Release
 ````
 
 Then start the daemon from the Desktop UI and capture the three surfaces with `scripts/run_desktop_virtualization_trace_capture.ps1`.
+
+To avoid launching Desktop with the wrong fixture paths, run:
+
+````powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_desktop_virtualization_fixture.ps1 `
+  -ConfigDir "$resolvedConfigDir" `
+  -MockSoulseekDir "$resolvedMockSoulseekDir"
+````
 "@ | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 
 Write-Host ''
