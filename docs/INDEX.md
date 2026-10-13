@@ -21,6 +21,7 @@
 - [Provider integrations](PROVIDERS.md)
 - [Provider failure matrix](provider-failure-matrix.md)
 - [Soulseek compliance audit](soulseek-compliance-audit.md)
+- [Soulseek public beta compliance checklist](soulseek-public-beta-compliance-checklist.md)
 - [Player](PLAYER.md)
 - [Current daemon/client API integration](current-api.md)
 - [Planned application API and events](application-api.md)

@@ -44,5 +44,5 @@ The corresponding ADR is `docs/adr/0009-closed-beta-until-soulseek-compliance.md
 
 - Decide whether to implement wishlist, upload/sharing, chat and privilege recognition in scope.
 - Re-review user-facing legal-use and user-responsibility messaging in onboarding, About/License and release notes for the exact public beta artifact.
-- Add feature/compliance tests or manual smoke checklist for every Soulseek feature claim.
+- Use `docs/soulseek-public-beta-compliance-checklist.md` to record feature/compliance tests or manual smoke evidence for every Soulseek feature claim.
 - Re-review Soulseek rules and Terms of Use before tagging any public beta.

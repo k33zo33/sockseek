@@ -101,10 +101,16 @@ try {
         throw 'Expected validation to fail when rendered trace evidence omits fixture preparation.'
     }
 
-    $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers\.', ''
+    $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, the public beta checklist remains linked from the audit, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers or checklist evidence\.', ''
     $soulseekWithoutGateValidatorPath = Write-Case 'soulseek-without-gate-validator.md' $soulseekWithoutGateValidator
     if ((Invoke-Validator $soulseekWithoutGateValidatorPath) -eq 0) {
         throw 'Expected validation to fail when Soulseek compliance decision omits the dedicated gate validator evidence.'
+    }
+
+    $soulseekWithoutChecklistEvidence = $baseline -replace ' `docs/soulseek-public-beta-compliance-checklist\.md` defines the required pre-public-beta evidence for search, wishlist, download, upload/sharing, chat, privileges, folder browse, sharing status, legal-use messaging and the provider audio invariant, while preserving ADR-0009 as the active blocker\.', ''
+    $soulseekWithoutChecklistEvidencePath = Write-Case 'soulseek-without-checklist-evidence.md' $soulseekWithoutChecklistEvidence
+    if ((Invoke-Validator $soulseekWithoutChecklistEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when Soulseek compliance decision omits public beta checklist evidence.'
     }
 
     $securityWithoutDiagnosticsValidator = $baseline -replace ' `scripts/validate_diagnostics_feedback_gate\.ps1` verifies private vulnerability routing, closed-beta/public-beta-blocker language, exact build evidence fields, `Copy diagnostics` guidance and public issue redaction warnings for tokens, OAuth material, Soulseek passwords, Authorization headers and private playlist URLs; `scripts/test_diagnostics_feedback_gate_validator\.ps1` covers negative cases for missing redaction warnings, blank public issues and missing public-beta blocker language\.', ''
