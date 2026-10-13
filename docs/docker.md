@@ -72,6 +72,8 @@ Use the Sprint 15 helper to validate the Docker/headless path on a machine with 
 
 The helper checks Docker engine availability, validates `docker compose config`, builds the image, runs `/usr/bin/sockseek --help`, starts `/usr/bin/sockseek-daemon` in a temporary container, and waits for the loopback `/health` endpoint from inside that container.
 
+The Docker image publishes both the CLI and daemon as self-contained single-file binaries. Trimming is disabled for both binaries in this secondary packaging path because the current dependency graph includes reflection-heavy JSON, EF Core, ASP.NET Core and provider libraries that are not yet reviewed as trim-safe.
+
 If the image has already been built, pass `-SkipBuild`. If only the Dockerfile path is under review and compose is intentionally unavailable, pass `-SkipComposeConfig` and record that limitation in `docs/beta-go-no-go.md`.
 
 On Windows, the helper also runs a non-fatal Docker Desktop Linux engine pipe diagnostic with an isolated `DOCKER_CONFIG` before the required `docker version` gate. Tune that diagnostic with `-DockerDesktopPipeDiagnosticTimeoutSeconds` if Docker Desktop is slow to answer. The diagnostic does not make Docker smoke pass; it only records whether the current process can reach `npipe:////./pipe/dockerDesktopLinuxEngine` without relying on the user's Docker config directory.

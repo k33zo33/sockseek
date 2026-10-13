@@ -11,7 +11,7 @@ RUN if [ "$DOCKER_ARCH" = "amd64" ] || [ "$TARGETPLATFORM" = "linux/amd64" ]; th
     && if [ "$DOCKER_ARCH" = "arm64" ] || [ "$TARGETPLATFORM" = "linux/arm64" ]; then export DN_RUNTIME=linux-musl-arm64; echo 'Build ARM'; fi \
     && test -n "$DN_RUNTIME" \
     && dotnet restore /src/Sockseek.HelpGenerator/Sockseek.HelpGenerator.csproj \
-    && dotnet publish /src/Sockseek.Cli/Sockseek.Cli.csproj -c Release -r "$DN_RUNTIME" -p:PublishSingleFile=true -p:PublishTrimmed=true --self-contained=true -o /out \
+    && dotnet publish /src/Sockseek.Cli/Sockseek.Cli.csproj -c Release -r "$DN_RUNTIME" -p:PublishSingleFile=true -p:PublishTrimmed=false --self-contained=true -o /out \
     && dotnet publish /src/Sockseek.Server/Sockseek.Server.csproj -c Release -r "$DN_RUNTIME" -p:PublishSingleFile=true -p:PublishTrimmed=false --self-contained=true -o /out-daemon \
     && cp -a /out-daemon/. /out/ \
     && mv /out/Sockseek.Server /out/sockseek-daemon \
