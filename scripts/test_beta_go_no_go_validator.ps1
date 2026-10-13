@@ -89,6 +89,13 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke omits daemon health evidence.'
     }
 
+    $dockerWithoutTrimEvidence = $baseline -replace ' with trimming disabled until the dependency graph is reviewed as trim-safe', ''
+    $dockerWithoutTrimEvidence = $dockerWithoutTrimEvidence -replace ' without trim-analysis warning output', ''
+    $dockerWithoutTrimEvidencePath = Write-Case 'docker-without-trim-evidence.md' $dockerWithoutTrimEvidence
+    if ((Invoke-Validator $dockerWithoutTrimEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when Docker/headless smoke omits trimming-disabled evidence.'
+    }
+
     $renderedTraceWithoutRunner = $baseline -replace ' `scripts/test_desktop_virtualization_trace_capture_runner\.ps1` smokes the three-surface runner with a fake capture helper,', ''
     $renderedTraceWithoutRunnerPath = Write-Case 'rendered-trace-without-runner.md' $renderedTraceWithoutRunner
     if ((Invoke-Validator $renderedTraceWithoutRunnerPath) -eq 0) {

@@ -127,6 +127,8 @@ Assert-TableRowContains $document 'Docker/headless smoke' 'engine-pipe access or
 Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/test_docker_smoke_diagnostics.ps1' 'Docker diagnostics artifact smoke evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'repo working-directory handoff' 'Docker helper working-directory regression evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'full Alpine `vlc` runtime package' 'Docker VLC runtime evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'trimming disabled' 'Docker trimming-disabled publish evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'without trim-analysis warning output' 'Docker trim warning reduction evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/run_docker_smoke.ps1` passed end to end' 'Docker full smoke pass evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Desktop `4.94.0`' 'Docker Desktop version evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Server `29.8.2`' 'Docker Server version evidence'
