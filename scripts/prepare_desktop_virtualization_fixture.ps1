@@ -165,22 +165,20 @@ Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz').
 
 Run the Desktop app from this repository with these environment variables set so its development daemon uses the fixture database and mock Soulseek search files:
 
-````powershell
+~~~powershell
 `$env:SOCKSEEK_DESKTOP_CONFIG_DIR = "$resolvedConfigDir"
 `$env:SockseekServer__Engine__MockFilesDir = "$resolvedMockSoulseekDir"
 `$env:SockseekServer__Engine__MockFilesReadTags = "false"
 dotnet run --project Sockseek.Desktop\Sockseek.Desktop.csproj -c Release
-````
+~~~
 
 Then start the daemon from the Desktop UI and capture the three surfaces with `scripts/run_desktop_virtualization_trace_capture.ps1`.
 
 To avoid launching Desktop with the wrong fixture paths, run:
 
-````powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_desktop_virtualization_fixture.ps1 `
-  -ConfigDir "$resolvedConfigDir" `
-  -MockSoulseekDir "$resolvedMockSoulseekDir"
-````
+~~~powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_desktop_virtualization_fixture.ps1 -ConfigDir "$resolvedConfigDir" -MockSoulseekDir "$resolvedMockSoulseekDir"
+~~~
 "@ | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 
 Write-Host ''
