@@ -194,6 +194,55 @@ function Invoke-WindowsDockerDesktopPipeDiagnostic {
     }
 }
 
+function Add-WindowsDockerProcessAccessDiagnostics {
+    if (-not (Test-IsWindows)) {
+        return
+    }
+
+    Add-Diagnostic ""
+    Add-Diagnostic "## Windows Docker process access"
+    Add-Diagnostic ""
+
+    try {
+        $groups = & whoami /groups 2>&1 | ForEach-Object { [string]$_ }
+        $dockerUsersGroup = $groups | Where-Object { $_.IndexOf('docker-users', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 }
+        if ($dockerUsersGroup) {
+            Add-Diagnostic "- docker-users group present: yes"
+            foreach ($line in $dockerUsersGroup) {
+                Add-Diagnostic "  - $line"
+            }
+        }
+        else {
+            Add-Diagnostic "- docker-users group present: no"
+        }
+    }
+    catch {
+        Add-Diagnostic "- docker-users group present: unknown ($($_.Exception.Message))"
+    }
+
+    $dockerConfigRoot = Join-Path $HOME '.docker'
+    $paths = @(
+        @{ Name = 'Docker config directory'; Path = $dockerConfigRoot },
+        @{ Name = 'Docker config file'; Path = (Join-Path $dockerConfigRoot 'config.json') },
+        @{ Name = 'Docker context metadata directory'; Path = (Join-Path $dockerConfigRoot 'contexts\meta') }
+    )
+
+    foreach ($entry in $paths) {
+        try {
+            if (Test-Path -LiteralPath $entry.Path -ErrorAction Stop) {
+                Get-Item -LiteralPath $entry.Path -ErrorAction Stop | Out-Null
+                Add-Diagnostic "- $($entry.Name): readable ($($entry.Path))"
+            }
+            else {
+                Add-Diagnostic "- $($entry.Name): missing ($($entry.Path))"
+            }
+        }
+        catch {
+            Add-Diagnostic "- $($entry.Name): inaccessible ($($entry.Path)): $($_.Exception.Message)"
+        }
+    }
+}
+
 Add-Diagnostic "# Docker smoke diagnostics"
 Add-Diagnostic ""
 Add-Diagnostic "- Generated: $((Get-Date).ToString('o'))"
@@ -203,6 +252,9 @@ Add-Diagnostic "- Docker CLI: $DockerCli"
 Add-Diagnostic "- Working directory: $((Get-Location).Path)"
 Add-Diagnostic "- Windows user: $(& whoami)"
 Add-Diagnostic "- PowerShell: $($PSVersionTable.PSVersion)"
+Save-Diagnostics
+
+Add-WindowsDockerProcessAccessDiagnostics
 Save-Diagnostics
 
 Write-Host "Capturing Docker context."

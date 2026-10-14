@@ -127,6 +127,8 @@ Assert-TableRowContains $document 'Windows package smoke' 'docs/beta-limitations
 Assert-TableRowContains $document 'Windows package smoke' 'release-metadata.json' 'Windows package release metadata evidence'
 Assert-TableRowContains $document 'Windows package smoke' '126-package SBOM' 'Windows package SBOM evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'isolated-`DOCKER_CONFIG`' 'Docker isolated config diagnostic evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'docker-users` membership' 'Docker Windows group diagnostic evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'config path readability' 'Docker Windows config ACL diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'npipe:////./pipe/dockerDesktopLinuxEngine' 'Docker Desktop pipe diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'engine-pipe access or timeout failures' 'Docker pipe failure classification evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/test_docker_smoke_diagnostics.ps1' 'Docker diagnostics artifact smoke evidence'
