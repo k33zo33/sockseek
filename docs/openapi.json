@@ -9250,7 +9250,12 @@
         "required": [
           "state",
           "flags",
-          "isReady"
+          "isReady",
+          "sharedFiles",
+          "sharedFolders",
+          "listenPort",
+          "shareCountUpdatesEnabled",
+          "userDescriptionConfigured"
         ],
         "type": "object",
         "properties": {
@@ -9264,6 +9269,37 @@
             }
           },
           "isReady": {
+            "type": "boolean"
+          },
+          "sharedFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sharedFolders": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "listenPort": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "shareCountUpdatesEnabled": {
+            "type": "boolean"
+          },
+          "userDescriptionConfigured": {
             "type": "boolean"
           }
         }

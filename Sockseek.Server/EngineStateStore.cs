@@ -235,7 +235,7 @@ public sealed class EngineStateStore
             int activeWorkflowCount = workflows.Values.Count(workflow => workflow.ActiveJobCount > 0);
 
             return new ServerStatusDto(
-                new SoulseekClientStatusDto("None", [], false),
+                new SoulseekClientStatusDto("None", [], false, 0, 0, null, false, false),
                 totalJobCount,
                 activeJobCount,
                 totalWorkflowCount,

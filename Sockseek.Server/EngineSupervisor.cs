@@ -227,7 +227,7 @@ public sealed class EngineSupervisor
                 ? "Sprint 8 LibVLC growing-file regression test starts this local file format before final bytes arrive."
                 : "Sprint 7 LibVLC fixture smoke test starts this local file format; progressive playback remains disabled.");
 
-    private static SoulseekClientStatusDto ToSoulseekClientStatusDto(SoulseekClientStates state)
+    private SoulseekClientStatusDto ToSoulseekClientStatusDto(SoulseekClientStates state)
     {
         var flags = Enum.GetValues<SoulseekClientStates>()
             .Where(flag => flag != SoulseekClientStates.None && state.HasFlag(flag))
@@ -240,7 +240,12 @@ public sealed class EngineSupervisor
         return new SoulseekClientStatusDto(
             state.ToString(),
             flags,
-            isConnected && isLoggedIn);
+            isConnected && isLoggedIn,
+            engineSettings.SharedFiles,
+            engineSettings.SharedFolders,
+            engineSettings.ListenPort,
+            !engineSettings.NoModifyShareCount,
+            !string.IsNullOrWhiteSpace(engineSettings.UserDescription));
     }
 
     public Task<JobSummaryDto> SubmitExtractJobAsync(SubmitExtractJobRequestDto request, CancellationToken ct)

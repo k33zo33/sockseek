@@ -293,10 +293,20 @@ public sealed record ServerStatusDto(
 /// <param name="State">Combined Soulseek.NET client state string.</param>
 /// <param name="Flags">Individual Soulseek.NET state flag names.</param>
 /// <param name="IsReady">True when the client is both connected and logged in.</param>
+/// <param name="SharedFiles">Configured file share count advertised to Soulseek.</param>
+/// <param name="SharedFolders">Configured folder share count advertised to Soulseek.</param>
+/// <param name="ListenPort">Configured incoming Soulseek listen port, or null when listening is disabled.</param>
+/// <param name="ShareCountUpdatesEnabled">True when the daemon may update the advertised share counts on login.</param>
+/// <param name="UserDescriptionConfigured">True when a non-empty Soulseek user description is configured.</param>
 public sealed record SoulseekClientStatusDto(
     string State,
     IReadOnlyList<string> Flags,
-    bool IsReady);
+    bool IsReady,
+    int SharedFiles,
+    int SharedFolders,
+    int? ListenPort,
+    bool ShareCountUpdatesEnabled,
+    bool UserDescriptionConfigured);
 
 /// <summary>
 /// User-visible summary of a configured profile.

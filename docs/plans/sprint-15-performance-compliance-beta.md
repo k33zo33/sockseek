@@ -44,6 +44,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 ## API, Schema and Event Changes
 
 - Prefer no public API or database schema changes.
+- Additive status DTO fields are allowed when they expose existing non-secret Soulseek operational state needed for beta compliance review, such as configured share counts and listen-port/sharing indicators. Update OpenAPI and focused tests in the same change.
 - A development-only Desktop daemon launch environment override may point the daemon at a trace fixture config directory; packaged defaults must remain unchanged.
 - If diagnostics endpoints or DTOs need expansion, expose only non-secret operational state and update `docs/openapi.json`.
 - Event traffic changes must preserve existing SignalR event contracts unless a compatibility note is documented.

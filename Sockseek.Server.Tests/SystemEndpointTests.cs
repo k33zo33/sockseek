@@ -101,6 +101,53 @@ public class SystemEndpointTests
         }
     }
 
+    [TestMethod]
+    public void GetStatus_ReportsConfiguredSoulseekSharingState()
+    {
+        var supervisor = new EngineSupervisor(Options.Create(new ServerOptions
+        {
+            Engine = new EngineSettings
+            {
+                SharedFiles = 123,
+                SharedFolders = 4,
+                ListenPort = 49999,
+                UserDescription = "Configured for closed beta smoke",
+            },
+            Profiles = ProfileCatalog.Empty,
+        }));
+
+        var status = supervisor.GetStatus();
+
+        Assert.AreEqual("None", status.SoulseekClient.State);
+        Assert.IsFalse(status.SoulseekClient.IsReady);
+        Assert.AreEqual(123, status.SoulseekClient.SharedFiles);
+        Assert.AreEqual(4, status.SoulseekClient.SharedFolders);
+        Assert.AreEqual(49999, status.SoulseekClient.ListenPort);
+        Assert.IsTrue(status.SoulseekClient.ShareCountUpdatesEnabled);
+        Assert.IsTrue(status.SoulseekClient.UserDescriptionConfigured);
+    }
+
+    [TestMethod]
+    public void GetStatus_WhenShareCountUpdatesDisabled_ReportsConfiguredStatusWithoutDescriptionContent()
+    {
+        var supervisor = new EngineSupervisor(Options.Create(new ServerOptions
+        {
+            Engine = new EngineSettings
+            {
+                ListenPort = null,
+                NoModifyShareCount = true,
+                UserDescription = "Do not expose this text",
+            },
+            Profiles = ProfileCatalog.Empty,
+        }));
+
+        var status = supervisor.GetStatus();
+
+        Assert.IsNull(status.SoulseekClient.ListenPort);
+        Assert.IsFalse(status.SoulseekClient.ShareCountUpdatesEnabled);
+        Assert.IsTrue(status.SoulseekClient.UserDescriptionConfigured);
+    }
+
     private static void AssertPlayerCapabilities(PlayerCapabilitiesDto player)
     {
         Assert.IsTrue(player.LocalFilePlayback);
