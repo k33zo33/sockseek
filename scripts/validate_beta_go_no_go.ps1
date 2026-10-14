@@ -125,7 +125,7 @@ Assert-TableRowContains $document 'Windows package smoke' 'SECURITY.md' 'Windows
 Assert-TableRowContains $document 'Windows package smoke' 'THIRD-PARTY-NOTICES' 'Windows package third-party notices manifest evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'docs/beta-limitations.md' 'Windows package beta limitations manifest evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'release-metadata.json' 'Windows package release metadata evidence'
-Assert-TableRowContains $document 'Windows package smoke' '126-package SBOM' 'Windows package SBOM evidence'
+Assert-TableRowContains $document 'Windows package smoke' '132-package SBOM' 'Windows package SBOM evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'isolated-`DOCKER_CONFIG`' 'Docker isolated config diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'docker-users` membership' 'Docker Windows group diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'config path readability' 'Docker Windows config ACL diagnostic evidence'
