@@ -96,10 +96,17 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke omits trimming-disabled evidence.'
     }
 
-    $dockerWithoutWindowsAccessDiagnostics = $baseline -replace ' the process `docker-users` membership, Docker CLI config path readability and', ''
+    $dockerWithoutWindowsAccessDiagnostics = $baseline -replace 'the process `docker-users` membership, ', ''
+    $dockerWithoutWindowsAccessDiagnostics = $dockerWithoutWindowsAccessDiagnostics -replace 'Docker CLI config path readability, ', ''
     $dockerWithoutWindowsAccessDiagnosticsPath = Write-Case 'docker-without-windows-access-diagnostics.md' $dockerWithoutWindowsAccessDiagnostics
     if ((Invoke-Validator $dockerWithoutWindowsAccessDiagnosticsPath) -eq 0) {
         throw 'Expected validation to fail when Docker/headless smoke omits Windows process access diagnostics.'
+    }
+
+    $dockerWithoutWindowsHostStateDiagnostics = $baseline -replace ', Docker Desktop service state, WSL distribution state', ''
+    $dockerWithoutWindowsHostStateDiagnosticsPath = Write-Case 'docker-without-windows-host-state-diagnostics.md' $dockerWithoutWindowsHostStateDiagnostics
+    if ((Invoke-Validator $dockerWithoutWindowsHostStateDiagnosticsPath) -eq 0) {
+        throw 'Expected validation to fail when Docker/headless smoke omits Windows service and WSL diagnostics.'
     }
 
     $renderedTraceWithoutRunner = $baseline -replace ' `scripts/test_desktop_virtualization_trace_capture_runner\.ps1` smokes the three-surface runner with a fake capture helper,', ''

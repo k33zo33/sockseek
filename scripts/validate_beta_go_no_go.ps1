@@ -129,6 +129,8 @@ Assert-TableRowContains $document 'Windows package smoke' '132-package SBOM' 'Wi
 Assert-TableRowContains $document 'Docker/headless smoke' 'isolated-`DOCKER_CONFIG`' 'Docker isolated config diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'docker-users` membership' 'Docker Windows group diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'config path readability' 'Docker Windows config ACL diagnostic evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Desktop service state' 'Docker Windows service diagnostic evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'WSL distribution state' 'Docker Windows WSL diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'npipe:////./pipe/dockerDesktopLinuxEngine' 'Docker Desktop pipe diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'engine-pipe access or timeout failures' 'Docker pipe failure classification evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/test_docker_smoke_diagnostics.ps1' 'Docker diagnostics artifact smoke evidence'

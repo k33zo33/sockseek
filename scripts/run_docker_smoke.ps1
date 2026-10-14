@@ -241,6 +241,32 @@ function Add-WindowsDockerProcessAccessDiagnostics {
             Add-Diagnostic "- $($entry.Name): inaccessible ($($entry.Path)): $($_.Exception.Message)"
         }
     }
+
+    Add-Diagnostic ""
+    Add-Diagnostic "### Docker Desktop service"
+    Add-Diagnostic ""
+    try {
+        $serviceOutput = & sc.exe query com.docker.service 2>&1 | ForEach-Object { [string]$_ }
+        foreach ($line in $serviceOutput) {
+            Add-Diagnostic "- $line"
+        }
+    }
+    catch {
+        Add-Diagnostic "- sc.exe query com.docker.service failed: $($_.Exception.Message)"
+    }
+
+    Add-Diagnostic ""
+    Add-Diagnostic "### WSL distributions"
+    Add-Diagnostic ""
+    try {
+        $wslOutput = & wsl.exe -l -v 2>&1 | ForEach-Object { [string]$_ }
+        foreach ($line in $wslOutput) {
+            Add-Diagnostic "- $line"
+        }
+    }
+    catch {
+        Add-Diagnostic "- wsl.exe -l -v failed: $($_.Exception.Message)"
+    }
 }
 
 Add-Diagnostic "# Docker smoke diagnostics"

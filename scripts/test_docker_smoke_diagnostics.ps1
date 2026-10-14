@@ -88,6 +88,8 @@ exit /b 99
         '## Windows Docker process access',
         'docker-users group present:',
         'Docker config directory:',
+        '### Docker Desktop service',
+        '### WSL distributions',
         'FAKE_DOCKER_ARGS:context ls',
         "FAKE_DOCKER_CWD:$repoRoot",
         '## Windows Docker Desktop pipe diagnostic',
