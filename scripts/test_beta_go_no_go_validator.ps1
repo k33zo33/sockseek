@@ -128,6 +128,13 @@ try {
         throw 'Expected validation to fail when rendered trace evidence omits fixture preparation.'
     }
 
+    $renderedTraceWithoutPreflight = $baseline -replace ' `scripts/validate_desktop_virtualization_fixture\.ps1` preflights the fixture paths, database, mock file count, optional packaged Desktop executable and sqlite-backed row counts before manual capture,', ''
+    $renderedTraceWithoutPreflight = $renderedTraceWithoutPreflight -replace ' `scripts/test_desktop_virtualization_fixture_preflight\.ps1` smokes fixture preflight validation without creating the full fixture,', ''
+    $renderedTraceWithoutPreflightPath = Write-Case 'rendered-trace-without-preflight.md' $renderedTraceWithoutPreflight
+    if ((Invoke-Validator $renderedTraceWithoutPreflightPath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits fixture preflight coverage.'
+    }
+
     $renderedTraceWithoutLauncher = $baseline -replace ' `scripts/start_desktop_virtualization_fixture\.ps1` launches Desktop with that fixture environment and supports `-DesktopExecutablePath` for packaged artifact traces,', ''
     $renderedTraceWithoutLauncherPath = Write-Case 'rendered-trace-without-launcher.md' $renderedTraceWithoutLauncher
     if ((Invoke-Validator $renderedTraceWithoutLauncherPath) -eq 0) {

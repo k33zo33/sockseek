@@ -53,6 +53,16 @@ $env:SockseekServer__Engine__MockFilesReadTags = "false"
 dotnet run --project Sockseek.Desktop\Sockseek.Desktop.csproj -c Release
 ```
 
+Before launching the rendered app for public-beta evidence, run the fixture preflight. It verifies the fixture paths, database file, mock Soulseek file count, packaged Desktop executable path when supplied and, when `sqlite3` is available, the required library and playlist row counts:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_desktop_virtualization_fixture.ps1 `
+  -DesktopExecutablePath ".tmp\sprint15-package-smoke-<commit>\stage-win-x64\Sockseek.Desktop\Sockseek.Desktop.exe" `
+  -RequireSqliteRowCounts
+```
+
+If `sqlite3` is not on `PATH`, pass `-SqlitePath` with the executable location or omit `-RequireSqliteRowCounts` for a structural rehearsal-only check. A structural check is useful for setup debugging, but public-beta trace evidence should verify row counts before capture.
+
 The fixture writer is opt-in and covered by `DesktopVirtualizationTraceFixtureWriterTests`; default test runs skip database generation unless `SOCKSEEK_WRITE_DESKTOP_TRACE_FIXTURE=1` is set. Fixture preparation does not satisfy the rendered UI trace gate by itself.
 
 To launch Desktop with the fixture environment consistently, use:
@@ -113,6 +123,7 @@ The helper attempts to detect Windows display scaling automatically. If the repo
 The validator checks that all three surfaces are present, use the same concrete commit, meet the required fixture sizes, record concrete display scaling, record explicit operator actions and reference existing raw sample CSV files. Passing validation still does not replace the manual operator check for visible text overlap, row actions and responsiveness; record those observations in each capture's notes.
 
 Use `scripts/test_desktop_virtualization_trace_validator.ps1` to smoke-test the validator itself. The smoke creates synthetic valid and invalid reports, including headless, undersized fixture and mixed-commit cases; it does not satisfy the rendered UI trace gate. Use `scripts/test_desktop_virtualization_trace_capture_runner.ps1` to smoke-test the three-surface runner without launching the Desktop app.
+Use `scripts/test_desktop_virtualization_fixture_preflight.ps1` to smoke-test fixture preflight validation without creating the full 100k/10k fixture.
 
 ## Current automated guards
 
