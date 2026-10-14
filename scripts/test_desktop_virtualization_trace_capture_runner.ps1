@@ -28,6 +28,7 @@ param(
     [string]$OutputPath,
     [string]$SamplesCsvPath,
     [string]$DisplayScaling,
+    [string]$OperatorActions,
     [string]$Notes
 )
 
@@ -65,10 +66,7 @@ Recorded on 2026-10-11 10:00:00 +02:00.
 
 ## Operator actions
 
-- Opened the $Surface surface with the stated fixture loaded.
-- Scrolled from top to bottom and back.
-- Resized the Desktop window between narrow and wide desktop widths.
-- Checked row actions and visible text for overlap.
+$OperatorActions
 
 ## Results
 
@@ -98,6 +96,7 @@ This capture is evidence for `docs/desktop-virtualization-trace.md`.
         -SampleIntervalSeconds 1 `
         -OutputDirectory $outputDirectory `
         -DisplayScaling '100%' `
+        -OperatorActions 'Loaded each fixture surface; scrolled top-to-bottom and back; resized narrow/wide; checked row actions and text overlap.' `
         -Notes 'none observed' `
         -SkipPrompts `
         -CaptureScriptPath $fakeCapture `

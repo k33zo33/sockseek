@@ -102,6 +102,13 @@ try {
         throw 'Expected validation to fail when rendered trace evidence omits the three-surface runner smoke.'
     }
 
+    $renderedTraceWithoutOperatorActions = $baseline -replace ' and explicit operator actions', ''
+    $renderedTraceWithoutOperatorActions = $renderedTraceWithoutOperatorActions -replace ', missing-operator-actions', ''
+    $renderedTraceWithoutOperatorActionsPath = Write-Case 'rendered-trace-without-operator-actions.md' $renderedTraceWithoutOperatorActions
+    if ((Invoke-Validator $renderedTraceWithoutOperatorActionsPath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits explicit operator action checks.'
+    }
+
     $renderedTraceWithoutFixturePrep = $baseline -replace ' `scripts/prepare_desktop_virtualization_fixture\.ps1` prepares an isolated config directory with 100k library rows, a 10k imported playlist and a 10k mock Soulseek file tree,', ''
     $renderedTraceWithoutFixturePrepPath = Write-Case 'rendered-trace-without-fixture-prep.md' $renderedTraceWithoutFixturePrep
     if ((Invoke-Validator $renderedTraceWithoutFixturePrepPath) -eq 0) {

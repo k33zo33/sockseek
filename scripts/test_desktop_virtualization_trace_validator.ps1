@@ -39,6 +39,7 @@ function Write-TraceReport {
         [bool]$MainWindowPresent = $true,
         [bool]$HeadlessProcessAllowed = $false,
         [string]$DisplayScaling = '100%',
+        [string]$OperatorActions = '- Loaded the fixture surface, scrolled top-to-bottom and back, resized narrow/wide, checked row actions and text overlap.',
         [string]$Defects = 'none observed'
     )
 
@@ -69,10 +70,7 @@ Recorded on 2026-10-10 10:00:00 +02:00.
 
 ## Operator actions
 
-- Opened the $Surface surface with the stated fixture loaded.
-- Scrolled from top to bottom and back.
-- Resized the Desktop window between narrow and wide desktop widths.
-- Checked row actions and visible text for overlap.
+$OperatorActions
 
 ## Results
 
@@ -159,6 +157,7 @@ function Invoke-CaptureHelperSmoke {
             -OutputPath $captureReport `
             -SamplesCsvPath $captureSamples `
             -DisplayScaling '100%' `
+            -OperatorActions 'Harness validation only; no rendered operator actions recorded.' `
             -Notes 'capture helper smoke' `
             -AllowHeadlessProcess *> $null
 
@@ -205,6 +204,11 @@ try {
     $unknownScaleSearch = Write-TraceReport -Surface 'search' -FixtureSize 10000 -DisplayScaling 'unknown - rerun with -DisplayScaling'
     if ((Invoke-Validator -LibraryReport $library -SearchReport $unknownScaleSearch -PlaylistReport $playlist).ExitCode -eq 0) {
         throw 'Expected validation to reject a report without concrete display scaling.'
+    }
+
+    $missingOperatorActionsSearch = Write-TraceReport -Surface 'search' -FixtureSize 10000 -OperatorActions 'not recorded'
+    if ((Invoke-Validator -LibraryReport $library -SearchReport $missingOperatorActionsSearch -PlaylistReport $playlist).ExitCode -eq 0) {
+        throw 'Expected validation to reject a report without concrete operator actions.'
     }
 
     $smallPlaylist = Write-TraceReport -Surface 'playlist' -FixtureSize 9999

@@ -58,6 +58,31 @@ function Read-TraceDefects {
     return $defects
 }
 
+function Read-TraceOperatorActions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Content
+    )
+
+    $match = [Regex]::Match($Content, "(?s)## Operator actions\s*(.*?)\s*## Results")
+    if (-not $match.Success) {
+        throw "Trace report is missing the 'Operator actions' section."
+    }
+
+    $operatorActions = $match.Groups[1].Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($operatorActions)) {
+        throw "Trace report has an empty 'Operator actions' section."
+    }
+
+    if ($operatorActions.IndexOf('Harness validation only', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $operatorActions.IndexOf('no rendered operator actions recorded', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $operatorActions.IndexOf('not recorded', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "Trace report must include concrete rendered operator actions, not a placeholder."
+    }
+
+    return $operatorActions
+}
+
 function Read-TraceBoolean {
     param(
         [Parameter(Mandatory = $true)]
@@ -146,6 +171,7 @@ function Test-TraceReport {
         throw "Trace report '$fullPath' references missing raw samples: $rawSamples"
     }
 
+    $operatorActions = Read-TraceOperatorActions -Content $content
     $defects = Read-TraceDefects -Content $content
     [pscustomobject]@{
         Surface = $surface
@@ -153,6 +179,7 @@ function Test-TraceReport {
         Commit = $commit
         Report = $fullPath
         RawSamples = [System.IO.Path]::GetFullPath($rawSamplesPath)
+        OperatorActions = $operatorActions
         Defects = $defects
     }
 }

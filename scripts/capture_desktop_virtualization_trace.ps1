@@ -21,6 +21,8 @@ param(
 
     [string]$DisplayScaling = '',
 
+    [string]$OperatorActions = '',
+
     [string]$Notes = 'none observed',
 
     [switch]$AllowHeadlessProcess
@@ -150,6 +152,14 @@ if (-not $AllowHeadlessProcess -and -not $hasMainWindow) {
     throw "Process '$ProcessName' ($processId) does not have a main window. Start the rendered packaged Desktop app, or pass -AllowHeadlessProcess only for harness validation that is not public-beta evidence."
 }
 
+if (-not $AllowHeadlessProcess -and [string]::IsNullOrWhiteSpace($OperatorActions)) {
+    throw "OperatorActions is required for rendered UI evidence. Summarize the exact view load, scrolling, resizing, row-action and text-overlap checks performed during capture."
+}
+
+if ([string]::IsNullOrWhiteSpace($OperatorActions)) {
+    $OperatorActions = 'Harness validation only; no rendered operator actions recorded.'
+}
+
 $processStartTime = 'unknown'
 try {
     $processStartTime = $processes[0].StartTime.ToString('o')
@@ -222,10 +232,7 @@ Recorded on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz').
 
 ## Operator actions
 
-- Opened the $Surface surface with the stated fixture loaded.
-- Scrolled from top to bottom and back.
-- Resized the Desktop window between narrow and wide desktop widths.
-- Checked row actions and visible text for overlap.
+$OperatorActions
 
 ## Results
 

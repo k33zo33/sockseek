@@ -11,6 +11,8 @@ param(
 
     [string]$DisplayScaling = '',
 
+    [string]$OperatorActions = '',
+
     [string]$Notes = 'none observed',
 
     [switch]$SkipPrompts,
@@ -107,6 +109,8 @@ function Invoke-TraceCapture {
         "`"$reportPath`"",
         '-SamplesCsvPath',
         "`"$samplesPath`"",
+        '-OperatorActions',
+        "`"$OperatorActions`"",
         '-Notes',
         "`"$Notes`""
     )
@@ -131,6 +135,10 @@ function Invoke-TraceCapture {
 Write-Host 'Desktop virtualization trace capture runner'
 Write-Host "Output directory: $resolvedOutputDirectory"
 Write-Host 'Start the packaged Desktop app and load each requested fixture before its capture starts.'
+
+if ([string]::IsNullOrWhiteSpace($OperatorActions)) {
+    throw 'OperatorActions is required. Pass a concrete summary of the manual rendered checks, for example: "Loaded each fixture surface; scrolled top-to-bottom and back; resized narrow/wide; checked row actions and text overlap."'
+}
 
 foreach ($surface in $surfaces) {
     Invoke-TraceCapture -Surface $surface

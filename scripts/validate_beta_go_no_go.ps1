@@ -118,6 +118,8 @@ Assert-TableRowContains $document 'Rendered UI virtualization trace' 'scripts/te
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'literal variable names' 'rendered trace capture metadata regression evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'concrete display scaling' 'rendered trace display scaling evidence'
 Assert-TableRowContains $document 'Rendered UI virtualization trace' 'missing-display-scaling' 'rendered trace missing display scaling negative evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'explicit operator actions' 'rendered trace operator action evidence'
+Assert-TableRowContains $document 'Rendered UI virtualization trace' 'missing-operator-actions' 'rendered trace missing operator actions negative evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'closed-beta-tester-instructions.md' 'Windows package closed beta instructions evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'SECURITY.md' 'Windows package security notice manifest evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'THIRD-PARTY-NOTICES' 'Windows package third-party notices manifest evidence'
