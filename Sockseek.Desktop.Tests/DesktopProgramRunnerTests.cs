@@ -60,6 +60,37 @@ public sealed class DesktopProgramRunnerTests
         await thirdLeaseAfterRelease.DisposeAsync();
     }
 
+    [TestMethod]
+    public async Task MutexDesktopSingleInstanceGate_DisposeFromAnotherThread_ReleasesLease()
+    {
+        var gate = new MutexDesktopSingleInstanceGate($"Sockseek.Desktop.Tests.{Guid.NewGuid():N}");
+        var lease = await gate.TryAcquireAsync();
+        Assert.IsNotNull(lease);
+
+        var disposalCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disposalThread = new Thread(() =>
+        {
+            try
+            {
+                lease.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                disposalCompleted.TrySetResult();
+            }
+            catch (Exception exception)
+            {
+                disposalCompleted.TrySetException(exception);
+            }
+        })
+        {
+            IsBackground = true,
+        };
+        disposalThread.Start();
+        await disposalCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var nextLease = await gate.TryAcquireAsync();
+        Assert.IsNotNull(nextLease);
+        await nextLease.DisposeAsync();
+    }
+
     private sealed class FakeSingleInstanceGate(bool acquireLease) : IDesktopSingleInstanceGate
     {
         public int TryAcquireCallCount { get; private set; }

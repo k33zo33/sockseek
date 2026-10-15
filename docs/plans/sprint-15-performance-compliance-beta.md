@@ -13,6 +13,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - `.github/ISSUE_TEMPLATE` has minimal bug/feature templates, but no root `SECURITY.md` or beta diagnostic/support checklist.
 - Existing provider tests cover some token expiry and forbidden/quota cases, but Sprint 15 requires a documented failure matrix and recovery UX check across providers.
 - The product docs already state that public release is blocked on Soulseek compliance, but there is no beta go/no-go ADR yet.
+- Launching the packaged Windows Desktop for rendered-trace capture exposed a startup shutdown crash: the named mutex lease can be disposed after an `await` on a different thread, while `Mutex.ReleaseMutex` requires the acquiring thread.
 
 ## In scope
 
@@ -24,6 +25,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Document beta limitations, legal-use/user-responsibility messaging and provider quota/rate-limit caveats.
 - Improve issue/security reporting templates and reproducible diagnostics instructions.
 - Add missing provider failure-matrix tests where current fixture coverage is incomplete.
+- Fix the packaged Desktop single-instance gate so lease disposal remains valid across asynchronous thread switches while preserving one-instance behavior.
 
 ## Out of scope
 
@@ -37,6 +39,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - `Sockseek.Benchmarks` for large-data benchmark fixtures and reports.
 - `Sockseek.Infrastructure.Tests`, `Sockseek.Server.Tests` and `Sockseek.Desktop.Tests` for performance/failure-matrix coverage.
 - `scripts/prepare_desktop_virtualization_fixture.ps1`, `scripts/start_desktop_virtualization_fixture.ps1` and Desktop daemon-launch tests for repeatable rendered-trace fixture setup.
+- `Sockseek.Desktop` and `Sockseek.Desktop.Tests` for the async-safe single-instance gate and its regression coverage.
 - `docs/adr/*`, `docs/PRODUCT.md`, `docs/PROVIDERS.md`, `docs/release-checklist.md`, `docs/TRACEABILITY.md` and a new beta limitations/report document.
 - `.github/ISSUE_TEMPLATE/*` and root `SECURITY.md` for support/security reporting.
 - Possibly `.github/workflows/ci.yml` if a lightweight non-soak performance gate is safe for CI.
@@ -58,7 +61,8 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 5. Audit Soulseek feature/compliance coverage and write the beta decision ADR.
 6. Add root `SECURITY.md`, improve issue templates and document reproducible diagnostics/log export guidance.
 7. Add rendered Desktop trace fixture preparation and launch helpers so the operator can load 100k library, 10k playlist and 10k mock Soulseek search fixtures consistently before capture.
-8. Run full validation, package smoke where feasible and provider-audio guard scan before closing Sprint 15.
+8. Fix packaged Desktop startup failures discovered while exercising the rendered trace path, with focused regression tests.
+9. Run full validation, package smoke where feasible and provider-audio guard scan before closing Sprint 15.
 
 ## Testing Strategy
 
@@ -67,6 +71,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Opt-in profiling: run `SOCKSEEK_RUN_EVENT_PROFILE=1` server tests for event traffic budgets outside the default suite.
 - Add deterministic fixture tests for large library/playlist query behavior that can remain in the normal test suite.
 - Add opt-in fixture-writer smoke coverage and script tests that run with tiny counts by default; full 100k/10k trace preparation remains explicit, and launch-helper tests must use print-only mode rather than opening a GUI.
+- Add a cross-thread lease-disposal test for the concrete Desktop single-instance gate and retain the existing second-instance rejection/reacquire tests.
 - Keep provider-audio forbidden-symbol scans in every final Sprint 15 validation pass.
 
 ## Migration and Rollback
@@ -75,6 +80,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Large benchmark fixtures should be generated in temp directories or in-memory databases and cleaned after runs.
 - Rendered trace fixture data should default to `.tmp/` and require an explicit force/overwrite path before replacing an existing fixture. The launch helper must only pass fixture paths through process environment variables and must not persist them globally.
 - Rollback removes benchmark/test/docs additions without touching user data, packaging outputs or provider credentials.
+- The single-instance implementation can be rolled back independently; it has no persisted state or schema impact.
 
 ## Security, Privacy and License Impact
 
@@ -90,6 +96,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Treat uncontrolled memory growth, failing large-data budgets or missing compliance decision as beta blockers.
 - Do not mark Sprint 15 complete if soak/performance results are only asserted and not captured in docs or tests.
 - Do not mark rendered UI virtualization complete from fixture preparation alone; only captured rendered reports can satisfy that gate.
+- Stop if the single-instance fix weakens process-wide exclusion or requires a process-topology change; neither is expected for replacing the thread-affine primitive behind the existing gate contract.
 
 ## Acceptance-Criteria Mapping
 
