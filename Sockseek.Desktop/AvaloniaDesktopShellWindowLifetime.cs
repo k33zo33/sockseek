@@ -12,6 +12,47 @@ public sealed class AvaloniaDesktopShellWindowLifetime : IDesktopShellWindowLife
         ArgumentNullException.ThrowIfNull(windowViewModel);
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (RequiresDedicatedStaThread(OperatingSystem.IsWindows(), Thread.CurrentThread.GetApartmentState()))
+            return RunOnDedicatedStaThreadAsync(windowViewModel, cancellationToken);
+
+        return Task.FromResult(RunCore(windowViewModel, cancellationToken));
+    }
+
+    internal static bool RequiresDedicatedStaThread(bool isWindows, ApartmentState apartmentState)
+        => isWindows && apartmentState != ApartmentState.STA;
+
+    private static Task<int> RunOnDedicatedStaThreadAsync(
+        DesktopShellWindowViewModel windowViewModel,
+        CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("A dedicated STA UI thread is only available on Windows.");
+
+        var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var uiThread = new Thread(() =>
+        {
+            try
+            {
+                completion.TrySetResult(RunCore(windowViewModel, cancellationToken));
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+            }
+        })
+        {
+            IsBackground = false,
+            Name = "Sockseek Avalonia UI",
+        };
+        uiThread.SetApartmentState(ApartmentState.STA);
+        uiThread.Start();
+        return completion.Task;
+    }
+
+    private static int RunCore(
+        DesktopShellWindowViewModel windowViewModel,
+        CancellationToken cancellationToken)
+    {
         CancellationTokenRegistration cancellationRegistration = default;
         try
         {
@@ -43,7 +84,7 @@ public sealed class AvaloniaDesktopShellWindowLifetime : IDesktopShellWindowLife
                         lifetime.ShutdownMode = ShutdownMode.OnMainWindowClose;
                     });
 
-            return Task.FromResult(exitCode);
+            return exitCode;
         }
         finally
         {

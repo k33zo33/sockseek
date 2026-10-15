@@ -25,4 +25,21 @@ public sealed class AvaloniaDesktopShellWindowLifetimeTests
             lifetimeStartIndex > mainWindowIndex,
             "DesktopShellMainWindow must be constructed by the AfterSetup callback before the lifetime starts.");
     }
+
+    [TestMethod]
+    public void RequiresDedicatedStaThread_OnWindows_OnlyForNonStaCaller()
+    {
+        Assert.IsFalse(AvaloniaDesktopShellWindowLifetime.RequiresDedicatedStaThread(
+            isWindows: true,
+            ApartmentState.STA));
+        Assert.IsTrue(AvaloniaDesktopShellWindowLifetime.RequiresDedicatedStaThread(
+            isWindows: true,
+            ApartmentState.MTA));
+        Assert.IsTrue(AvaloniaDesktopShellWindowLifetime.RequiresDedicatedStaThread(
+            isWindows: true,
+            ApartmentState.Unknown));
+        Assert.IsFalse(AvaloniaDesktopShellWindowLifetime.RequiresDedicatedStaThread(
+            isWindows: false,
+            ApartmentState.MTA));
+    }
 }

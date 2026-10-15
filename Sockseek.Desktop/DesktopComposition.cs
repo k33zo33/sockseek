@@ -46,5 +46,6 @@ public static class DesktopComposition
         => new DesktopShellSession(
             supervisor: new DesktopDaemonSupervisor(new SystemDesktopProcessLauncher()),
             themePreferenceStore: new DesktopFileThemePreferenceStore(DesktopSettingsPaths.GetThemePreferenceFilePath()),
-            workspaceRoot: options.WorkspaceRoot);
+            workspaceRoot: options.WorkspaceRoot,
+            launchRequestFactory: root => DesktopDaemonLaunchRequestFactory.Create(root, AppContext.BaseDirectory));
 }

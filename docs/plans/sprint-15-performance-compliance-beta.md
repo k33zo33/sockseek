@@ -15,6 +15,8 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - The product docs already state that public release is blocked on Soulseek compliance, but there is no beta go/no-go ADR yet.
 - Launching the packaged Windows Desktop for rendered-trace capture exposed a startup shutdown crash: the named mutex lease can be disposed after an `await` on a different thread, while `Mutex.ReleaseMutex` requires the acquiring thread.
 - The same packaged launch also exposed that the main window was constructed inside Avalonia's lifetime-configuration callback before platform setup, so `IWindowingPlatform` was unavailable.
+- The staged Windows Desktop still selected the development-only `dotnet run --project Sockseek.Server` request instead of the bundled `daemon/Sockseek.Server.exe`, preventing the packaged daemon handshake and delaying the first window.
+- Waiting asynchronously for the packaged daemon handshake can resume Desktop startup on an MTA worker; Avalonia window startup therefore needs an explicit STA boundary on Windows.
 
 ## In scope
 
@@ -28,6 +30,8 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Add missing provider failure-matrix tests where current fixture coverage is incomplete.
 - Fix the packaged Desktop single-instance gate so lease disposal remains valid across asynchronous thread switches while preserving one-instance behavior.
 - Create the Avalonia main window only after platform setup while preserving cancellation-driven shutdown and `OnMainWindowClose` behavior.
+- Resolve the bundled self-contained daemon from the Desktop application directory, with the existing development request retained as a fallback outside packaged layouts.
+- Guarantee that the Avalonia desktop lifetime runs on an STA thread after asynchronous daemon startup.
 
 ## Out of scope
 
@@ -42,6 +46,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - `Sockseek.Infrastructure.Tests`, `Sockseek.Server.Tests` and `Sockseek.Desktop.Tests` for performance/failure-matrix coverage.
 - `scripts/prepare_desktop_virtualization_fixture.ps1`, `scripts/start_desktop_virtualization_fixture.ps1` and Desktop daemon-launch tests for repeatable rendered-trace fixture setup.
 - `Sockseek.Desktop` and `Sockseek.Desktop.Tests` for the async-safe single-instance gate and its regression coverage.
+- `Sockseek.Desktop` composition and launch-request tests for packaged daemon discovery and loopback handshake startup.
 - `docs/adr/*`, `docs/PRODUCT.md`, `docs/PROVIDERS.md`, `docs/release-checklist.md`, `docs/TRACEABILITY.md` and a new beta limitations/report document.
 - `.github/ISSUE_TEMPLATE/*` and root `SECURITY.md` for support/security reporting.
 - Possibly `.github/workflows/ci.yml` if a lightweight non-soak performance gate is safe for CI.
@@ -51,6 +56,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Prefer no public API or database schema changes.
 - Additive status DTO fields are allowed when they expose existing non-secret Soulseek operational state needed for beta compliance review, such as configured share counts and listen-port/sharing indicators. Update OpenAPI and focused tests in the same change.
 - A development-only Desktop daemon launch environment override may point the daemon at a trace fixture config directory; packaged defaults must remain unchanged.
+- Packaged Desktop startup may select the bundled daemon executable instead of `dotnet run`; the daemon handshake, loopback URL and session-token contract remain unchanged.
 - If diagnostics endpoints or DTOs need expansion, expose only non-secret operational state and update `docs/openapi.json`.
 - Event traffic changes must preserve existing SignalR event contracts unless a compatibility note is documented.
 
