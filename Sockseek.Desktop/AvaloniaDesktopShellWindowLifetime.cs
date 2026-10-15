@@ -15,24 +15,32 @@ public sealed class AvaloniaDesktopShellWindowLifetime : IDesktopShellWindowLife
         CancellationTokenRegistration cancellationRegistration = default;
         try
         {
+            IClassicDesktopStyleApplicationLifetime? desktopLifetime = null;
             var exitCode = BuildApp()
+                .AfterSetup(_ =>
+                {
+                    var lifetime = desktopLifetime
+                        ?? throw new InvalidOperationException("Avalonia desktop lifetime was not configured before setup completed.");
+
+                    lifetime.MainWindow = new DesktopShellMainWindow
+                    {
+                        DataContext = windowViewModel,
+                    };
+
+                    if (cancellationToken.CanBeCanceled)
+                    {
+                        cancellationRegistration = cancellationToken.Register(() =>
+                        {
+                            Dispatcher.UIThread.Post(() => lifetime.Shutdown());
+                        });
+                    }
+                })
                 .StartWithClassicDesktopLifetime(
                     [],
                     lifetime =>
                     {
+                        desktopLifetime = lifetime;
                         lifetime.ShutdownMode = ShutdownMode.OnMainWindowClose;
-                        lifetime.MainWindow = new DesktopShellMainWindow
-                        {
-                            DataContext = windowViewModel,
-                        };
-
-                        if (cancellationToken.CanBeCanceled)
-                        {
-                            cancellationRegistration = cancellationToken.Register(() =>
-                            {
-                                Dispatcher.UIThread.Post(() => lifetime.Shutdown());
-                            });
-                        }
                     });
 
             return Task.FromResult(exitCode);

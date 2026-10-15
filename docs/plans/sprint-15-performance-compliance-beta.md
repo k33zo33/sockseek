@@ -14,6 +14,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Existing provider tests cover some token expiry and forbidden/quota cases, but Sprint 15 requires a documented failure matrix and recovery UX check across providers.
 - The product docs already state that public release is blocked on Soulseek compliance, but there is no beta go/no-go ADR yet.
 - Launching the packaged Windows Desktop for rendered-trace capture exposed a startup shutdown crash: the named mutex lease can be disposed after an `await` on a different thread, while `Mutex.ReleaseMutex` requires the acquiring thread.
+- The same packaged launch also exposed that the main window was constructed inside Avalonia's lifetime-configuration callback before platform setup, so `IWindowingPlatform` was unavailable.
 
 ## In scope
 
@@ -26,6 +27,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Improve issue/security reporting templates and reproducible diagnostics instructions.
 - Add missing provider failure-matrix tests where current fixture coverage is incomplete.
 - Fix the packaged Desktop single-instance gate so lease disposal remains valid across asynchronous thread switches while preserving one-instance behavior.
+- Create the Avalonia main window only after platform setup while preserving cancellation-driven shutdown and `OnMainWindowClose` behavior.
 
 ## Out of scope
 
@@ -72,6 +74,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Add deterministic fixture tests for large library/playlist query behavior that can remain in the normal test suite.
 - Add opt-in fixture-writer smoke coverage and script tests that run with tiny counts by default; full 100k/10k trace preparation remains explicit, and launch-helper tests must use print-only mode rather than opening a GUI.
 - Add a cross-thread lease-disposal test for the concrete Desktop single-instance gate and retain the existing second-instance rejection/reacquire tests.
+- Guard the Avalonia startup source order so the main window remains in the post-platform-setup callback, then verify a real Windows main-window handle from the packaged executable.
 - Keep provider-audio forbidden-symbol scans in every final Sprint 15 validation pass.
 
 ## Migration and Rollback
