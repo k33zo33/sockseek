@@ -53,7 +53,7 @@ public class SqliteMigrationRunnerTests
     }
 
     [TestMethod]
-    public async Task MigrateAsync_WhenNoPendingMigrations_DoesNotCreateBackup()
+    public async Task MigrateAsync_WhenNoPendingMigrationsAndLockIsAbandoned_ReturnsWithoutWaitingOrBackup()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "sockseek-migration-runner-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -66,13 +66,51 @@ public class SqliteMigrationRunnerTests
             {
                 await initialContext.Database.MigrateAsync();
             }
+            await InsertMigrationLockAsync(databasePath, "2000-01-01 00:00:00+00:00");
 
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
-            var result = await runner.MigrateAsync(databasePath, backupDirectory);
+            var result = await runner.MigrateAsync(databasePath, backupDirectory).WaitAsync(TimeSpan.FromSeconds(5));
 
             Assert.AreEqual(0, result.AppliedMigrations.Count);
             Assert.IsNull(result.BackupPath);
             Assert.IsFalse(Directory.Exists(backupDirectory));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task MigrateAsync_WithPendingMigrationsAndAbandonedLock_ClearsLockAndMigrates()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sockseek-migration-runner-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string databasePath = Path.Combine(tempDir, "app.db");
+        string backupDirectory = Path.Combine(tempDir, "backups");
+
+        try
+        {
+            await using (var seedConnection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                await seedConnection.OpenAsync();
+                using var command = seedConnection.CreateCommand();
+                command.CommandText = "CREATE TABLE LegacyMarker (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL);";
+                await command.ExecuteNonQueryAsync();
+            }
+            await InsertMigrationLockAsync(databasePath, "2000-01-01 00:00:00+00:00");
+
+            var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
+            var result = await runner.MigrateAsync(databasePath, backupDirectory).WaitAsync(TimeSpan.FromSeconds(15));
+
+            Assert.AreEqual(7, result.AppliedMigrations.Count);
+            Assert.IsNotNull(result.BackupPath);
+            await using var migratedConnection = new SqliteConnection($"Data Source={databasePath}");
+            await migratedConnection.OpenAsync();
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "ExternalAccounts");
+            Assert.AreEqual(0L, await MigrationLockCountAsync(migratedConnection));
         }
         finally
         {
@@ -100,5 +138,28 @@ public class SqliteMigrationRunnerTests
             names.Add(reader.GetString(0));
 
         return names.ToArray();
+    }
+
+    private static async Task InsertMigrationLockAsync(string databasePath, string timestamp)
+    {
+        await using var connection = new SqliteConnection($"Data Source={databasePath}");
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS "__EFMigrationsLock" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK___EFMigrationsLock" PRIMARY KEY,
+                "Timestamp" TEXT NOT NULL
+            );
+            INSERT OR REPLACE INTO "__EFMigrationsLock" ("Id", "Timestamp") VALUES (1, $timestamp);
+            """;
+        command.Parameters.AddWithValue("$timestamp", timestamp);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<long> MigrationLockCountAsync(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsLock\";";
+        return (long)(await command.ExecuteScalarAsync() ?? -1L);
     }
 }

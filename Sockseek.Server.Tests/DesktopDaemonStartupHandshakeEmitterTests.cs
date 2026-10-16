@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Core.Settings;
 using Sockseek.Server;
@@ -72,6 +74,12 @@ public class DesktopDaemonStartupHandshakeEmitterTests
             Profiles = ProfileCatalog.Empty,
             SessionToken = sessionToken,
         }, url, writer);
+
+        var hostedServices = app.Services.GetServices<IHostedService>().ToArray();
+        int migrationIndex = Array.FindIndex(hostedServices, service => service is ServerDatabaseMigrationHostedService);
+        int engineIndex = Array.FindIndex(hostedServices, service => service is EngineRuntimeHostedService);
+        Assert.IsTrue(migrationIndex >= 0, "Database migration hosted service was not registered.");
+        Assert.IsTrue(engineIndex > migrationIndex, "Database migration must complete before the engine and startup handshake.");
 
         try
         {

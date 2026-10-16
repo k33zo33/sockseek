@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Input;
 
 namespace Sockseek.Desktop;
@@ -29,7 +30,22 @@ internal sealed class DesktopAsyncCommand(Func<Task> executeAsync) : ICommand
 
     public bool CanExecute(object? parameter) => true;
 
-    public async void Execute(object? parameter) => await executeAsync();
+    public async void Execute(object? parameter) => await ExecuteAsync();
+
+    internal async Task ExecuteAsync()
+    {
+        try
+        {
+            await executeAsync();
+        }
+        catch (Exception exception) when (IsRecoverableTransportFailure(exception))
+        {
+            Trace.TraceError("Desktop command failed because the local daemon was unavailable: {0}", exception);
+        }
+    }
+
+    private static bool IsRecoverableTransportFailure(Exception exception)
+        => exception is HttpRequestException or OperationCanceledException;
 }
 
 internal sealed class DesktopAsyncParameterCommand<T>(Func<T, Task> executeAsync) : ICommand
@@ -47,6 +63,18 @@ internal sealed class DesktopAsyncParameterCommand<T>(Func<T, Task> executeAsync
     public async void Execute(object? parameter)
     {
         if (parameter is T typedParameter)
-            await executeAsync(typedParameter);
+            await ExecuteAsync(typedParameter);
+    }
+
+    internal async Task ExecuteAsync(T parameter)
+    {
+        try
+        {
+            await executeAsync(parameter);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            Trace.TraceError("Desktop command failed because the local daemon was unavailable: {0}", exception);
+        }
     }
 }

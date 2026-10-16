@@ -17,6 +17,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - The same packaged launch also exposed that the main window was constructed inside Avalonia's lifetime-configuration callback before platform setup, so `IWindowingPlatform` was unavailable.
 - The staged Windows Desktop still selected the development-only `dotnet run --project Sockseek.Server` request instead of the bundled `daemon/Sockseek.Server.exe`, preventing the packaged daemon handshake and delaying the first window.
 - Waiting asynchronously for the packaged daemon handshake can resume Desktop startup on an MTA worker; Avalonia window startup therefore needs an explicit STA boundary on Windows.
+- Rendered Library rehearsal exposed an EF Core SQLite `__EFMigrationsLock` row abandoned by an earlier forced daemon termination. The daemon emitted its handshake before startup migration readiness, database requests waited until the 100-second HTTP timeout, and the uncaught `TaskCanceledException` escaped an `async void` command and terminated Desktop.
 
 ## In scope
 
@@ -32,6 +33,8 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Create the Avalonia main window only after platform setup while preserving cancellation-driven shutdown and `OnMainWindowClose` behavior.
 - Resolve the bundled self-contained daemon from the Desktop application directory, with the existing development request retained as a fallback outside packaged layouts.
 - Guarantee that the Avalonia desktop lifetime runs on an STA thread after asynchronous daemon startup.
+- Bypass EF migration-lock acquisition when the schema is already current, recover sufficiently old abandoned SQLite migration locks before a real upgrade, and complete startup migration before the daemon handshake.
+- Convert local-daemon transport timeouts into recoverable Desktop command errors instead of process-level crashes.
 
 ## Out of scope
 
@@ -47,6 +50,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - `scripts/prepare_desktop_virtualization_fixture.ps1`, `scripts/start_desktop_virtualization_fixture.ps1` and Desktop daemon-launch tests for repeatable rendered-trace fixture setup.
 - `Sockseek.Desktop` and `Sockseek.Desktop.Tests` for the async-safe single-instance gate and its regression coverage.
 - `Sockseek.Desktop` composition and launch-request tests for packaged daemon discovery and loopback handshake startup.
+- `Sockseek.Infrastructure`, `Sockseek.Server` and focused tests for SQLite abandoned-lock recovery and migration-before-handshake readiness.
 - `docs/adr/*`, `docs/PRODUCT.md`, `docs/PROVIDERS.md`, `docs/release-checklist.md`, `docs/TRACEABILITY.md` and a new beta limitations/report document.
 - `.github/ISSUE_TEMPLATE/*` and root `SECURITY.md` for support/security reporting.
 - Possibly `.github/workflows/ci.yml` if a lightweight non-soak performance gate is safe for CI.
@@ -57,6 +61,7 @@ Decide whether Sockseek is ready for public beta distribution, with measured per
 - Additive status DTO fields are allowed when they expose existing non-secret Soulseek operational state needed for beta compliance review, such as configured share counts and listen-port/sharing indicators. Update OpenAPI and focused tests in the same change.
 - A development-only Desktop daemon launch environment override may point the daemon at a trace fixture config directory; packaged defaults must remain unchanged.
 - Packaged Desktop startup may select the bundled daemon executable instead of `dotnet run`; the daemon handshake, loopback URL and session-token contract remain unchanged.
+- Daemon startup still emits the existing handshake contract, but only after database migrations complete; current-schema startup avoids acquiring EF's SQLite migration lock.
 - If diagnostics endpoints or DTOs need expansion, expose only non-secret operational state and update `docs/openapi.json`.
 - Event traffic changes must preserve existing SignalR event contracts unless a compatibility note is documented.
 

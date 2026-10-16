@@ -116,6 +116,34 @@ public sealed class DesktopLibraryViewModelTests
     }
 
     [TestMethod]
+    public async Task SearchAsync_WhenDaemonTimesOut_ReturnsRecoveryMessageWithoutThrowing()
+    {
+        var handler = new ThrowingHandler(new TaskCanceledException("request timed out"));
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopLibraryViewModel(new SockseekApiClient(httpClient));
+
+        Assert.IsFalse(await viewModel.SearchAsync());
+
+        Assert.AreEqual("The local daemon did not respond in time. Retry the operation.", viewModel.ErrorMessage);
+        Assert.IsFalse(viewModel.IsBusy);
+    }
+
+    [TestMethod]
+    public async Task SearchAsync_WhenCallerCancels_PropagatesCancellationWithoutTimeoutMessage()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var handler = new ThrowingHandler(new TaskCanceledException("caller canceled"));
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopLibraryViewModel(new SockseekApiClient(httpClient));
+
+        await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => viewModel.SearchAsync(cancellation.Token));
+
+        Assert.IsNull(viewModel.ErrorMessage);
+        Assert.IsFalse(viewModel.IsBusy);
+    }
+
+    [TestMethod]
     public async Task ScanAsync_TriggersScanAndRefreshesSearchAndRoots()
     {
         var handler = new RecordingHandler(request =>
@@ -208,5 +236,11 @@ public sealed class DesktopLibraryViewModelTests
 
             return new HttpResponseMessage(statusCode) { Content = JsonContent.Create(responseFactory(request)) };
         }
+    }
+
+    private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromException<HttpResponseMessage>(exception);
     }
 }

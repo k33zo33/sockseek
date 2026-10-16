@@ -79,6 +79,36 @@ public class ServerDatabaseMigrationServiceTests
         }
     }
 
+    [TestMethod]
+    public async Task HostedService_StartAsync_CurrentSchemaWithAbandonedLock_CompletesReadiness()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "sockseek-server-migration-" + Guid.NewGuid().ToString("N"));
+        string configDir = Path.Combine(tempRoot, "config");
+        string databasePath = Path.Combine(configDir, "sockseek.db");
+
+        try
+        {
+            var options = Options.Create(new ServerOptions { ConfigDir = configDir });
+            var migrationService = new ServerDatabaseMigrationService(options);
+            await migrationService.EnsureMigratedAsync();
+            await InsertMigrationLockAsync(databasePath, "2000-01-01 00:00:00+00:00");
+
+            var restartedMigrationService = new ServerDatabaseMigrationService(options);
+            var hostedService = new ServerDatabaseMigrationHostedService(restartedMigrationService, options);
+
+            await hostedService.StartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+            await using var context = new SqliteConnection($"Data Source={databasePath}");
+            await context.OpenAsync();
+            Assert.IsTrue(await TableExistsAsync(context, "ExternalAccounts"));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            DeleteTempRoot(tempRoot);
+        }
+    }
+
     private static ServerDatabaseMigrationService CreateService(ServerOptions options)
     {
         return new ServerDatabaseMigrationService(Options.Create(options));
@@ -100,6 +130,16 @@ public class ServerDatabaseMigrationServiceTests
         command.Parameters.AddWithValue("$name", tableName);
         object? result = await command.ExecuteScalarAsync();
         return Convert.ToInt32(result) == 1;
+    }
+
+    private static async Task InsertMigrationLockAsync(string databasePath, string timestamp)
+    {
+        await using var connection = new SqliteConnection($"Data Source={databasePath}");
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT OR REPLACE INTO \"__EFMigrationsLock\" (\"Id\", \"Timestamp\") VALUES (1, $timestamp);";
+        command.Parameters.AddWithValue("$timestamp", timestamp);
+        await command.ExecuteNonQueryAsync();
     }
 
     private static void DeleteTempRoot(string tempRoot)

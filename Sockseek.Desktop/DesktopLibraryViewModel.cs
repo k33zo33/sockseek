@@ -120,7 +120,7 @@ public sealed class DesktopLibraryViewModel : ObservableObject
         {
             await LoadRootsAsync(cancellationToken);
             return true;
-        });
+        }, cancellationToken);
 
     public async Task<LibraryRootDto?> SaveRootAsync(CancellationToken cancellationToken = default)
     {
@@ -141,7 +141,7 @@ public sealed class DesktopLibraryViewModel : ObservableObject
             RootPath = string.Empty;
             RootDisplayName = string.Empty;
             return true;
-        });
+        }, cancellationToken);
 
         return saved;
     }
@@ -154,14 +154,14 @@ public sealed class DesktopLibraryViewModel : ObservableObject
             await LoadTracksAsync(cancellationToken);
             await LoadRootsAsync(cancellationToken);
             return true;
-        });
+        }, cancellationToken);
 
     public async Task<bool> SearchAsync(CancellationToken cancellationToken = default)
         => await ExecuteAsync(async () =>
         {
             await LoadTracksAsync(cancellationToken);
             return true;
-        });
+        }, cancellationToken);
 
     public async Task<bool> RefreshDuplicatesAsync(CancellationToken cancellationToken = default)
         => await ExecuteAsync(async () =>
@@ -169,9 +169,9 @@ public sealed class DesktopLibraryViewModel : ObservableObject
             var groups = await apiClient.GetLibraryDuplicateGroupsAsync(limit: 100, includeMissing: IncludeMissing, cancellationToken);
             DuplicateGroups = groups.Select(group => new DesktopLibraryDuplicateGroupViewModel(group)).ToArray();
             return true;
-        });
+        }, cancellationToken);
 
-    private async Task<bool> ExecuteAsync(Func<Task<bool>> action)
+    private async Task<bool> ExecuteAsync(Func<Task<bool>> action, CancellationToken cancellationToken)
     {
         ErrorMessage = null;
         IsBusy = true;
@@ -182,6 +182,16 @@ public sealed class DesktopLibraryViewModel : ObservableObject
         catch (SockseekApiRequestException exception)
         {
             ErrorMessage = exception.Message;
+            return false;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            ErrorMessage = "The local daemon did not respond in time. Retry the operation.";
+            return false;
+        }
+        catch (HttpRequestException)
+        {
+            ErrorMessage = "The local daemon is unavailable. Wait for it to reconnect, then retry.";
             return false;
         }
         finally

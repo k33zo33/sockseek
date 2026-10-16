@@ -129,6 +129,7 @@ public static class ServerHost
         builder.Services.AddSingleton<PlaylistWorkflowRecoveryService>();
         if (!IsOpenApiGenerationProcess())
         {
+            builder.Services.AddHostedService<ServerDatabaseMigrationHostedService>();
             builder.Services.AddHostedService<EngineRuntimeHostedService>();
             builder.Services.AddHostedService<LocalLibraryBackgroundScanHostedService>();
         }
