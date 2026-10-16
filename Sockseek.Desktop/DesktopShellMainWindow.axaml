@@ -462,7 +462,7 @@
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="desktop:DesktopPlaylistItemViewModel">
                         <Border Background="{DynamicResource ShellCardAltBrush}" Padding="10" Margin="0,0,0,6">
-                          <Grid ColumnDefinitions="32,48,*,Auto" ColumnSpacing="12">
+                          <Grid ColumnDefinitions="32,48,*" ColumnSpacing="12">
                             <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" />
                             <TextBlock Grid.Column="1" Text="{Binding PositionLabel}" Opacity="0.65" />
                             <StackPanel Grid.Column="2" Spacing="4">
@@ -474,39 +474,39 @@
                                 <TextBlock Margin="0,0,12,0" Text="{Binding Status}" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding DurationSummary}" Opacity="0.75" />
                               </WrapPanel>
+                              <WrapPanel Margin="0,4,0,0">
+                                <Button Margin="0,0,8,8"
+                                        Content="Play"
+                                        Command="{Binding DataContext.Playlists.PlayItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding PlaylistItemId}"
+                                        IsEnabled="{Binding CanPlay}" />
+                                <Button Margin="0,0,8,8"
+                                        Content="From here"
+                                        Command="{Binding DataContext.Playlists.PlayFromHereCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding PlaylistItemId}"
+                                        IsEnabled="{Binding CanPlayFromHere}" />
+                                <Button Margin="0,0,8,8"
+                                        Content="Approve"
+                                        Command="{Binding DataContext.Playlists.ApproveLocalMatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding PlaylistItemId}"
+                                        IsEnabled="{Binding CanReviewLocal}" />
+                                <Button Margin="0,0,8,8"
+                                        Content="Reject"
+                                        Command="{Binding DataContext.Playlists.RejectLocalMatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding PlaylistItemId}"
+                                        IsEnabled="{Binding CanReviewLocal}" />
+                                <Button Margin="0,0,8,8"
+                                        Content="Skip"
+                                        Command="{Binding DataContext.Playlists.SkipItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding PlaylistItemId}"
+                                        IsEnabled="{Binding CanSkip}" />
+                                <Button Margin="0,0,8,8"
+                                        Content="Retry"
+                                        Command="{Binding DataContext.Playlists.RetryItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding PlaylistItemId}"
+                                        IsEnabled="{Binding CanRetry}" />
+                              </WrapPanel>
                             </StackPanel>
-                            <WrapPanel Grid.Column="3" VerticalAlignment="Center">
-                              <Button Margin="0,0,8,8"
-                                      Content="Play"
-                                      Command="{Binding DataContext.Playlists.PlayItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      CommandParameter="{Binding PlaylistItemId}"
-                                      IsEnabled="{Binding CanPlay}" />
-                              <Button Margin="0,0,8,8"
-                                      Content="From here"
-                                      Command="{Binding DataContext.Playlists.PlayFromHereCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      CommandParameter="{Binding PlaylistItemId}"
-                                      IsEnabled="{Binding CanPlayFromHere}" />
-                              <Button Margin="0,0,8,8"
-                                      Content="Approve"
-                                      Command="{Binding DataContext.Playlists.ApproveLocalMatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      CommandParameter="{Binding PlaylistItemId}"
-                                      IsEnabled="{Binding CanReviewLocal}" />
-                              <Button Margin="0,0,8,8"
-                                      Content="Reject"
-                                      Command="{Binding DataContext.Playlists.RejectLocalMatchCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      CommandParameter="{Binding PlaylistItemId}"
-                                      IsEnabled="{Binding CanReviewLocal}" />
-                              <Button Margin="0,0,8,8"
-                                      Content="Skip"
-                                      Command="{Binding DataContext.Playlists.SkipItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      CommandParameter="{Binding PlaylistItemId}"
-                                      IsEnabled="{Binding CanSkip}" />
-                              <Button Margin="0,0,8,8"
-                                      Content="Retry"
-                                      Command="{Binding DataContext.Playlists.RetryItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      CommandParameter="{Binding PlaylistItemId}"
-                                      IsEnabled="{Binding CanRetry}" />
-                            </WrapPanel>
                           </Grid>
                         </Border>
                       </DataTemplate>

@@ -446,6 +446,9 @@ public sealed class DesktopPlaylistsViewModelTests
         StringAssert.Contains(xaml, "<ListBox ItemsSource=\"{Binding Playlists.SelectedPlaylistItems}\"");
         StringAssert.Contains(xaml, "MaxHeight=\"520\"");
         StringAssert.Contains(xaml, "<VirtualizingStackPanel />");
+        StringAssert.Contains(xaml, "<Grid ColumnDefinitions=\"32,48,*\" ColumnSpacing=\"12\">");
+        StringAssert.Contains(xaml, "<WrapPanel Margin=\"0,4,0,0\">");
+        Assert.IsFalse(xaml.Contains("ColumnDefinitions=\"32,48,*,Auto\"", StringComparison.Ordinal));
     }
 
     private static void AssertRequestBodyContains(RecordingHandler handler, string pathSuffix, string expected)
