@@ -34,6 +34,10 @@ Koristi se SQLite s EF Core migracijama. Baza je lokalna i pripada jednom korisn
 
 - Migracije se izvršavaju u daemonu prije prihvaćanja UI konekcije.
 
+- Nakon startup migracije daemon uključuje SQLite write-ahead logging (WAL) kako background readeri ne bi blokirali nepovezane zapise.
+
+- Upgrade backup koristi SQLite online backup API kako bi uključio potvrđene promjene koje se još nalaze u WAL datoteci.
+
 - Downgrade nije podržan; rollback releasea mora vratiti backup baze.
 
 - Raw provider metadata može se čuvati kao JSON radi kompatibilnosti, ali ključna polja moraju biti normalizirana u stupce.

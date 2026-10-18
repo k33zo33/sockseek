@@ -173,6 +173,97 @@ public class SqliteMigrationRunnerTests
         }
     }
 
+    [TestMethod]
+    public async Task MigrateAsync_EnablesConcurrentReaderAndWriterThroughWriteAheadLogging()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sockseek-migration-wal-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string databasePath = Path.Combine(tempDir, "app.db");
+
+        try
+        {
+            var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
+            await runner.MigrateAsync(databasePath, Path.Combine(tempDir, "backups"));
+
+            await using var readerConnection = new SqliteConnection($"Data Source={databasePath}");
+            await readerConnection.OpenAsync();
+            await using (var modeCommand = readerConnection.CreateCommand())
+            {
+                modeCommand.CommandText = "PRAGMA journal_mode;";
+                Assert.AreEqual("wal", await modeCommand.ExecuteScalarAsync());
+            }
+
+            await using var readerTransaction = readerConnection.BeginTransaction(deferred: true);
+            await using var readCommand = readerConnection.CreateCommand();
+            readCommand.Transaction = (SqliteTransaction)readerTransaction;
+            readCommand.CommandText = "SELECT Key FROM AppSettings;";
+            await using var reader = await readCommand.ExecuteReaderAsync();
+
+            var writerOptions = new DbContextOptionsBuilder<SockseekDbContext>()
+                .UseSqlite($"Data Source={databasePath};Default Timeout=1")
+                .Options;
+            await using var writerContext = new SockseekDbContext(writerOptions);
+            writerContext.AppSettings.Add(new AppSettingEntity
+            {
+                Key = "concurrent-writer",
+                JsonValue = "true",
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            });
+
+            await writerContext.SaveChangesAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task MigrateAsync_FromWalDatabase_BackupIncludesUncheckpointedChanges()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sockseek-migration-wal-backup-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string databasePath = Path.Combine(tempDir, "app.db");
+        string backupDirectory = Path.Combine(tempDir, "backups");
+
+        try
+        {
+            await using (var previousContext = CreateContext(databasePath))
+            {
+                var migrator = previousContext.Database.GetService<IMigrator>();
+                await migrator.MigrateAsync("20260918183717_AddPlaybackQueuePersistence");
+            }
+
+            await using var keepAlive = new SqliteConnection($"Data Source={databasePath};Pooling=False");
+            await keepAlive.OpenAsync();
+            await ExecuteNonQueryAsync(keepAlive, "PRAGMA journal_mode=WAL;");
+            await ExecuteNonQueryAsync(keepAlive, "PRAGMA wal_autocheckpoint=0;");
+            await ExecuteNonQueryAsync(
+                keepAlive,
+                "INSERT INTO AppSettings (Key, JsonValue, UpdatedAtUtc) VALUES ('wal-marker', '\"committed\"', '2026-10-18 17:00:00+00:00');");
+            Assert.IsTrue(File.Exists(databasePath + "-wal"));
+            Assert.IsTrue(new FileInfo(databasePath + "-wal").Length > 0);
+
+            var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
+            var result = await runner.MigrateAsync(databasePath, backupDirectory);
+
+            Assert.IsNotNull(result.BackupPath);
+            await using var backup = new SqliteConnection($"Data Source={result.BackupPath};Mode=ReadOnly");
+            await backup.OpenAsync();
+            using var markerCommand = backup.CreateCommand();
+            markerCommand.CommandText = "SELECT JsonValue FROM AppSettings WHERE Key = 'wal-marker';";
+            Assert.AreEqual("\"committed\"", await markerCommand.ExecuteScalarAsync());
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     private static SockseekDbContext CreateContext(string databasePath)
     {
         var options = new DbContextOptionsBuilder<SockseekDbContext>()
@@ -206,6 +297,13 @@ public class SqliteMigrationRunnerTests
             INSERT OR REPLACE INTO "__EFMigrationsLock" ("Id", "Timestamp") VALUES (1, $timestamp);
             """;
         command.Parameters.AddWithValue("$timestamp", timestamp);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task ExecuteNonQueryAsync(SqliteConnection connection, string commandText)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = commandText;
         await command.ExecuteNonQueryAsync();
     }
 

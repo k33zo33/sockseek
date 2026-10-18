@@ -27,7 +27,10 @@ public sealed class SqliteMigrationRunner(Func<SockseekDbContext> dbContextFacto
         var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync(cancellationToken)).ToArray();
 
         if (pendingMigrations.Length == 0)
+        {
+            await EnableWriteAheadLoggingAsync(dbContext, cancellationToken);
             return new SqliteMigrationRunResult(pendingMigrations, BackupPath: null);
+        }
 
         await ClearAbandonedMigrationLockAsync(dbContext, cancellationToken);
 
@@ -38,11 +41,54 @@ public sealed class SqliteMigrationRunner(Func<SockseekDbContext> dbContextFacto
             backupPath = Path.Combine(
                 fullBackupDirectory,
                 $"{Path.GetFileNameWithoutExtension(fullDatabasePath)}-{DateTime.UtcNow:yyyyMMddHHmmssfff}{Path.GetExtension(fullDatabasePath)}.bak");
-            File.Copy(fullDatabasePath, backupPath, overwrite: true);
+            await BackupDatabaseAsync(fullDatabasePath, backupPath, cancellationToken);
         }
 
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await EnableWriteAheadLoggingAsync(dbContext, cancellationToken);
         return new SqliteMigrationRunResult(pendingMigrations, backupPath);
+    }
+
+    private static async Task BackupDatabaseAsync(
+        string sourcePath,
+        string backupPath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var source = new SqliteConnection($"Data Source={sourcePath}");
+        await using var destination = new SqliteConnection($"Data Source={backupPath}");
+        await source.OpenAsync(cancellationToken);
+        await destination.OpenAsync(cancellationToken);
+        source.BackupDatabase(destination);
+    }
+
+    private static async Task EnableWriteAheadLoggingAsync(
+        SockseekDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        bool shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await dbContext.Database.OpenConnectionAsync(cancellationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA journal_mode=WAL;";
+            string? journalMode = Convert.ToString(
+                await command.ExecuteScalarAsync(cancellationToken),
+                CultureInfo.InvariantCulture);
+            if (!string.Equals(journalMode, "wal", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"SQLite refused write-ahead logging and returned journal mode '{journalMode ?? "<null>"}'.");
+            }
+        }
+        finally
+        {
+            if (shouldClose)
+                await dbContext.Database.CloseConnectionAsync();
+        }
     }
 
     private static async Task ClearAbandonedMigrationLockAsync(
