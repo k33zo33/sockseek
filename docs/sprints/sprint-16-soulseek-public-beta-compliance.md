@@ -27,7 +27,7 @@ Dependency: Sprint 15.
 
 ### Deliverables
 
-- Capability inventory against the installed Soulseek.NET API and the existing Sockseek adapter.
+- [Soulseek.NET capability inventory](../soulseek-net-capability-matrix.md) against the installed API and the existing Sockseek adapter.
 - Local-first wishlist scheduling with persisted entries and explicit user controls.
 - Chat support required by the compliance checklist, including bounded/redacted local state and reconnect behavior.
 - Real upload/sharing configuration, browse/search exposure and transfer visibility; advertised counts must reflect actual configured shares.
