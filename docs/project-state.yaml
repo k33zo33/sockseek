@@ -12,9 +12,9 @@ baseline:
   upstream_sync_required: true
 
 active_sprint:
-  id: 15
-  slug: performance-compliance-beta
-  file: docs/sprints/sprint-15-performance-compliance-beta.md
+  id: 16
+  slug: soulseek-public-beta-compliance
+  file: docs/sprints/sprint-16-soulseek-public-beta-compliance.md
   status: in_progress
 
 completed_sprints:
@@ -33,6 +33,7 @@ completed_sprints:
   - 12
   - 13
   - 14
+  - 15
 blocked_by: []
 
 locked_decisions:
@@ -44,3 +45,4 @@ locked_decisions:
   - adr/0006-sqlite-ef-core.md
   - adr/0007-libvlcsharp-local-player-engine.md
   - adr/0008-listenbrainz-post-mvp.md
+  - adr/0009-closed-beta-until-soulseek-compliance.md

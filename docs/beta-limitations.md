@@ -1,13 +1,13 @@
 # Beta limitations and release notes
 
-Sockseek is not approved for public beta distribution yet. Sprint 15 currently allows closed/internal beta testing only.
+Sockseek is not approved for public beta distribution yet. The completed Sprint 15 decision allows closed/internal beta testing only while Sprint 16 addresses Soulseek compliance.
 
 ## Release status
 
 - Public beta: blocked by ADR-0009 until Soulseek compliance is resolved.
 - Closed/internal beta: allowed for packaging, performance, diagnostics, provider import and local playback validation.
 - Stable release: blocked until public beta gates, code signing/rollback decisions and cross-platform packaging decisions are complete.
-- Current Sprint 15 go/no-go evidence is tracked in `docs/beta-go-no-go.md`.
+- The completed Sprint 15 go/no-go evidence is tracked in `docs/beta-go-no-go.md`; Sprint 16 must not supersede it without an accepted ADR.
 
 ## Legal-use notice
 
@@ -31,7 +31,7 @@ External services are playlist or metadata sources only. Spotify, YouTube, Bandc
 - The Windows installer is currently script-based PowerShell, not a signed MSI/MSIX.
 - Docker is a secondary headless path. The Sprint 15 helper reaches Docker Desktop from the validation session, records Windows Docker Desktop pipe/config diagnostics, preserves the repo working directory inside bounded Docker jobs and passed the full image build, CLI help and daemon `/health` smoke on 2026-10-13 after Docker Desktop WSL storage was moved to `F:\Docker\DockerDesktopWSL`.
 - Linux desktop packaging is not complete; the current native media package path is Windows-focused.
-- The Sprint 15 eight-hour soak gate passed for commit `93a8c63`; rendered UI virtualization traces are still open and require manual capture in a real Desktop window.
+- The Sprint 15 eight-hour soak gate passed for commit `93a8c63`. Exact packaged Windows commit `6da97fd` also passed the rendered 100k Library, 10k Search and 10k Playlist virtualization traces; Windows 11 and Ubuntu target-OS public-beta package smoke remain open.
 
 ## Diagnostics for closed beta testers
 

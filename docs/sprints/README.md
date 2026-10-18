@@ -19,7 +19,8 @@ Only one sprint is active at a time. Read the active sprint file and only its re
 | 12 | [sprint-12-bandcamp-metabrainz.md](sprint-12-bandcamp-metabrainz.md) | Completed |
 | 13 | [sprint-13-unified-playlist-resolution.md](sprint-13-unified-playlist-resolution.md) | Completed |
 | 14 | [sprint-14-packaging-legal-security.md](sprint-14-packaging-legal-security.md) | Completed |
-| 15 | [sprint-15-performance-compliance-beta.md](sprint-15-performance-compliance-beta.md) | In Progress |
+| 15 | [sprint-15-performance-compliance-beta.md](sprint-15-performance-compliance-beta.md) | Completed |
+| 16 | [sprint-16-soulseek-public-beta-compliance.md](sprint-16-soulseek-public-beta-compliance.md) | In Progress |
 
 ## General sprint rules
 
@@ -45,3 +46,4 @@ Plan pretpostavlja sprintove od približno dva tjedna, ali Codex ne smije vezati
 | 13 | Unified playlist resolution | Cijela imported playlista -> player/downloader |
 | 14 | Packaging, legal i security hardening | Release candidate |
 | 15 | Performance, compliance i beta stabilizacija | Javna beta odluka |
+| 16 | Soulseek public-beta compliance | Potpuna mreÅ¾na pokrivenost i javni-beta gate |

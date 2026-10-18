@@ -75,5 +75,5 @@ Recorded on 2026-10-06:
 ## Notes
 
 - These tests use in-memory SQLite and measure query/projection paths after fixture creation.
-- Short soak smokes do not prove an eight-hour soak run or UI memory stability; the eight-hour gate is satisfied for commit `93a8c63`, while UI memory stability remains a separate Sprint 15 gate.
-- The current Desktop library, search candidate and playlist item lists have bounded `ListBox` surfaces, but the rendered trace in `docs/desktop-virtualization-trace.md` still needs capture before beta go/no-go.
+- Short soak smokes do not prove an eight-hour soak run or UI memory stability; the eight-hour gate is satisfied for commit `93a8c63` and the separate rendered UI gate is satisfied for exact packaged Windows commit `6da97fd`.
+- The packaged `6da97fd` Desktop completed 180-second, 90-sample traces for 100k Library, 10k Search and 10k Playlist surfaces at 100% scaling while repeatedly scrolling and resizing between narrow/wide layouts. `scripts/validate_desktop_virtualization_traces.ps1` passed all three reports together; exact metrics and the ignored local evidence path are recorded in `docs/beta-go-no-go.md`.

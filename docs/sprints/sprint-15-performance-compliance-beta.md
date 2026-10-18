@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Completed
 
 ## Required context
 
@@ -73,4 +73,12 @@ Ovisnosti: Sprint 14.
 
 ## Completion report
 
-Report changed files, validation commands and results, migrations, security/license impact, known risks and every unmet acceptance criterion.
+Completed on 2026-10-18 with a public-beta `NO-GO` and closed/internal-beta `CONDITIONAL GO` decision.
+
+- Performance evidence: the post-fix eight-hour soak passed its managed/private-memory budgets; deterministic 100k library, 10k playlist, large Soulseek result and event-traffic budgets passed; rendered Library, Search and Playlist traces from exact Windows package commit `6da97fd` passed together with 90 samples per surface.
+- Compliance and release evidence: ADR-0009, the Soulseek audit/checklist, provider recovery matrix, beta limitations, legal-use guidance, diagnostics/security process, Docker smoke and Windows RC package smoke are complete and validator-backed.
+- Runtime hardening: packaged Desktop startup, bundled daemon discovery, Windows STA startup, abandoned SQLite migration-lock recovery, recoverable Desktop transport failures, responsive playlist rows and missed/transient local-library watcher recovery were fixed with regression coverage.
+- Validation: `dotnet restore`, `dotnet build -c Release` (`0` warnings/errors), and `dotnet test -c Release --no-build` passed with Architecture 5, Domain 26, Application 55, Packager 13, Infrastructure 76, Core 579, CLI 258, Player 34, Server 164 and Desktop 242 tests. All Sprint 15 validators and the provider-audio guard passed.
+- Migrations: none added. Startup migration ordering and abandoned-lock behavior changed without changing the schema.
+- Security/license impact: no secret handling, loopback auth, provider scope or AGPL decision changed; package evidence retains `LICENSE`, `SECURITY.md`, `THIRD-PARTY-NOTICES`, exact source metadata and redacted diagnostics guidance.
+- Remaining public-release blockers: ADR-0009 remains active because wishlist, upload/sharing, chat and privilege coverage are missing; Windows 11 and Ubuntu target-OS package smoke and exact public release notes/tag evidence are also incomplete. These are carried into Sprint 16 and public beta remains prohibited.
