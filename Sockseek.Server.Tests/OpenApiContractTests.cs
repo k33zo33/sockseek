@@ -80,6 +80,8 @@ public class OpenApiContractTests
             StringAssert.Contains(json, nameof(LocalLibrarySearchResponseDto));
             StringAssert.Contains(json, nameof(LocalLibraryDuplicateGroupDto));
             StringAssert.Contains(json, nameof(LocalMediaFileRelinkResultDto));
+            StringAssert.Contains(json, nameof(SoulseekWishlistEntryDto));
+            StringAssert.Contains(json, nameof(SaveSoulseekWishlistEntryRequestDto));
             StringAssert.Contains(json, nameof(PlaylistSummaryDto));
             StringAssert.Contains(json, nameof(PlaylistDetailDto));
             StringAssert.Contains(json, nameof(PlaylistItemDto));
@@ -110,6 +112,9 @@ public class OpenApiContractTests
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/tracks", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/duplicates", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/library/files/{localMediaFileId}/relink", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/soulseek/wishlist", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/soulseek/wishlist/{id}", out _));
+            Assert.IsTrue(paths.TryGetProperty("/api/v1/soulseek/wishlist/{id}/run", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}", out _));
             Assert.IsTrue(paths.TryGetProperty("/api/v1/playlists/{playlistId}/resolve-local", out _));

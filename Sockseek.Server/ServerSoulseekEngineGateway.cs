@@ -17,6 +17,15 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
         this.broadcaster = broadcaster;
     }
 
+    public async Task<SearchHandle> StartWishlistSearchAsync(WishlistSearchRequest request, CancellationToken cancellationToken)
+    {
+        var summary = await supervisor.SubmitSearchJobAsync(
+            new SubmitSearchJobRequestDto(request.Query),
+            cancellationToken);
+
+        return new SearchHandle(summary.WorkflowId, summary.JobId);
+    }
+
     public async Task<SearchHandle> StartTrackSearchAsync(TrackSearchRequest request, CancellationToken cancellationToken)
     {
         var summary = await supervisor.SubmitTrackSearchJobAsync(
@@ -190,7 +199,8 @@ public sealed class ServerSoulseekEngineGateway : ISoulseekEngineGateway
             summary.WorkflowId,
             ToJobKind(summary),
             ToJobState(summary.LifecycleState, summary.TerminalOutcome),
-            summary.ItemName ?? summary.QueryText ?? summary.Kind.ToString());
+            summary.ItemName ?? summary.QueryText ?? summary.Kind.ToString(),
+            summary.DiscoveryRawResultCount);
 
     private SoulseekJobKind ToJobKind(JobSummaryDto summary)
     {

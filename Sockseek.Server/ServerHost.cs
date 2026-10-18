@@ -17,6 +17,7 @@ using Sockseek.Application.Playback;
 using Sockseek.Application.Soulseek;
 using Sockseek.Domain.Accounts;
 using Sockseek.Domain.Playlists;
+using Sockseek.Domain.Soulseek;
 using Sockseek.Domain.Tracks;
 using Sockseek.Domain.Workflows;
 using Sockseek.Infrastructure;
@@ -122,16 +123,19 @@ public static class ServerHost
         builder.Services.AddScoped<PlaylistWorkflowSyncService>();
         builder.Services.AddScoped<CanonicalTrackStore>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
+        builder.Services.AddScoped<ISoulseekWishlistStore, SoulseekWishlistStore>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
         builder.Services.AddSingleton<PlaybackCoordinator>();
         builder.Services.AddSingleton<PlaybackQueuePersistenceService>();
         builder.Services.AddSingleton<PlaylistWorkflowRecoveryService>();
+        builder.Services.AddSingleton<SoulseekWishlistScheduler>();
         if (!IsOpenApiGenerationProcess())
         {
             builder.Services.AddHostedService<ServerDatabaseMigrationHostedService>();
             builder.Services.AddHostedService<EngineRuntimeHostedService>();
             builder.Services.AddHostedService<LocalLibraryBackgroundScanHostedService>();
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<SoulseekWishlistScheduler>());
         }
 
         var app = builder.Build();
@@ -1510,6 +1514,113 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
+        app.MapGet("/api/v1/soulseek/wishlist", async (SoulseekWishlistScheduler wishlist, CancellationToken ct) =>
+            Results.Ok((await wishlist.ListAsync(ct)).Select(ToSoulseekWishlistEntryDto).ToArray()))
+            .WithTags("Soulseek")
+            .WithSummary("Lists persisted local Soulseek wishlist searches and their latest bounded state.")
+            .Produces<IReadOnlyList<SoulseekWishlistEntryDto>>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/wishlist", async (
+            SaveSoulseekWishlistEntryRequestDto request,
+            HttpContext context,
+            SoulseekWishlistScheduler wishlist,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(ToSoulseekWishlistEntryDto(await wishlist.CreateAsync(
+                    request.Query,
+                    request.IntervalMinutes,
+                    request.Enabled,
+                    ct)));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadAppRequest(context, "invalid_wishlist_entry", ex.Message);
+            }
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Creates a persisted, bounded Soulseek wishlist search.")
+            .Produces<SoulseekWishlistEntryDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPut("/api/v1/soulseek/wishlist/{id:guid}", async (
+            Guid id,
+            SaveSoulseekWishlistEntryRequestDto request,
+            HttpContext context,
+            SoulseekWishlistScheduler wishlist,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var entry = await wishlist.UpdateAsync(
+                    id,
+                    request.Query,
+                    request.IntervalMinutes,
+                    request.Enabled,
+                    ct);
+                return entry == null
+                    ? Results.NotFound()
+                    : Results.Ok(ToSoulseekWishlistEntryDto(entry));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadAppRequest(context, "invalid_wishlist_entry", ex.Message);
+            }
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Updates a wishlist search and cancels active work when it is disabled.")
+            .Produces<SoulseekWishlistEntryDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapDelete("/api/v1/soulseek/wishlist/{id:guid}", async (
+            Guid id,
+            SoulseekWishlistScheduler wishlist,
+            CancellationToken ct) =>
+            await wishlist.RemoveAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .WithTags("Soulseek")
+            .WithSummary("Deletes a wishlist search after cancelling its active engine job, if any.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/wishlist/{id:guid}/run", async (
+            Guid id,
+            HttpContext context,
+            SoulseekWishlistScheduler wishlist,
+            CancellationToken ct) =>
+        {
+            var result = await wishlist.RunNowAsync(id, ct);
+            if (!result.Found)
+                return Results.NotFound();
+            if (!result.Started || result.Entry == null)
+            {
+                return Results.Json(
+                    new AppErrorDto(
+                        "wishlist_not_runnable",
+                        "The wishlist entry must be enabled and have no active search.",
+                        GetCorrelationId(context)),
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+
+            return Results.Ok(ToSoulseekWishlistEntryDto(result.Entry));
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Starts one wishlist search immediately without creating duplicate active work.")
+            .Produces<SoulseekWishlistEntryDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
         app.MapGet("/api/v1/library/roots", async (LocalLibraryEndpointService library, CancellationToken ct) =>
             Results.Ok(await library.ListRootsAsync(ct)))
             .WithTags("Library")
@@ -2092,6 +2203,23 @@ public static class ServerHost
                 .Where(capability => capability != PlaylistProviderCapabilities.None && provider.Supports(capability))
                 .Select(capability => capability.ToString())
                 .ToArray());
+
+    private static SoulseekWishlistEntryDto ToSoulseekWishlistEntryDto(SoulseekWishlistEntry entry)
+        => new(
+            entry.Id.Value,
+            entry.Query,
+            entry.IntervalMinutes,
+            entry.Enabled,
+            entry.SearchState.ToString(),
+            entry.CreatedAtUtc,
+            entry.UpdatedAtUtc,
+            entry.NextSearchAtUtc,
+            entry.LastSearchStartedAtUtc,
+            entry.LastSearchCompletedAtUtc,
+            entry.ActiveWorkflowId,
+            entry.ActiveJobId,
+            entry.LastResultCount,
+            entry.LastErrorCode);
 
     private static ExternalAccountDto ToExternalAccountDto(ExternalAccountEntity account)
         => new(

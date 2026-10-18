@@ -589,6 +589,71 @@ namespace Sockseek.Infrastructure.Persistence.Migrations
                     b.ToTable("SchemaInfo", (string)null);
                 });
 
+            modelBuilder.Entity("Sockseek.Infrastructure.Persistence.Entities.SoulseekWishlistEntryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ActiveJobId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ActiveWorkflowId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("IntervalMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastResultCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LastSearchCompletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSearchStartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("NextSearchAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("NextSearchAtUtcUnixMilliseconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Query")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SearchState")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActiveJobId");
+
+                    b.HasIndex("Enabled", "SearchState", "NextSearchAtUtcUnixMilliseconds");
+
+                    b.ToTable("SoulseekWishlistEntries", (string)null);
+                });
+
             modelBuilder.Entity("Sockseek.Infrastructure.Persistence.Entities.TrackSourceEntity", b =>
                 {
                     b.Property<Guid>("Id")

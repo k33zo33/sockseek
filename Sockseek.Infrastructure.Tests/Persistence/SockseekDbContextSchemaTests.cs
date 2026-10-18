@@ -33,6 +33,7 @@ public class SockseekDbContextSchemaTests
                 "TrackSources",
                 "LocalMediaFiles",
                 "LibraryRoots",
+                "SoulseekWishlistEntries",
                 "ResolutionAttempts",
                 "DownloadWorkflows",
                 "ProviderSyncStates",
@@ -54,6 +55,8 @@ public class SockseekDbContextSchemaTests
         var allIndexColumns = await IndexColumnsByTableAsync(connection);
         CollectionAssert.Contains(allIndexColumns["LocalMediaFiles"], "Availability,CanonicalTrackId");
         CollectionAssert.Contains(allIndexColumns["CanonicalTracks"], "NormalizedArtist,NormalizedTitle");
+        CollectionAssert.Contains(allIndexColumns["SoulseekWishlistEntries"], "Enabled,SearchState,NextSearchAtUtcUnixMilliseconds");
+        CollectionAssert.Contains(allIndexColumns["SoulseekWishlistEntries"], "ActiveJobId");
 
         var canonicalTrackColumns = await ColumnNamesAsync(connection, "CanonicalTracks");
         CollectionAssert.Contains(canonicalTrackColumns, "AlbumTitle");

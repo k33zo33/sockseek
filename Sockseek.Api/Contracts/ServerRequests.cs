@@ -296,3 +296,9 @@ public sealed record SaveLibraryRootRequestDto(
 /// <summary>Relinks an existing local media file record to a new physical path.</summary>
 public sealed record RelinkLocalMediaFileRequestDto(
     string Path);
+
+/// <summary>Creates or updates a bounded, local Soulseek wishlist search.</summary>
+public sealed record SaveSoulseekWishlistEntryRequestDto(
+    string Query,
+    int IntervalMinutes = 30,
+    bool Enabled = true);

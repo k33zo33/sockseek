@@ -87,6 +87,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(AggregateAlbumProjectionRequestDto))]
 [JsonSerializable(typeof(SaveLibraryRootRequestDto))]
 [JsonSerializable(typeof(RelinkLocalMediaFileRequestDto))]
+[JsonSerializable(typeof(SaveSoulseekWishlistEntryRequestDto))]
 [JsonSerializable(typeof(SubmissionOptionsDto))]
 [JsonSerializable(typeof(SearchSubmissionOptionsDto))]
 [JsonSerializable(typeof(DownloadBehaviorPolicyDto))]
@@ -138,6 +139,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(LocalLibraryDuplicateFileDto))]
 [JsonSerializable(typeof(LocalLibraryDuplicateGroupDto))]
 [JsonSerializable(typeof(LocalMediaFileRelinkResultDto))]
+[JsonSerializable(typeof(SoulseekWishlistEntryDto))]
 
 [JsonSerializable(typeof(DownloadSettingsPatchDto))]
 [JsonSerializable(typeof(OutputSettingsPatchDto))]
@@ -207,6 +209,7 @@ namespace Sockseek.Api;
 [JsonSerializable(typeof(IReadOnlyList<AggregateAlbumCandidateDto>))]
 [JsonSerializable(typeof(IReadOnlyList<LibraryRootDto>))]
 [JsonSerializable(typeof(IReadOnlyList<LocalLibraryDuplicateGroupDto>))]
+[JsonSerializable(typeof(IReadOnlyList<SoulseekWishlistEntryDto>))]
 [JsonSerializable(typeof(IReadOnlyList<SongJobPayloadDto>))]
 [JsonSerializable(typeof(IReadOnlyList<JobDraftDto>))]
 [JsonSerializable(typeof(IReadOnlyList<FileCandidateRefDto>))]

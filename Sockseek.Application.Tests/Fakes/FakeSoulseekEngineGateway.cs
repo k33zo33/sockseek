@@ -10,12 +10,14 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
     private readonly ConcurrentDictionary<Guid, DownloadJobResultSnapshot?> downloadResults = new();
     private readonly ConcurrentDictionary<Guid, List<EngineEventEnvelope>> eventsByWorkflow = new();
     private readonly Queue<SearchHandle> nextTrackSearchHandles = new();
+    private readonly Queue<SearchHandle> nextWishlistSearchHandles = new();
     private readonly Queue<SearchHandle> nextAlbumSearchHandles = new();
     private readonly Queue<DownloadHandle> nextTrackDownloadHandles = new();
     private readonly Queue<DownloadHandle> nextDownloadHandles = new();
     private readonly ConcurrentDictionary<Guid, bool> nextCandidateResults = new();
 
     public List<TrackSearchRequest> TrackSearchRequests { get; } = [];
+    public List<WishlistSearchRequest> WishlistSearchRequests { get; } = [];
     public List<(TrackSearchRequest Request, DownloadOptions Options)> TrackDownloadRequests { get; } = [];
     public List<AlbumSearchRequest> AlbumSearchRequests { get; } = [];
     public List<(CandidateReference Candidate, DownloadOptions Options)> DownloadRequests { get; } = [];
@@ -23,6 +25,7 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
     public List<Guid> NextCandidateJobIds { get; } = [];
 
     public void EnqueueTrackSearchHandle(SearchHandle handle) => nextTrackSearchHandles.Enqueue(handle);
+    public void EnqueueWishlistSearchHandle(SearchHandle handle) => nextWishlistSearchHandles.Enqueue(handle);
     public void EnqueueAlbumSearchHandle(SearchHandle handle) => nextAlbumSearchHandles.Enqueue(handle);
     public void EnqueueTrackDownloadHandle(DownloadHandle handle) => nextTrackDownloadHandles.Enqueue(handle);
     public void EnqueueDownloadHandle(DownloadHandle handle) => nextDownloadHandles.Enqueue(handle);
@@ -41,6 +44,12 @@ internal sealed class FakeSoulseekEngineGateway : ISoulseekEngineGateway
     {
         TrackSearchRequests.Add(request);
         return Task.FromResult(nextTrackSearchHandles.Dequeue());
+    }
+
+    public Task<SearchHandle> StartWishlistSearchAsync(WishlistSearchRequest request, CancellationToken cancellationToken)
+    {
+        WishlistSearchRequests.Add(request);
+        return Task.FromResult(nextWishlistSearchHandles.Dequeue());
     }
 
     public Task<SearchHandle> StartAlbumSearchAsync(AlbumSearchRequest request, CancellationToken cancellationToken)

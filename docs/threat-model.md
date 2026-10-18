@@ -31,6 +31,7 @@ Sprint 14 release-candidate scope covers the local-first desktop app, localhost 
 | Update data loss | A migration-bearing update overwrites or deletes existing database/config/music. | Database migration runner creates upgrade backups before pending migrations. Installer/uninstaller scripts preserve user data by default. |
 | Release artifact tampering or omissions | Binary artifact ships without AGPL notices, exact source metadata, SBOM or native dependencies. | `Sockseek.Packager validate-release` requires legal files, source metadata, SPDX SBOM, installer scripts, Desktop executable and daemon executable. Windows staging smoke checks SQLite and libVLC native files. |
 | Dependency vulnerabilities | Known vulnerable NuGet packages ship in release artifacts. | Central package pins resolved the current AngleSharp and SQLitePCLRaw advisories; `dotnet list package --vulnerable --include-transitive` is a release gate. |
+| Wishlist amplification or leakage | A large wishlist creates duplicate network work, grows persistent data without bounds or exposes user queries through logs. | Entries use bounded query/interval validation, one active job per entry, a four-search global cap and restart recovery. Persistence keeps only a compact result summary and stable error code; scheduler logs omit query and exception text. |
 
 ## Residual risks
 

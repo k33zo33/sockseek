@@ -496,6 +496,53 @@ public sealed class SockseekApiClient
             request,
             ct);
 
+    public async Task<IReadOnlyList<SoulseekWishlistEntryDto>> GetSoulseekWishlistAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/soulseek/wishlist", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<SoulseekWishlistEntryDto>>(jsonOptions, ct) ?? [];
+    }
+
+    public async Task<SoulseekWishlistEntryDto> CreateSoulseekWishlistEntryAsync(
+        SaveSoulseekWishlistEntryRequestDto request,
+        CancellationToken ct = default)
+        => await PostRequiredAsync<SoulseekWishlistEntryDto, SaveSoulseekWishlistEntryRequestDto>(
+            "api/v1/soulseek/wishlist",
+            request,
+            ct);
+
+    public async Task<SoulseekWishlistEntryDto?> UpdateSoulseekWishlistEntryAsync(
+        Guid id,
+        SaveSoulseekWishlistEntryRequestDto request,
+        CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/v1/soulseek/wishlist/{id}", request, jsonOptions, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekWishlistEntryDto>(response, ct);
+    }
+
+    public async Task<bool> DeleteSoulseekWishlistEntryAsync(Guid id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/soulseek/wishlist/{id}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(response, ct);
+        return true;
+    }
+
+    public async Task<SoulseekWishlistEntryDto?> RunSoulseekWishlistEntryNowAsync(
+        Guid id,
+        CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/v1/soulseek/wishlist/{id}/run", null, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekWishlistEntryDto>(response, ct);
+    }
+
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
     {

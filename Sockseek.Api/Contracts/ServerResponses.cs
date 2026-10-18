@@ -585,3 +585,20 @@ public sealed record LocalMediaFileRelinkResultDto(
     Guid LocalMediaFileId,
     Guid? CanonicalTrackId,
     string Path);
+
+/// <summary>Persisted local schedule and latest state for a Soulseek wishlist search.</summary>
+public sealed record SoulseekWishlistEntryDto(
+    Guid Id,
+    string Query,
+    int IntervalMinutes,
+    bool Enabled,
+    string SearchState,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    DateTimeOffset? NextSearchAtUtc,
+    DateTimeOffset? LastSearchStartedAtUtc,
+    DateTimeOffset? LastSearchCompletedAtUtc,
+    Guid? ActiveWorkflowId,
+    Guid? ActiveJobId,
+    int? LastResultCount,
+    string? LastErrorCode);

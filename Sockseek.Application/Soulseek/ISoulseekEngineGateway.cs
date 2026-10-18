@@ -2,6 +2,7 @@ namespace Sockseek.Application.Soulseek;
 
 public interface ISoulseekEngineGateway
 {
+    Task<SearchHandle> StartWishlistSearchAsync(WishlistSearchRequest request, CancellationToken cancellationToken);
     Task<SearchHandle> StartTrackSearchAsync(TrackSearchRequest request, CancellationToken cancellationToken);
     Task<SearchHandle> StartAlbumSearchAsync(AlbumSearchRequest request, CancellationToken cancellationToken);
     Task<DownloadHandle> StartTrackDownloadAsync(TrackSearchRequest request, DownloadOptions options, CancellationToken cancellationToken);

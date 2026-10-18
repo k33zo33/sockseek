@@ -15,6 +15,38 @@ namespace Tests.Server;
 public class ServerSoulseekEngineGatewayTests
 {
     [TestMethod]
+    public async Task Gateway_StartWishlistSearch_UsesGenericSearchAndReturnsResultCount()
+    {
+        string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-wishlist-gateway-test-" + Guid.NewGuid());
+        string albumDir = Path.Combine(musicRoot, "Artist", "Album");
+        string outputDir = Path.Combine(Path.GetTempPath(), "Sockseek-wishlist-gateway-out-" + Guid.NewGuid());
+        Directory.CreateDirectory(albumDir);
+        Directory.CreateDirectory(outputDir);
+        File.WriteAllText(Path.Combine(albumDir, "01. Artist - Track One.mp3"), "a");
+
+        await using var app = BuildApp(musicRoot, outputDir);
+        try
+        {
+            await app.StartAsync();
+            var gateway = app.Services.GetRequiredService<ISoulseekEngineGateway>();
+
+            var handle = await gateway.StartWishlistSearchAsync(
+                new WishlistSearchRequest("Artist Track One"),
+                CancellationToken.None);
+
+            var snapshot = await WaitForSnapshotAsync(gateway, handle.EngineJobId, SoulseekJobState.Succeeded);
+            Assert.AreEqual(SoulseekJobKind.TrackSearch, snapshot.Kind);
+            Assert.AreEqual(1, snapshot.ResultCount);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Directory.Delete(musicRoot, recursive: true);
+            Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task Gateway_StartTrackSearch_AndGetJob_ReturnMappedSnapshot()
     {
         string musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-gateway-test-" + Guid.NewGuid());

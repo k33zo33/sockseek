@@ -1,5 +1,7 @@
 namespace Sockseek.Application.Soulseek;
 
+public sealed record WishlistSearchRequest(string Query);
+
 public sealed record TrackSearchRequest(
     string Artist,
     string Title,
@@ -49,7 +51,8 @@ public sealed record JobSnapshot(
     Guid WorkflowId,
     SoulseekJobKind Kind,
     SoulseekJobState State,
-    string? Description);
+    string? Description,
+    int? ResultCount = null);
 
 public sealed record DownloadJobResultSnapshot(
     Guid EngineJobId,

@@ -39,6 +39,7 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
     public DbSet<TrackSourceEntity> TrackSources => Set<TrackSourceEntity>();
     public DbSet<LocalMediaFileEntity> LocalMediaFiles => Set<LocalMediaFileEntity>();
     public DbSet<LibraryRootEntity> LibraryRoots => Set<LibraryRootEntity>();
+    public DbSet<SoulseekWishlistEntryEntity> SoulseekWishlistEntries => Set<SoulseekWishlistEntryEntity>();
     public DbSet<ResolutionAttemptEntity> ResolutionAttempts => Set<ResolutionAttemptEntity>();
     public DbSet<DownloadWorkflowEntity> DownloadWorkflows => Set<DownloadWorkflowEntity>();
     public DbSet<PlaybackQueueEntity> PlaybackQueues => Set<PlaybackQueueEntity>();
@@ -151,6 +152,17 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Path).IsRequired();
             entity.HasIndex(x => x.Path).IsUnique();
+        });
+
+        modelBuilder.Entity<SoulseekWishlistEntryEntity>(entity =>
+        {
+            entity.ToTable("SoulseekWishlistEntries");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Query).IsRequired().HasMaxLength(256);
+            entity.Property(x => x.SearchState).HasConversion<string>().IsRequired();
+            entity.Property(x => x.LastErrorCode).HasMaxLength(64);
+            entity.HasIndex(x => new { x.Enabled, x.SearchState, x.NextSearchAtUtcUnixMilliseconds });
+            entity.HasIndex(x => x.ActiveJobId);
         });
 
         modelBuilder.Entity<ResolutionAttemptEntity>(entity =>

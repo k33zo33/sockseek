@@ -1,13 +1,64 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Infrastructure.Persistence;
+using Sockseek.Infrastructure.Persistence.Entities;
 
 namespace Sockseek.Infrastructure.Tests.Persistence;
 
 [TestClass]
 public class SqliteMigrationRunnerTests
 {
+    [TestMethod]
+    public async Task MigrateAsync_FromPreviousPublicSchema_AddsWishlistAndPreservesExistingData()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sockseek-migration-upgrade-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string databasePath = Path.Combine(tempDir, "app.db");
+        string backupDirectory = Path.Combine(tempDir, "backups");
+
+        try
+        {
+            await using (var previousContext = CreateContext(databasePath))
+            {
+                var migrator = previousContext.Database.GetService<IMigrator>();
+                await migrator.MigrateAsync("20260918183717_AddPlaybackQueuePersistence");
+                previousContext.AppSettings.Add(new AppSettingEntity
+                {
+                    Key = "upgrade-marker",
+                    JsonValue = "\"preserved\"",
+                    UpdatedAtUtc = new DateTimeOffset(2026, 10, 18, 14, 0, 0, TimeSpan.Zero),
+                });
+                await previousContext.SaveChangesAsync();
+            }
+
+            var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
+            var result = await runner.MigrateAsync(databasePath, backupDirectory);
+
+            CollectionAssert.AreEqual(
+                new[] { "20261018091320_AddSoulseekWishlist" },
+                result.AppliedMigrations.ToArray());
+            Assert.IsNotNull(result.BackupPath);
+            Assert.IsTrue(File.Exists(result.BackupPath));
+
+            await using var migratedConnection = new SqliteConnection($"Data Source={databasePath}");
+            await migratedConnection.OpenAsync();
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekWishlistEntries");
+
+            using var markerCommand = migratedConnection.CreateCommand();
+            markerCommand.CommandText = "SELECT JsonValue FROM AppSettings WHERE Key = 'upgrade-marker';";
+            Assert.AreEqual("\"preserved\"", await markerCommand.ExecuteScalarAsync());
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     [TestMethod]
     public async Task MigrateAsync_ExistingDatabaseWithPendingMigrations_CreatesBackupBeforeMigrating()
     {
@@ -29,7 +80,7 @@ public class SqliteMigrationRunnerTests
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory);
 
-            Assert.AreEqual(7, result.AppliedMigrations.Count);
+            Assert.AreEqual(8, result.AppliedMigrations.Count);
             Assert.IsNotNull(result.BackupPath);
             Assert.IsTrue(File.Exists(result.BackupPath));
 
@@ -42,6 +93,7 @@ public class SqliteMigrationRunnerTests
             await migratedConnection.OpenAsync();
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "ExternalAccounts");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "LibraryRoots");
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekWishlistEntries");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "LegacyMarker");
         }
         finally
@@ -105,11 +157,12 @@ public class SqliteMigrationRunnerTests
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory).WaitAsync(TimeSpan.FromSeconds(15));
 
-            Assert.AreEqual(7, result.AppliedMigrations.Count);
+            Assert.AreEqual(8, result.AppliedMigrations.Count);
             Assert.IsNotNull(result.BackupPath);
             await using var migratedConnection = new SqliteConnection($"Data Source={databasePath}");
             await migratedConnection.OpenAsync();
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "ExternalAccounts");
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekWishlistEntries");
             Assert.AreEqual(0L, await MigrationLockCountAsync(migratedConnection));
         }
         finally

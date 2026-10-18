@@ -2,6 +2,13 @@
 
 See also the release-focused [threat model](threat-model.md).
 
+## Sprint 16 additions
+
+- The wishlist scheduler never writes query text or exception messages to logs.
+- SQLite keeps only the locally entered query, bounded schedule/status, engine ids,
+  result count and a stable error code. Raw Soulseek results are not duplicated in
+  the wishlist table.
+
 ## 15. Sigurnost, privatnost i operativna pravila
 
 ### 15.1. Lokalni API

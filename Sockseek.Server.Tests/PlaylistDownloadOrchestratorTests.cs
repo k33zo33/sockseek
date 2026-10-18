@@ -64,6 +64,9 @@ public sealed class PlaylistDownloadOrchestratorTests
     {
         public List<(TrackSearchRequest Request, DownloadOptions Options)> TrackDownloadRequests { get; } = [];
 
+        public Task<SearchHandle> StartWishlistSearchAsync(WishlistSearchRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new SearchHandle(Guid.NewGuid(), Guid.NewGuid()));
+
         public Task<SearchHandle> StartTrackSearchAsync(TrackSearchRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new SearchHandle(Guid.NewGuid(), Guid.NewGuid()));
 

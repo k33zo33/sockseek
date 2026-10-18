@@ -9,6 +9,23 @@
 
 The daemon exposes an HTTP API for durable state plus a SignalR hub for live invalidation/progress events.
 
+## Soulseek wishlist
+
+The authenticated versioned API exposes local persisted wishlist searches:
+
+- `GET /api/v1/soulseek/wishlist`
+- `POST /api/v1/soulseek/wishlist`
+- `PUT /api/v1/soulseek/wishlist/{id}`
+- `DELETE /api/v1/soulseek/wishlist/{id}`
+- `POST /api/v1/soulseek/wishlist/{id}/run`
+
+Intervals are bounded from 5 minutes through 7 days. The daemon runs at most four
+wishlist searches concurrently and never starts two active searches for the same
+entry. Restart recovery marks interrupted work with a stable error code and makes
+an enabled entry eligible for a new search. The API stores only the query, schedule,
+engine ids, result count and stable state/error code; it does not persist raw search
+results or exception text in the wishlist table.
+
 ## .NET clients
 .NET consumers should prefer `Sockseek.Api.SockseekApiClient` over hand-written endpoint calls.
 

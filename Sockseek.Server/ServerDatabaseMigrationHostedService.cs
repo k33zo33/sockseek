@@ -7,15 +7,15 @@ public sealed class ServerDatabaseMigrationHostedService(
     IOptions<ServerOptions> options) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
-        => UsesImplicitDatabasePathInTestProcess(options.Value)
-            ? Task.CompletedTask
-            : migrationService.EnsureMigratedAsync(cancellationToken);
+        => ShouldMigrate(options.Value)
+            ? migrationService.EnsureMigratedAsync(cancellationToken)
+            : Task.CompletedTask;
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private static bool UsesImplicitDatabasePathInTestProcess(ServerOptions serverOptions)
-        => string.IsNullOrWhiteSpace(serverOptions.DatabasePath)
-            && string.IsNullOrWhiteSpace(serverOptions.ConfigDir)
-            && AppDomain.CurrentDomain.GetAssemblies()
+    internal static bool ShouldMigrate(ServerOptions serverOptions)
+        => !string.IsNullOrWhiteSpace(serverOptions.DatabasePath)
+            || !string.IsNullOrWhiteSpace(serverOptions.ConfigDir)
+            || !AppDomain.CurrentDomain.GetAssemblies()
                 .Any(assembly => assembly.GetName().Name?.EndsWith(".Tests", StringComparison.Ordinal) == true);
 }

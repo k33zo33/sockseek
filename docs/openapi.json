@@ -2238,6 +2238,290 @@
         }
       }
     },
+    "/api/v1/soulseek/wishlist": {
+      "get": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Lists persisted local Soulseek wishlist searches and their latest bounded state.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SoulseekWishlistEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Creates a persisted, bounded Soulseek wishlist search.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSoulseekWishlistEntryRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulseekWishlistEntryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/soulseek/wishlist/{id}": {
+      "put": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Updates a wishlist search and cancels active work when it is disabled.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveSoulseekWishlistEntryRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulseekWishlistEntryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Deletes a wishlist search after cancelling its active engine job, if any.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/soulseek/wishlist/{id}/run": {
+      "post": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Starts one wishlist search immediately without creating duplicate active work.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulseekWishlistEntryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/library/roots": {
       "get": {
         "tags": [
@@ -8343,6 +8627,30 @@
           }
         }
       },
+      "SaveSoulseekWishlistEntryRequestDto": {
+        "required": [
+          "query"
+        ],
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "intervalMinutes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 30
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
       "SearchRawResultDto": {
         "required": [
           "sequence",
@@ -9304,6 +9612,106 @@
           }
         }
       },
+      "SoulseekWishlistEntryDto": {
+        "required": [
+          "id",
+          "query",
+          "intervalMinutes",
+          "enabled",
+          "searchState",
+          "createdAtUtc",
+          "updatedAtUtc",
+          "nextSearchAtUtc",
+          "lastSearchStartedAtUtc",
+          "lastSearchCompletedAtUtc",
+          "activeWorkflowId",
+          "activeJobId",
+          "lastResultCount",
+          "lastErrorCode"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "query": {
+            "type": "string"
+          },
+          "intervalMinutes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "searchState": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextSearchAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastSearchStartedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastSearchCompletedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "activeWorkflowId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "activeJobId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "lastResultCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastErrorCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SourceMutationDto": {
         "required": [
           "kind",
@@ -10070,6 +10478,9 @@
     },
     {
       "name": "Player"
+    },
+    {
+      "name": "Soulseek"
     },
     {
       "name": "Library"
