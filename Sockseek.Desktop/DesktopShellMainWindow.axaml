@@ -253,6 +253,65 @@
                 <TextBlock VerticalAlignment="Center" Text="{Binding Search.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
               </StackPanel>
               <TextBlock Text="{Binding Search.ResultsRevision, StringFormat='Revision {0}'}" Opacity="0.7" />
+              <Separator Margin="0,8,0,4" />
+              <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="Wishlist" FontSize="18" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Search.Wishlist.RefreshCommand}" />
+              </DockPanel>
+              <WrapPanel Orientation="Horizontal">
+                <TextBox Width="360" MaxWidth="360" Margin="0,0,10,8" Watermark="Search query" Text="{Binding Search.Wishlist.Query}" />
+                <TextBox Width="150" Margin="0,0,10,8" Watermark="Interval minutes" Text="{Binding Search.Wishlist.IntervalMinutes}" />
+                <CheckBox Margin="0,0,10,8" VerticalAlignment="Center" Content="Enabled" IsChecked="{Binding Search.Wishlist.Enabled}" />
+                <Button Margin="0,0,10,8" Content="{Binding Search.Wishlist.SaveActionLabel}" Command="{Binding Search.Wishlist.SaveCommand}" />
+                <Button Margin="0,0,0,8" Content="Clear" Command="{Binding Search.Wishlist.ClearSelectionCommand}" IsVisible="{Binding Search.Wishlist.IsEditing}" />
+              </WrapPanel>
+              <TextBlock Text="{Binding Search.Wishlist.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Search.Wishlist.OperationSummary}" Opacity="0.75" TextWrapping="Wrap" />
+              <TextBlock Text="No wishlist entries" IsVisible="{Binding Search.Wishlist.IsEmpty}" Opacity="0.65" />
+              <ListBox ItemsSource="{Binding Search.Wishlist.Entries}"
+                       SelectedItem="{Binding Search.Wishlist.SelectedEntry, Mode=TwoWay}"
+                       IsVisible="{Binding Search.Wishlist.HasEntries}"
+                       MaxHeight="300"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopWishlistEntryViewModel">
+                    <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" RowSpacing="8">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="3">
+                          <TextBlock Text="{Binding Query}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <WrapPanel Orientation="Horizontal">
+                            <TextBlock Margin="0,0,12,0" Text="{Binding IntervalSummary}" Opacity="0.7" />
+                            <TextBlock Margin="0,0,12,0" Text="{Binding StatusSummary}" Opacity="0.7" />
+                            <TextBlock Text="{Binding ScheduleSummary}" Opacity="0.7" />
+                          </WrapPanel>
+                        </StackPanel>
+                        <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal">
+                          <Button Margin="0,0,8,0"
+                                  Content="Run now"
+                                  IsEnabled="{Binding CanRun}"
+                                  Command="{Binding DataContext.Search.Wishlist.RunNowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Margin="0,0,8,0"
+                                  Content="{Binding ToggleEnabledLabel}"
+                                  Command="{Binding DataContext.Search.Wishlist.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="Delete"
+                                  Command="{Binding DataContext.Search.Wishlist.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}" />
+                        </WrapPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <Separator Margin="0,4,0,8" />
               <ListBox ItemsSource="{Binding Search.FileCandidates}"
                        MaxHeight="420"
                        Background="Transparent"

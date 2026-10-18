@@ -30,6 +30,7 @@ public sealed class DesktopSearchViewModel : ObservableObject
         RefreshResultsCommand = new DesktopAsyncCommand(() => RefreshResultsAsync());
         DownloadFileCommand = new DesktopAsyncParameterCommand<DesktopFileCandidateViewModel>(candidate => DownloadFileAsync(candidate.Candidate));
         DownloadFolderCommand = new DesktopAsyncParameterCommand<DesktopAlbumFolderViewModel>(folder => DownloadFolderAsync(folder.Folder));
+        Wishlist = new DesktopWishlistViewModel(apiClient);
     }
 
     public ICommand SearchCommand { get; }
@@ -39,6 +40,8 @@ public sealed class DesktopSearchViewModel : ObservableObject
     public ICommand DownloadFileCommand { get; }
 
     public ICommand DownloadFolderCommand { get; }
+
+    public DesktopWishlistViewModel Wishlist { get; }
 
     public DesktopSearchMode Mode
     {

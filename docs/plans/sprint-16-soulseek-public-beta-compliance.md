@@ -50,7 +50,7 @@ Close the feature and evidence gaps identified by ADR-0009 while preserving the 
 
 1. Produce a checked capability matrix from the installed Soulseek.NET assembly/XML docs and existing manager/mock implementations. Completed in `docs/soulseek-net-capability-matrix.md` for Soulseek.NET 10.0.2.
 2. Define Domain/Application contracts and threat-model decisions for retention, share-root approval and reconnect semantics.
-3. Implement wishlist vertically through persistence, adapter, API and Desktop with deterministic mock coverage.
+3. Implement wishlist vertically through persistence, adapter, API and Desktop with deterministic mock coverage. Completed with persisted bounded scheduling, authenticated API/OpenAPI contracts, Desktop controls, migration/upgrade coverage and scheduler/UI tests; live-network checklist evidence remains part of step 7.
 4. Implement privilege recognition and chat vertically with bounded state and redaction tests.
 5. Implement explicit sharing/upload vertically, beginning with canonical path policy and adversarial tests before network serving.
 6. Complete reconnect/failure matrices, OpenAPI snapshots and compatibility tests.

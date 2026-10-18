@@ -22,7 +22,7 @@ The Terms of Use also place responsibility on users to obey intellectual-propert
 | Search | Implemented through existing Sockseek/Soulseek engine flows, with track and album search UI/API. | Low for feature coverage; still subject to acceptable-use messaging. |
 | Download | Implemented for explicit user workflows and playlist resolution. | Medium; user responsibility messaging must be clear. |
 | Folder browse / album discovery | Implemented through existing album folder projection and download workflows. | Medium; depends on existing engine parity. |
-| Wishlist | Not implemented in the desktop/daemon product. | High; explicitly listed in Soulseek rules. |
+| Wishlist | Implemented across persisted daemon scheduling, authenticated API and Desktop controls with deterministic automated coverage. | Medium; a redacted live-network smoke is still required before public-beta approval. |
 | Upload / sharing | Not implemented or verified as a first-class desktop/daemon feature. The daemon status DTO now exposes configured share counts, listen port and non-secret sharing indicators for review without exposing user description text. | High; explicitly listed in Soulseek rules. |
 | Chat | Not implemented. | High; explicitly listed in Soulseek rules. |
 | Privileges | Not implemented or verified as a visible/respected feature. | High; explicitly listed in Soulseek rules. |
