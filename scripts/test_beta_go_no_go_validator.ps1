@@ -109,36 +109,42 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke omits Windows service and WSL diagnostics.'
     }
 
-    $renderedTraceWithoutRunner = $baseline -replace ' `scripts/test_desktop_virtualization_trace_capture_runner\.ps1` smokes the three-surface runner with a fake capture helper,', ''
-    $renderedTraceWithoutRunnerPath = Write-Case 'rendered-trace-without-runner.md' $renderedTraceWithoutRunner
-    if ((Invoke-Validator $renderedTraceWithoutRunnerPath) -eq 0) {
-        throw 'Expected validation to fail when rendered trace evidence omits the three-surface runner smoke.'
+    $renderedTraceRegressed = $baseline -replace '\|\s*Rendered UI virtualization trace\s*\|(.*?)\|\s*Passed for Windows RC\s*\|', '| Rendered UI virtualization trace |$1| Incomplete |'
+    $renderedTraceRegressedPath = Write-Case 'rendered-trace-regressed.md' $renderedTraceRegressed
+    if ((Invoke-Validator $renderedTraceRegressedPath) -eq 0) {
+        throw 'Expected validation to fail when the completed rendered trace regresses to incomplete.'
     }
 
-    $renderedTraceWithoutOperatorActions = $baseline -replace ' and explicit operator actions', ''
-    $renderedTraceWithoutOperatorActions = $renderedTraceWithoutOperatorActions -replace ', missing-operator-actions', ''
-    $renderedTraceWithoutOperatorActionsPath = Write-Case 'rendered-trace-without-operator-actions.md' $renderedTraceWithoutOperatorActions
-    if ((Invoke-Validator $renderedTraceWithoutOperatorActionsPath) -eq 0) {
-        throw 'Expected validation to fail when rendered trace evidence omits explicit operator action checks.'
+    $renderedTraceWithoutValidator = $baseline -replace 'scripts/validate_desktop_virtualization_traces\.ps1', 'rendered trace validator omitted'
+    $renderedTraceWithoutValidatorPath = Write-Case 'rendered-trace-without-validator.md' $renderedTraceWithoutValidator
+    if ((Invoke-Validator $renderedTraceWithoutValidatorPath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits the validator pass.'
     }
 
-    $renderedTraceWithoutFixturePrep = $baseline -replace ' `scripts/prepare_desktop_virtualization_fixture\.ps1` prepares an isolated config directory with 100k library rows, a 10k imported playlist and a 10k mock Soulseek file tree,', ''
-    $renderedTraceWithoutFixturePrepPath = Write-Case 'rendered-trace-without-fixture-prep.md' $renderedTraceWithoutFixturePrep
-    if ((Invoke-Validator $renderedTraceWithoutFixturePrepPath) -eq 0) {
-        throw 'Expected validation to fail when rendered trace evidence omits fixture preparation.'
+    $renderedTraceWithoutRuntimeEvidence = $baseline -replace '180 seconds with 90 raw samples', 'duration and samples omitted'
+    $renderedTraceWithoutRuntimeEvidencePath = Write-Case 'rendered-trace-without-runtime-evidence.md' $renderedTraceWithoutRuntimeEvidence
+    if ((Invoke-Validator $renderedTraceWithoutRuntimeEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits duration and sample count.'
     }
 
-    $renderedTraceWithoutPreflight = $baseline -replace ' `scripts/validate_desktop_virtualization_fixture\.ps1` preflights the fixture paths, database, mock file count, optional packaged Desktop executable and sqlite-backed row counts before manual capture,', ''
-    $renderedTraceWithoutPreflight = $renderedTraceWithoutPreflight -replace ' `scripts/test_desktop_virtualization_fixture_preflight\.ps1` smokes fixture preflight validation without creating the full fixture,', ''
+    $renderedTraceWithoutPreflight = $baseline -replace 'Exact-package fixture preflight independently confirmed 100,000 SQLite library rows, 10,000 SQLite playlist items and 10,000 mock Soulseek files\.', 'Fixture counts omitted.'
     $renderedTraceWithoutPreflightPath = Write-Case 'rendered-trace-without-preflight.md' $renderedTraceWithoutPreflight
     if ((Invoke-Validator $renderedTraceWithoutPreflightPath) -eq 0) {
-        throw 'Expected validation to fail when rendered trace evidence omits fixture preflight coverage.'
+        throw 'Expected validation to fail when rendered trace evidence omits exact-package fixture counts.'
     }
 
-    $renderedTraceWithoutLauncher = $baseline -replace ' `scripts/start_desktop_virtualization_fixture\.ps1` launches Desktop with that fixture environment and supports `-DesktopExecutablePath` for packaged artifact traces,', ''
-    $renderedTraceWithoutLauncherPath = Write-Case 'rendered-trace-without-launcher.md' $renderedTraceWithoutLauncher
-    if ((Invoke-Validator $renderedTraceWithoutLauncherPath) -eq 0) {
-        throw 'Expected validation to fail when rendered trace evidence omits fixture launcher coverage.'
+    $renderedTraceWithoutFixtureEvidence = $baseline -replace '`100000 tracks`', 'library fixture omitted'
+    $renderedTraceWithoutFixtureEvidence = $renderedTraceWithoutFixtureEvidence -replace '`Revision 10000`', 'search fixture omitted'
+    $renderedTraceWithoutFixtureEvidence = $renderedTraceWithoutFixtureEvidence -replace '`10000/10000 tracks`', 'playlist fixture omitted'
+    $renderedTraceWithoutFixtureEvidencePath = Write-Case 'rendered-trace-without-fixture-evidence.md' $renderedTraceWithoutFixtureEvidence
+    if ((Invoke-Validator $renderedTraceWithoutFixtureEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits the three large fixture results.'
+    }
+
+    $renderedTraceWithoutVisualEvidence = $baseline -replace 'No text overlap, unreachable row actions or unbounded growth was observed\.', 'Visual observations omitted.'
+    $renderedTraceWithoutVisualEvidencePath = Write-Case 'rendered-trace-without-visual-evidence.md' $renderedTraceWithoutVisualEvidence
+    if ((Invoke-Validator $renderedTraceWithoutVisualEvidencePath) -eq 0) {
+        throw 'Expected validation to fail when rendered trace evidence omits visual defect observations.'
     }
 
     $soulseekWithoutGateValidator = $baseline -replace ' `scripts/validate_soulseek_compliance_gate\.ps1` verifies that ADR-0009 remains accepted, public beta with Soulseek network connectivity remains blocked, wishlist/upload-sharing/chat/privilege gaps remain represented as high-risk blockers, the public beta checklist remains linked from the audit, and beta limitations retain the provider no-audio policy; `scripts/test_soulseek_compliance_gate_validator\.ps1` covers negative cases for accidentally removing those blockers or checklist evidence\.', ''
@@ -169,6 +175,12 @@ try {
     $packageWithoutTesterInstructionsPath = Write-Case 'package-without-tester-instructions.md' $packageWithoutTesterInstructions
     if ((Invoke-Validator $packageWithoutTesterInstructionsPath) -eq 0) {
         throw 'Expected validation to fail when Windows package smoke omits closed beta tester instructions evidence.'
+    }
+
+    $packageWithoutArchiveHash = $baseline -replace 'd6f016a5bf2013d4b12b101d283e02e14431b10ac767e65c273ffcf11cb0df45', 'archive hash omitted'
+    $packageWithoutArchiveHashPath = Write-Case 'package-without-archive-hash.md' $packageWithoutArchiveHash
+    if ((Invoke-Validator $packageWithoutArchiveHashPath) -eq 0) {
+        throw 'Expected validation to fail when Windows package smoke omits the exact archive hash.'
     }
 
     Write-Host 'Beta go/no-go validator smoke passed.'
