@@ -21,8 +21,22 @@ public sealed class SoulseekConnectionUnavailableException : InvalidOperationExc
     }
 }
 
+public sealed class SoulseekPrivilegeNotificationEventArgs : EventArgs
+{
+    public SoulseekPrivilegeNotificationEventArgs(string username, int? acknowledgementId)
+    {
+        Username = username;
+        AcknowledgementId = acknowledgementId;
+    }
+
+    public string Username { get; }
+    public int? AcknowledgementId { get; }
+    public bool RequiresAcknowledgement => AcknowledgementId.HasValue;
+}
+
 public class SoulseekClientManager : IDisposable
 {
+    private const int MaximumPrivilegeUsernameLength = 128;
     private const string KickedFromServerMessage =
         "Soulseek server kicked this client, probably because the same account logged in elsewhere.";
 
@@ -36,6 +50,8 @@ public class SoulseekClientManager : IDisposable
     private Task? _monitorTask;
 
     public ISoulseekClient? Client => _client;
+
+    public event EventHandler<SoulseekPrivilegeNotificationEventArgs>? PrivilegeNotificationReceived;
 
     public SoulseekClientStates State => _client?.State ?? SoulseekClientStates.None;
 
@@ -82,6 +98,21 @@ public class SoulseekClientManager : IDisposable
     private void AttachClientEvents(ISoulseekClient client)
     {
         client.KickedFromServer += OnKickedFromServer;
+        client.PrivilegeNotificationReceived += OnPrivilegeNotificationReceived;
+    }
+
+    private void OnPrivilegeNotificationReceived(object? sender, PrivilegeNotificationReceivedEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(args.Username))
+            return;
+
+        string username = args.Username.Trim();
+        if (username.Length > MaximumPrivilegeUsernameLength)
+            username = username[..MaximumPrivilegeUsernameLength];
+
+        PrivilegeNotificationReceived?.Invoke(
+            this,
+            new SoulseekPrivilegeNotificationEventArgs(username, args.Id));
     }
 
     private void OnKickedFromServer(object? sender, EventArgs e)
@@ -172,6 +203,21 @@ public class SoulseekClientManager : IDisposable
         {
             _initializationSemaphore.Release();
         }
+    }
+
+    public async Task<int> GetPrivilegesAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+        return await _client!.GetPrivilegesAsync(cancellationToken);
+    }
+
+    public async Task AcknowledgePrivilegeNotificationAsync(
+        int privilegeNotificationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(privilegeNotificationId);
+        await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+        await _client!.AcknowledgePrivilegeNotificationAsync(privilegeNotificationId, cancellationToken);
     }
 
     private static SoulseekConnectionUnavailableException CreateConnectionFailure(Exception ex)
@@ -332,6 +378,7 @@ public class SoulseekClientManager : IDisposable
             serverConnectionOptions: serverConnectionOptions,
             listenPort: settings.ListenPort ?? 49998,
             maximumConcurrentSearches: int.MaxValue, // this is limited later in the searcher code
+            autoAcknowledgePrivilegeNotifications: false,
             userInfoResolver: userInfoResolver,
             startingToken: startingToken
         );
@@ -344,6 +391,7 @@ public class SoulseekClientManager : IDisposable
                 serverConnectionOptions: serverConnectionOptions,
                 enableListener: false,
                 maximumConcurrentSearches: int.MaxValue,
+                autoAcknowledgePrivilegeNotifications: false,
                 userInfoResolver: userInfoResolver,
                 startingToken: startingToken
             );
@@ -386,7 +434,10 @@ public class SoulseekClientManager : IDisposable
     {
         _monitorCts?.Cancel();
         if (_client != null)
+        {
             _client.KickedFromServer -= OnKickedFromServer;
+            _client.PrivilegeNotificationReceived -= OnPrivilegeNotificationReceived;
+        }
         _client?.Dispose();
         _monitorCts?.Dispose();
         _initializationSemaphore.Dispose();

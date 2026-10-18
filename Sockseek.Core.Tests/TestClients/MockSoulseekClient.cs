@@ -38,6 +38,10 @@ namespace Tests.ClientTests
         public bool BrowseReturnsBasenames { get; set; }
         public bool IsDisposed { get; private set; }
         public Exception? ConnectException { get; set; }
+        public int PrivilegeDays { get; set; }
+        public List<int> AcknowledgedPrivilegeNotificationIds { get; } = [];
+
+        public event EventHandler<PrivilegeNotificationReceivedEventArgs>? PrivilegeNotificationReceived;
 
         public void FailNextDownloadWithDisconnect(string username)
             => disconnectingUsers.Add(username);
@@ -54,6 +58,11 @@ namespace Tests.ClientTests
                 State = SoulseekClientStates.None;
             KickedFromServer?.Invoke(this, EventArgs.Empty);
         }
+
+        public void RaisePrivilegeNotification(string username, int? acknowledgementId = null)
+            => PrivilegeNotificationReceived?.Invoke(
+                this,
+                new PrivilegeNotificationReceivedEventArgs(username, acknowledgementId));
 
         public MockSoulseekClient(
             List<Soulseek.SearchResponse> index,
@@ -162,6 +171,22 @@ namespace Tests.ClientTests
 
         public Task SetSharedCountsAsync(int directories, int files, CancellationToken? cancellationToken = null)
         {
+            return Task.CompletedTask;
+        }
+
+        public Task<int> GetPrivilegesAsync(CancellationToken? cancellationToken = null)
+        {
+            cancellationToken?.ThrowIfCancellationRequested();
+            return Task.FromResult(PrivilegeDays);
+        }
+
+        public Task AcknowledgePrivilegeNotificationAsync(
+            int privilegeNotificationId,
+            CancellationToken? cancellationToken = null)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(privilegeNotificationId);
+            cancellationToken?.ThrowIfCancellationRequested();
+            AcknowledgedPrivilegeNotificationIds.Add(privilegeNotificationId);
             return Task.CompletedTask;
         }
 

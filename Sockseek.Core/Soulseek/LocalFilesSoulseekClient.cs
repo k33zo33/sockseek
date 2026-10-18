@@ -24,9 +24,14 @@ namespace Sockseek.Core.Services
         private readonly int searchDelayMs;
         private readonly HashSet<string> failingUsers;
         private readonly Dictionary<string, string> localFilePaths;
+        private readonly ConcurrentQueue<int> acknowledgedPrivilegeNotificationIds = new();
         private int remainingFailedDownloads;
 
         public int SearchesCancelledMidDelay { get; private set; }
+        public int PrivilegeDays { get; set; }
+        public IReadOnlyCollection<int> AcknowledgedPrivilegeNotificationIds => acknowledgedPrivilegeNotificationIds.ToArray();
+
+        public event EventHandler<PrivilegeNotificationReceivedEventArgs>? PrivilegeNotificationReceived;
 
         public LocalFilesSoulseekClient(
             List<Soulseek.SearchResponse> index,
@@ -138,6 +143,27 @@ namespace Sockseek.Core.Services
         {
             return Task.CompletedTask;
         }
+
+        public Task<int> GetPrivilegesAsync(CancellationToken? cancellationToken = null)
+        {
+            cancellationToken?.ThrowIfCancellationRequested();
+            return Task.FromResult(PrivilegeDays);
+        }
+
+        public Task AcknowledgePrivilegeNotificationAsync(
+            int privilegeNotificationId,
+            CancellationToken? cancellationToken = null)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(privilegeNotificationId);
+            cancellationToken?.ThrowIfCancellationRequested();
+            acknowledgedPrivilegeNotificationIds.Enqueue(privilegeNotificationId);
+            return Task.CompletedTask;
+        }
+
+        public void RaisePrivilegeNotification(string username, int? acknowledgementId = null)
+            => PrivilegeNotificationReceived?.Invoke(
+                this,
+                new PrivilegeNotificationReceivedEventArgs(username, acknowledgementId));
 
         public async Task<BrowseResponse> BrowseAsync(string username, BrowseOptions? options = null, CancellationToken? cancellationToken = null)
         {

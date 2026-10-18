@@ -10,6 +10,24 @@ namespace Tests.Core;
 public class LocalFilesSoulseekClientTests
 {
     [TestMethod]
+    public async Task Privileges_ExposeStatusNotificationAndAcknowledgementForDeterministicWorkflows()
+    {
+        var client = new LocalFilesSoulseekClient([]) { PrivilegeDays = 7 };
+        PrivilegeNotificationReceivedEventArgs? received = null;
+        client.PrivilegeNotificationReceived += (_, notification) => received = notification;
+
+        client.RaisePrivilegeNotification("supporter", 17);
+        int remainingDays = await client.GetPrivilegesAsync();
+        await client.AcknowledgePrivilegeNotificationAsync(17);
+
+        Assert.IsNotNull(received);
+        Assert.AreEqual("supporter", received.Username);
+        Assert.AreEqual(17, received.Id);
+        Assert.AreEqual(7, remainingDays);
+        CollectionAssert.AreEqual(new[] { 17 }, client.AcknowledgedPrivilegeNotificationIds.ToArray());
+    }
+
+    [TestMethod]
     public async Task FromLocalPaths_UsesSoulseekRelativeIdentityAndDownloadsFromLocalSource()
     {
         string root = Path.Combine(Path.GetTempPath(), "Sockseek-local-files-identity-" + Guid.NewGuid());

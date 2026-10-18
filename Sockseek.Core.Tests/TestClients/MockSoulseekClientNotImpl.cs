@@ -50,7 +50,6 @@ namespace Tests.ClientTests
         public event EventHandler<string>? PrivateRoomModerationRemoved;
         public event EventHandler<RoomInfo>? PrivateRoomUserListReceived;
         public event EventHandler<IReadOnlyCollection<string>>? PrivilegedUserListReceived;
-        public event EventHandler<PrivilegeNotificationReceivedEventArgs>? PrivilegeNotificationReceived;
         public event EventHandler? PromotedToDistributedBranchRoot;
         public event EventHandler<PublicChatMessageReceivedEventArgs>? PublicChatMessageReceived;
         public event EventHandler<RoomJoinedEventArgs>? RoomJoined;
@@ -75,11 +74,6 @@ namespace Tests.ClientTests
         public event EventHandler<DiagnosticEventArgs>? DiagnosticGenerated;
 
         public Task AcknowledgePrivateMessageAsync(int privateMessageId, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task AcknowledgePrivilegeNotificationAsync(int privilegeNotificationId, CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
         }
@@ -155,11 +149,6 @@ namespace Tests.ClientTests
         }
 
         public int GetNextToken()
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<int> GetPrivilegesAsync(CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
         }

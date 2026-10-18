@@ -30,6 +30,7 @@ public class SoulseekClientManagerTests
             token);
 
         Assert.AreEqual(token, options.StartingToken);
+        Assert.IsFalse(options.AutoAcknowledgePrivilegeNotifications);
     }
 
     [TestMethod]
@@ -41,6 +42,43 @@ public class SoulseekClientManagerTests
             token);
 
         Assert.AreEqual(token, options.StartingToken);
+        Assert.IsFalse(options.AutoAcknowledgePrivilegeNotifications);
+    }
+
+    [TestMethod]
+    public async Task PrivilegeOperations_MapStatusNotificationAndAcknowledgement()
+    {
+        var mockClient = new MockSoulseekClient(new()) { PrivilegeDays = 14 };
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+        SoulseekPrivilegeNotificationEventArgs? received = null;
+        manager.PrivilegeNotificationReceived += (_, notification) => received = notification;
+
+        int remainingDays = await manager.GetPrivilegesAsync();
+        mockClient.RaisePrivilegeNotification("  donor-user  ", 42);
+        await manager.AcknowledgePrivilegeNotificationAsync(42);
+
+        Assert.AreEqual(14, remainingDays);
+        Assert.IsNotNull(received);
+        Assert.AreEqual("donor-user", received.Username);
+        Assert.AreEqual(42, received.AcknowledgementId);
+        Assert.IsTrue(received.RequiresAcknowledgement);
+        CollectionAssert.AreEqual(new[] { 42 }, mockClient.AcknowledgedPrivilegeNotificationIds);
+    }
+
+    [TestMethod]
+    public void PrivilegeNotification_IgnoresBlankAndBoundsUsername()
+    {
+        var mockClient = new MockSoulseekClient(new());
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+        var received = new List<SoulseekPrivilegeNotificationEventArgs>();
+        manager.PrivilegeNotificationReceived += (_, notification) => received.Add(notification);
+
+        mockClient.RaisePrivilegeNotification("   ", 1);
+        mockClient.RaisePrivilegeNotification(new string('u', 200));
+
+        Assert.AreEqual(1, received.Count);
+        Assert.AreEqual(128, received.Single().Username.Length);
+        Assert.IsFalse(received.Single().RequiresAcknowledgement);
     }
 
     [TestMethod]
