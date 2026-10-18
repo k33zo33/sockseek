@@ -27,7 +27,9 @@ public sealed class LocalLibraryBackgroundScanHostedServiceTests
         using var background = new LocalLibraryBackgroundScanHostedService(
             library,
             TimeSpan.FromMilliseconds(100),
-            TimeSpan.FromMilliseconds(100));
+            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(100),
+            async cancellationToken => await library.ScanAsync(cancellationToken));
 
         await background.StartAsync(CancellationToken.None);
         try
@@ -40,6 +42,50 @@ public sealed class LocalLibraryBackgroundScanHostedServiceTests
             File.Move(sourcePath, targetPath);
 
             await WaitForTrackCountAsync(library, 2);
+        }
+        finally
+        {
+            await background.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [TestMethod]
+    public async Task BackgroundService_RetriesScanAfterTransientFailure()
+    {
+        using var temp = TemporaryDirectory.Create();
+        string libraryRoot = Path.Combine(temp.Path, "library");
+        string outputDir = Path.Combine(temp.Path, "output");
+        Directory.CreateDirectory(libraryRoot);
+        Directory.CreateDirectory(outputDir);
+
+        WritePcmWav(Path.Combine(libraryRoot, "First.wav"));
+
+        var library = CreateLibraryService(temp.Path, libraryRoot, outputDir);
+        await library.SaveRootAsync(new SaveLibraryRootRequestDto(libraryRoot, "Main"), CancellationToken.None);
+
+        int scanAttempts = 0;
+        async Task ScanWithTransientFailureAsync(CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref scanAttempts) == 1)
+                throw new IOException("Simulated transient scan failure.");
+
+            await library.ScanAsync(cancellationToken);
+        }
+
+        using var background = new LocalLibraryBackgroundScanHostedService(
+            library,
+            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMinutes(10),
+            ScanWithTransientFailureAsync);
+
+        await background.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitForTrackCountAsync(library, 1);
+            Assert.IsTrue(
+                Volatile.Read(ref scanAttempts) >= 2,
+                $"Expected at least two scan attempts, observed {Volatile.Read(ref scanAttempts)}.");
         }
         finally
         {

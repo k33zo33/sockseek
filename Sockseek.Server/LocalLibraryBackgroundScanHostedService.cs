@@ -6,11 +6,14 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
 {
     private static readonly TimeSpan DefaultRootRefreshInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan DefaultDebounceInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan DefaultReconciliationInterval = TimeSpan.FromMinutes(10);
 
     private readonly LocalLibraryEndpointService library;
     private readonly TimeSpan rootRefreshInterval;
     private readonly TimeSpan debounceInterval;
+    private readonly TimeSpan reconciliationInterval;
     private readonly Func<LocalLibraryFileWatcher> watcherFactory;
+    private readonly Func<CancellationToken, Task> scanAsync;
     private readonly SemaphoreSlim scanRequests = new(0);
     private readonly object watcherLock = new();
 
@@ -18,7 +21,13 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
     private IReadOnlyList<string> watchedRoots = [];
 
     public LocalLibraryBackgroundScanHostedService(LocalLibraryEndpointService library)
-        : this(library, DefaultRootRefreshInterval, DefaultDebounceInterval, () => new LocalLibraryFileWatcher())
+        : this(
+            library,
+            DefaultRootRefreshInterval,
+            DefaultDebounceInterval,
+            DefaultReconciliationInterval,
+            () => new LocalLibraryFileWatcher(),
+            async cancellationToken => await library.ScanAsync(cancellationToken))
     {
     }
 
@@ -26,7 +35,29 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
         LocalLibraryEndpointService library,
         TimeSpan rootRefreshInterval,
         TimeSpan debounceInterval)
-        : this(library, rootRefreshInterval, debounceInterval, () => new LocalLibraryFileWatcher())
+        : this(
+            library,
+            rootRefreshInterval,
+            debounceInterval,
+            DefaultReconciliationInterval,
+            () => new LocalLibraryFileWatcher(),
+            async cancellationToken => await library.ScanAsync(cancellationToken))
+    {
+    }
+
+    internal LocalLibraryBackgroundScanHostedService(
+        LocalLibraryEndpointService library,
+        TimeSpan rootRefreshInterval,
+        TimeSpan debounceInterval,
+        TimeSpan reconciliationInterval,
+        Func<CancellationToken, Task> scanAsync)
+        : this(
+            library,
+            rootRefreshInterval,
+            debounceInterval,
+            reconciliationInterval,
+            () => new LocalLibraryFileWatcher(),
+            scanAsync)
     {
     }
 
@@ -34,16 +65,22 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
         LocalLibraryEndpointService library,
         TimeSpan rootRefreshInterval,
         TimeSpan debounceInterval,
-        Func<LocalLibraryFileWatcher> watcherFactory)
+        TimeSpan reconciliationInterval,
+        Func<LocalLibraryFileWatcher> watcherFactory,
+        Func<CancellationToken, Task> scanAsync)
     {
         this.library = library;
         this.rootRefreshInterval = rootRefreshInterval;
         this.debounceInterval = debounceInterval;
+        this.reconciliationInterval = reconciliationInterval;
         this.watcherFactory = watcherFactory;
+        this.scanAsync = scanAsync;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        DateTimeOffset nextReconciliation = DateTimeOffset.UtcNow.Add(reconciliationInterval);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -52,13 +89,27 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
 
                 var refreshDelay = Task.Delay(rootRefreshInterval, stoppingToken);
                 var fileChange = scanRequests.WaitAsync(stoppingToken);
-                var completed = await Task.WhenAny(refreshDelay, fileChange);
+                TimeSpan reconciliationDelay = nextReconciliation - DateTimeOffset.UtcNow;
+                if (reconciliationDelay < TimeSpan.Zero)
+                    reconciliationDelay = TimeSpan.Zero;
 
-                if (completed != fileChange)
+                var reconcile = Task.Delay(reconciliationDelay, stoppingToken);
+                var completed = await Task.WhenAny(refreshDelay, fileChange, reconcile);
+
+                if (completed == refreshDelay)
                     continue;
+
+                if (completed == reconcile)
+                {
+                    nextReconciliation = DateTimeOffset.UtcNow.Add(reconciliationInterval);
+                    if (watchedRoots.Count > 0)
+                        RequestScan();
+                    continue;
+                }
 
                 await fileChange;
                 await DebouncedScanAsync(stoppingToken);
+                nextReconciliation = DateTimeOffset.UtcNow.Add(reconciliationInterval);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -66,6 +117,9 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
             }
             catch
             {
+                if (watchedRoots.Count > 0)
+                    RequestScan();
+
                 await Task.Delay(rootRefreshInterval, stoppingToken);
             }
         }
@@ -103,7 +157,7 @@ public sealed class LocalLibraryBackgroundScanHostedService : BackgroundService
         {
         }
 
-        await library.ScanAsync(cancellationToken);
+        await scanAsync(cancellationToken);
     }
 
     private void RestartWatcher(IReadOnlyList<string> roots)
