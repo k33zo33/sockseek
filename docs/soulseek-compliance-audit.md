@@ -25,7 +25,7 @@ The Terms of Use also place responsibility on users to obey intellectual-propert
 | Wishlist | Implemented across persisted daemon scheduling, authenticated API and Desktop controls with deterministic automated coverage. | Medium; a redacted live-network smoke is still required before public-beta approval. |
 | Upload / sharing | Not implemented or verified as a first-class desktop/daemon feature. The daemon status DTO now exposes configured share counts, listen port and non-secret sharing indicators for review without exposing user description text. | High; explicitly listed in Soulseek rules. |
 | Chat | Not implemented. | High; explicitly listed in Soulseek rules. |
-| Privileges | Not implemented or verified as a visible/respected feature. | High; explicitly listed in Soulseek rules. |
+| Privileges | Core and daemon/API recognition plus explicit acknowledgement are implemented with bounded runtime state. Desktop visibility and live-network verification remain. | High until the visible workflow and live smoke pass. |
 | Legal-use guidance | Present in Desktop About/License surface, `docs/beta-limitations.md`, generated closed-beta tester instructions and staged Windows package notices. | Low for closed/internal beta; re-review exact public release notes before any public beta. |
 
 ## Decision summary

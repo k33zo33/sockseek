@@ -88,6 +88,13 @@ public sealed record SearchUpdatedDto(
     bool IsComplete);
 
 /// <summary>
+/// Invalidates the Soulseek privilege HTTP snapshot without placing a username in the event stream.
+/// </summary>
+public sealed record SoulseekPrivilegeStateChangedEventDto(
+    Guid NotificationId,
+    bool RequiresAcknowledgement);
+
+/// <summary>
 /// Diagnostic event emitted when an exception-backed failure has detailed context.
 /// </summary>
 public sealed record DiagnosticErrorEventDto(

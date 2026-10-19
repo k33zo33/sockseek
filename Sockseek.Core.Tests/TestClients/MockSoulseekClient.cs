@@ -38,6 +38,7 @@ namespace Tests.ClientTests
         public bool BrowseReturnsBasenames { get; set; }
         public bool IsDisposed { get; private set; }
         public Exception? ConnectException { get; set; }
+        public Exception? PrivilegeException { get; set; }
         public int PrivilegeDays { get; set; }
         public List<int> AcknowledgedPrivilegeNotificationIds { get; } = [];
 
@@ -177,7 +178,9 @@ namespace Tests.ClientTests
         public Task<int> GetPrivilegesAsync(CancellationToken? cancellationToken = null)
         {
             cancellationToken?.ThrowIfCancellationRequested();
-            return Task.FromResult(PrivilegeDays);
+            return PrivilegeException == null
+                ? Task.FromResult(PrivilegeDays)
+                : Task.FromException<int>(PrivilegeException);
         }
 
         public Task AcknowledgePrivilegeNotificationAsync(
@@ -186,6 +189,8 @@ namespace Tests.ClientTests
         {
             ArgumentOutOfRangeException.ThrowIfNegative(privilegeNotificationId);
             cancellationToken?.ThrowIfCancellationRequested();
+            if (PrivilegeException != null)
+                return Task.FromException(PrivilegeException);
             AcknowledgedPrivilegeNotificationIds.Add(privilegeNotificationId);
             return Task.CompletedTask;
         }

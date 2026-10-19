@@ -26,9 +26,11 @@ public sealed class EngineSupervisor
     private readonly Lock engineGate = new();
 
     private DownloadEngine? currentEngine;
+    private SoulseekClientManager? currentClientManager;
     private int restartCount;
 
     public event Action<DownloadEngine>? EngineCreated;
+    public event EventHandler<SoulseekPrivilegeNotificationEventArgs>? PrivilegeNotificationReceived;
 
     public DateTimeOffset StartedAtUtc { get; } = DateTimeOffset.UtcNow;
     public EngineStateStore StateStore { get; }
@@ -101,7 +103,10 @@ public sealed class EngineSupervisor
                 {
                     if (ReferenceEquals(currentEngine, engine))
                         currentEngine = null;
+                    if (ReferenceEquals(currentClientManager, clientManager))
+                        currentClientManager = null;
                 }
+                clientManager.PrivilegeNotificationReceived -= OnPrivilegeNotificationReceived;
                 await engine.DisposeAsync();
                 clientManager.Dispose();
             }
@@ -723,16 +728,44 @@ public sealed class EngineSupervisor
         return engine != null && await engine.SkipManualSelectionAsync(jobId);
     }
 
+    public Task<int> GetPrivilegeDaysAsync(CancellationToken cancellationToken)
+        => GetCurrentClientManager().GetPrivilegesAsync(cancellationToken);
+
+    public Task AcknowledgePrivilegeNotificationAsync(
+        int privilegeNotificationId,
+        CancellationToken cancellationToken)
+        => GetCurrentClientManager().AcknowledgePrivilegeNotificationAsync(
+            privilegeNotificationId,
+            cancellationToken);
+
     private (DownloadEngine Engine, SoulseekClientManager ClientManager) CreateEngine()
     {
         var clientManager = new SoulseekClientManager(engineSettings, options.ClientFactory?.Invoke(engineSettings));
+        clientManager.PrivilegeNotificationReceived += OnPrivilegeNotificationReceived;
         var engine = new DownloadEngine(engineSettings, clientManager, jobSettingsResolver);
         StateStore.AttachEngine(engine);
         lock (engineGate)
+        {
             currentEngine = engine;
+            currentClientManager = clientManager;
+        }
         EngineCreated?.Invoke(engine);
         return (engine, clientManager);
     }
+
+    private SoulseekClientManager GetCurrentClientManager()
+    {
+        lock (engineGate)
+        {
+            return currentClientManager
+                ?? throw new SoulseekRuntimeUnavailableException("The Soulseek engine is not ready.");
+        }
+    }
+
+    private void OnPrivilegeNotificationReceived(
+        object? sender,
+        SoulseekPrivilegeNotificationEventArgs notification)
+        => PrivilegeNotificationReceived?.Invoke(this, notification);
 
     private void OnStateStoreWorkflowPruned(Guid workflowId)
     {

@@ -30,6 +30,7 @@ using Sockseek.Integrations.Bandcamp;
 using Sockseek.Integrations.Spotify;
 using Sockseek.Integrations.YouTube;
 using Sockseek.Player;
+using Sockseek.Core.Services;
 
 namespace Sockseek.Server;
 
@@ -130,6 +131,7 @@ public static class ServerHost
         builder.Services.AddSingleton<PlaybackQueuePersistenceService>();
         builder.Services.AddSingleton<PlaylistWorkflowRecoveryService>();
         builder.Services.AddSingleton<SoulseekWishlistScheduler>();
+        builder.Services.AddSingleton<SoulseekPrivilegeService>();
         if (!IsOpenApiGenerationProcess())
         {
             builder.Services.AddHostedService<ServerDatabaseMigrationHostedService>();
@@ -143,6 +145,7 @@ public static class ServerHost
         CoreLoggerBridge.Configure(app.Services, (options ?? app.Services.GetRequiredService<IOptions<ServerOptions>>().Value).Engine.LogLevel);
         _ = app.Services.GetRequiredService<ServerEventBroadcaster>();
         _ = app.Services.GetRequiredService<ServerActivityLogReporter>();
+        _ = app.Services.GetRequiredService<SoulseekPrivilegeService>();
 
         app.Use(async (context, next) =>
         {
@@ -1619,6 +1622,71 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/soulseek/privileges", async (
+            HttpContext context,
+            SoulseekPrivilegeService privileges,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await privileges.GetStatusAsync(ct));
+            }
+            catch (Exception ex) when (ex is SoulseekRuntimeUnavailableException or SoulseekConnectionUnavailableException)
+            {
+                return Results.Json(
+                    new AppErrorDto(
+                        "soulseek_unavailable",
+                        "Soulseek is not connected. Wait for reconnection, then retry.",
+                        GetCorrelationId(context)),
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Returns current privilege days and bounded pending privilege notifications.")
+            .Produces<SoulseekPrivilegeStatusDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/privileges/notifications/{notificationId:guid}/acknowledge", async (
+            Guid notificationId,
+            HttpContext context,
+            SoulseekPrivilegeService privileges,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return await privileges.AcknowledgeAsync(notificationId, ct) switch
+                {
+                    SoulseekPrivilegeAcknowledgementResult.Acknowledged => Results.NoContent(),
+                    SoulseekPrivilegeAcknowledgementResult.NotFound => Results.NotFound(),
+                    _ => Results.Json(
+                        new AppErrorDto(
+                            "privilege_notification_not_acknowledgeable",
+                            "This privilege notification does not require acknowledgement.",
+                            GetCorrelationId(context)),
+                        statusCode: StatusCodes.Status409Conflict),
+                };
+            }
+            catch (Exception ex) when (ex is SoulseekRuntimeUnavailableException or SoulseekConnectionUnavailableException)
+            {
+                return Results.Json(
+                    new AppErrorDto(
+                        "soulseek_unavailable",
+                        "Soulseek is not connected. Wait for reconnection, then retry.",
+                        GetCorrelationId(context)),
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Acknowledges one pending Soulseek privilege notification explicitly.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
         app.MapGet("/api/v1/library/roots", async (LocalLibraryEndpointService library, CancellationToken ct) =>

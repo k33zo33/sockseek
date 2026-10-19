@@ -29,6 +29,7 @@ namespace Sockseek.Core.Services
 
         public int SearchesCancelledMidDelay { get; private set; }
         public int PrivilegeDays { get; set; }
+        public Exception? PrivilegeException { get; set; }
         public IReadOnlyCollection<int> AcknowledgedPrivilegeNotificationIds => acknowledgedPrivilegeNotificationIds.ToArray();
 
         public event EventHandler<PrivilegeNotificationReceivedEventArgs>? PrivilegeNotificationReceived;
@@ -147,7 +148,9 @@ namespace Sockseek.Core.Services
         public Task<int> GetPrivilegesAsync(CancellationToken? cancellationToken = null)
         {
             cancellationToken?.ThrowIfCancellationRequested();
-            return Task.FromResult(PrivilegeDays);
+            return PrivilegeException == null
+                ? Task.FromResult(PrivilegeDays)
+                : Task.FromException<int>(PrivilegeException);
         }
 
         public Task AcknowledgePrivilegeNotificationAsync(
@@ -156,6 +159,8 @@ namespace Sockseek.Core.Services
         {
             ArgumentOutOfRangeException.ThrowIfNegative(privilegeNotificationId);
             cancellationToken?.ThrowIfCancellationRequested();
+            if (PrivilegeException != null)
+                return Task.FromException(PrivilegeException);
             acknowledgedPrivilegeNotificationIds.Enqueue(privilegeNotificationId);
             return Task.CompletedTask;
         }

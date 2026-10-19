@@ -543,6 +543,27 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SoulseekWishlistEntryDto>(response, ct);
     }
 
+    public async Task<SoulseekPrivilegeStatusDto> GetSoulseekPrivilegeStatusAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/soulseek/privileges", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekPrivilegeStatusDto>(response, ct);
+    }
+
+    public async Task<bool> AcknowledgeSoulseekPrivilegeNotificationAsync(
+        Guid notificationId,
+        CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync(
+            $"api/v1/soulseek/privileges/notifications/{notificationId}/acknowledge",
+            null,
+            ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(response, ct);
+        return true;
+    }
+
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
     {

@@ -82,6 +82,21 @@ public class SoulseekClientManagerTests
     }
 
     [TestMethod]
+    public async Task PrivilegeOperations_MapRpcFailuresToConnectionUnavailable()
+    {
+        var mockClient = new MockSoulseekClient(new())
+        {
+            PrivilegeException = new TimeoutException("server timeout"),
+        };
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+
+        await Assert.ThrowsExceptionAsync<SoulseekConnectionUnavailableException>(() =>
+            manager.GetPrivilegesAsync());
+        await Assert.ThrowsExceptionAsync<SoulseekConnectionUnavailableException>(() =>
+            manager.AcknowledgePrivilegeNotificationAsync(5));
+    }
+
+    [TestMethod]
     public void Dispose_DisposesUnderlyingClient()
     {
         var mockClient = new MockSoulseekClient(new());

@@ -33,6 +33,9 @@ public sealed class ServerEventBroadcaster : IDisposable
         new EngineEventDtoAdapter(GetSummary, coalescer.Publish).Attach(engine.Events, engine.SearchEvents);
     }
 
+    public void PublishGlobal(string type, object payload)
+        => coalescer.Publish(type, payload);
+
     private void PublishItems(IReadOnlyList<ServerEventItem> items)
     {
         var workflowEnvelopes = new Dictionary<Guid, List<ServerEventEnvelopeDto>>();

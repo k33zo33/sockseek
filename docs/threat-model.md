@@ -32,6 +32,7 @@ Sprint 14 release-candidate scope covers the local-first desktop app, localhost 
 | Release artifact tampering or omissions | Binary artifact ships without AGPL notices, exact source metadata, SBOM or native dependencies. | `Sockseek.Packager validate-release` requires legal files, source metadata, SPDX SBOM, installer scripts, Desktop executable and daemon executable. Windows staging smoke checks SQLite and libVLC native files. |
 | Dependency vulnerabilities | Known vulnerable NuGet packages ship in release artifacts. | Central package pins resolved the current AngleSharp and SQLitePCLRaw advisories; `dotnet list package --vulnerable --include-transitive` is a release gate. |
 | Wishlist amplification or leakage | A large wishlist creates duplicate network work, grows persistent data without bounds or exposes user queries through logs. | Entries use bounded query/interval validation, one active job per entry, a four-search global cap and restart recovery. Persistence keeps only a compact result summary and stable error code; scheduler logs omit query and exception text. |
+| Privilege notification leakage or replay | Notification usernames leak through logs/events, replay grows memory, or automatic acknowledgement hides user-visible protocol state. | Soulseek.NET auto-ack is disabled; the daemon deduplicates protocol acknowledgement ids, retains at most 100 notifications in memory and publishes username-free snapshot invalidation events. Protected HTTP is the only surface that returns usernames. |
 
 ## Residual risks
 

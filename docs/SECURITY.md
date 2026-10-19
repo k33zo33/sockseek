@@ -8,6 +8,9 @@ See also the release-focused [threat model](threat-model.md).
 - SQLite keeps only the locally entered query, bounded schedule/status, engine ids,
   result count and a stable error code. Raw Soulseek results are not duplicated in
   the wishlist table.
+- Privilege notifications are bounded to 100 in-memory records and are not persisted.
+  Notification usernames are absent from logs and SignalR invalidation payloads;
+  only the authenticated HTTP snapshot exposes them for local acknowledgement UX.
 
 ## 15. Sigurnost, privatnost i operativna pravila
 

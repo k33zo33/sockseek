@@ -207,8 +207,23 @@ public class SoulseekClientManager : IDisposable
 
     public async Task<int> GetPrivilegesAsync(CancellationToken cancellationToken = default)
     {
-        await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
-        return await _client!.GetPrivilegesAsync(cancellationToken);
+        try
+        {
+            await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+            return await _client!.GetPrivilegesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SoulseekConnectionUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw CreateConnectionFailure(ex);
+        }
     }
 
     public async Task AcknowledgePrivilegeNotificationAsync(
@@ -216,8 +231,23 @@ public class SoulseekClientManager : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(privilegeNotificationId);
-        await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
-        await _client!.AcknowledgePrivilegeNotificationAsync(privilegeNotificationId, cancellationToken);
+        try
+        {
+            await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+            await _client!.AcknowledgePrivilegeNotificationAsync(privilegeNotificationId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SoulseekConnectionUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw CreateConnectionFailure(ex);
+        }
     }
 
     private static SoulseekConnectionUnavailableException CreateConnectionFailure(Exception ex)

@@ -26,6 +26,20 @@ an enabled entry eligible for a new search. The API stores only the query, sched
 engine ids, result count and stable state/error code; it does not persist raw search
 results or exception text in the wishlist table.
 
+## Soulseek privileges
+
+The authenticated versioned API exposes current privilege recognition and explicit
+notification acknowledgement:
+
+- `GET /api/v1/soulseek/privileges`
+- `POST /api/v1/soulseek/privileges/notifications/{notificationId}/acknowledge`
+
+The daemon disables Soulseek.NET automatic privilege acknowledgement. It retains at
+most 100 pending notifications in memory, deduplicates replayed acknowledgement ids
+and exposes opaque local notification ids instead of protocol ids. The global
+`soulseek.privilege-state.changed` SignalR event invalidates the HTTP snapshot but
+does not include the notifying username.
+
 ## .NET clients
 .NET consumers should prefer `Sockseek.Api.SockseekApiClient` over hand-written endpoint calls.
 

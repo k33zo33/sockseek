@@ -602,3 +602,16 @@ public sealed record SoulseekWishlistEntryDto(
     Guid? ActiveJobId,
     int? LastResultCount,
     string? LastErrorCode);
+
+/// <summary>Current Soulseek privilege status and bounded pending notifications.</summary>
+public sealed record SoulseekPrivilegeStatusDto(
+    int RemainingDays,
+    DateTimeOffset RefreshedAtUtc,
+    IReadOnlyList<SoulseekPrivilegeNotificationDto> Notifications);
+
+/// <summary>A locally identified privilege notification safe for explicit acknowledgement.</summary>
+public sealed record SoulseekPrivilegeNotificationDto(
+    Guid Id,
+    string Username,
+    DateTimeOffset ReceivedAtUtc,
+    bool RequiresAcknowledgement);

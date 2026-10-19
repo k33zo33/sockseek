@@ -2522,6 +2522,123 @@
         }
       }
     },
+    "/api/v1/soulseek/privileges": {
+      "get": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Returns current privilege days and bounded pending privilege notifications.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulseekPrivilegeStatusDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/soulseek/privileges/notifications/{notificationId}/acknowledge": {
+      "post": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Acknowledges one pending Soulseek privilege notification explicitly.",
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/library/roots": {
       "get": {
         "tags": [
@@ -9609,6 +9726,59 @@
           },
           "userDescriptionConfigured": {
             "type": "boolean"
+          }
+        }
+      },
+      "SoulseekPrivilegeNotificationDto": {
+        "required": [
+          "id",
+          "username",
+          "receivedAtUtc",
+          "requiresAcknowledgement"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "receivedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requiresAcknowledgement": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SoulseekPrivilegeStatusDto": {
+        "required": [
+          "remainingDays",
+          "refreshedAtUtc",
+          "notifications"
+        ],
+        "type": "object",
+        "properties": {
+          "remainingDays": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "refreshedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SoulseekPrivilegeNotificationDto"
+            }
           }
         }
       },
