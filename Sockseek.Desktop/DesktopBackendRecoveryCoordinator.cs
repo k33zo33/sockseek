@@ -26,6 +26,8 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
 
     public event EventHandler<DesktopBackendEventsConnectionState>? EventsStateChanged;
 
+    public event EventHandler<ServerEventEnvelopeDto>? ServerEventReceived;
+
     public event EventHandler<WorkflowUpdateBatchDto>? WorkflowUpdateBatchReceived;
 
     public Task WhenIdleAsync() => transitionTask;
@@ -76,6 +78,7 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
                 {
                     manager = new DesktopBackendEventsReconnectManager(connectionFactory(snapshot.Handshake));
                     manager.StateChanged += HandleManagerStateChanged;
+                    manager.ServerEventReceived += HandleServerEventReceived;
                     manager.WorkflowUpdateBatchReceived += HandleWorkflowUpdateBatchReceived;
                     await manager.StartAsync().ConfigureAwait(false);
                     await manager.SubscribeAllAsync().ConfigureAwait(false);
@@ -88,6 +91,7 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
                     if (manager is not null)
                     {
                         manager.StateChanged -= HandleManagerStateChanged;
+                        manager.ServerEventReceived -= HandleServerEventReceived;
                         manager.WorkflowUpdateBatchReceived -= HandleWorkflowUpdateBatchReceived;
                         await TryDisposeManagerAsync(manager).ConfigureAwait(false);
                     }
@@ -123,6 +127,7 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
         activeManager = null;
         activeHandshake = null;
         manager.StateChanged -= HandleManagerStateChanged;
+        manager.ServerEventReceived -= HandleServerEventReceived;
         manager.WorkflowUpdateBatchReceived -= HandleWorkflowUpdateBatchReceived;
         await TryDisposeManagerAsync(manager).ConfigureAwait(false);
         SetEventsState(DesktopBackendEventsConnectionState.Disconnected);
@@ -142,6 +147,9 @@ public sealed class DesktopBackendRecoveryCoordinator : IAsyncDisposable
 
     private void HandleManagerStateChanged(object? sender, DesktopBackendEventsConnectionState state)
         => SetEventsState(state);
+
+    private void HandleServerEventReceived(object? sender, ServerEventEnvelopeDto envelope)
+        => ServerEventReceived?.Invoke(this, envelope);
 
     private void HandleWorkflowUpdateBatchReceived(object? sender, WorkflowUpdateBatchDto batch)
         => WorkflowUpdateBatchReceived?.Invoke(this, batch);

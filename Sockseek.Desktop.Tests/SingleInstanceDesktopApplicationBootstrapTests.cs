@@ -127,6 +127,12 @@ public sealed class SingleInstanceDesktopApplicationBootstrapTests
             remove { }
         }
 
+        public event EventHandler<Sockseek.Api.ServerEventEnvelopeDto>? ServerEventReceived
+        {
+            add { }
+            remove { }
+        }
+
         public bool StartCalled { get; private set; }
 
         public bool CanStartDaemon => canStartDaemon;

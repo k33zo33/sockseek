@@ -40,6 +40,12 @@ public sealed class DesktopShellSession : IDesktopShellSession
         remove => RecoveryCoordinator.WorkflowUpdateBatchReceived -= value;
     }
 
+    public event EventHandler<Sockseek.Api.ServerEventEnvelopeDto>? ServerEventReceived
+    {
+        add => RecoveryCoordinator.ServerEventReceived += value;
+        remove => RecoveryCoordinator.ServerEventReceived -= value;
+    }
+
     public bool CanStartDaemon => Supervisor.CanLaunch && workspaceRoot is not null;
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)

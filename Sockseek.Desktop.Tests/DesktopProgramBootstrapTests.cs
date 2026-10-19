@@ -155,6 +155,12 @@ public sealed class DesktopProgramBootstrapTests
             remove { }
         }
 
+        public event EventHandler<Sockseek.Api.ServerEventEnvelopeDto>? ServerEventReceived
+        {
+            add { }
+            remove { }
+        }
+
         public bool StartCalled { get; private set; }
 
         public bool Disposed { get; private set; }

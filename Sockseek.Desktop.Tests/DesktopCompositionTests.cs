@@ -196,6 +196,12 @@ public sealed class DesktopCompositionTests
             remove { }
         }
 
+        public event EventHandler<Sockseek.Api.ServerEventEnvelopeDto>? ServerEventReceived
+        {
+            add { }
+            remove { }
+        }
+
         public bool CanStartDaemon => true;
 
         public bool StartCalled { get; private set; }

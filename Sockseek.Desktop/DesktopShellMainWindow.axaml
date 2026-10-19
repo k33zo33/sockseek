@@ -255,6 +255,53 @@
               <TextBlock Text="{Binding Search.ResultsRevision, StringFormat='Revision {0}'}" Opacity="0.7" />
               <Separator Margin="0,8,0,4" />
               <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="Soulseek privileges" FontSize="18" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Search.Privileges.RefreshCommand}" />
+              </DockPanel>
+              <WrapPanel Orientation="Horizontal">
+                <TextBlock Margin="0,0,12,0" Text="{Binding Search.Privileges.StatusSummary}" Opacity="0.75" />
+                <TextBlock Text="{Binding Search.Privileges.RefreshedSummary}" Opacity="0.65" />
+              </WrapPanel>
+              <TextBlock Text="{Binding Search.Privileges.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Search.Privileges.OperationSummary}" Opacity="0.75" TextWrapping="Wrap" />
+              <TextBlock Text="No pending privilege notifications"
+                         IsVisible="{Binding Search.Privileges.IsEmpty}"
+                         Opacity="0.65" />
+              <ListBox ItemsSource="{Binding Search.Privileges.Notifications}"
+                       IsVisible="{Binding Search.Privileges.HasNotifications}"
+                       MaxHeight="220"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopSoulseekPrivilegeNotificationViewModel">
+                    <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                          <TextBlock Text="{Binding Username}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <WrapPanel Orientation="Horizontal">
+                            <TextBlock Margin="0,0,12,0" Text="{Binding ReceivedSummary}" Opacity="0.7" />
+                            <TextBlock Text="{Binding AcknowledgementSummary}" Opacity="0.7" />
+                          </WrapPanel>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Content="Acknowledge"
+                                IsVisible="{Binding RequiresAcknowledgement}"
+                                Command="{Binding DataContext.Search.Privileges.AcknowledgeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <Separator Margin="0,4,0,4" />
+              <DockPanel LastChildFill="False">
                 <TextBlock DockPanel.Dock="Left" Text="Wishlist" FontSize="18" FontWeight="SemiBold" />
                 <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Search.Wishlist.RefreshCommand}" />
               </DockPanel>

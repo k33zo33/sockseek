@@ -25,7 +25,7 @@ The Terms of Use also place responsibility on users to obey intellectual-propert
 | Wishlist | Implemented across persisted daemon scheduling, authenticated API and Desktop controls with deterministic automated coverage. | Medium; a redacted live-network smoke is still required before public-beta approval. |
 | Upload / sharing | Not implemented or verified as a first-class desktop/daemon feature. The daemon status DTO now exposes configured share counts, listen port and non-secret sharing indicators for review without exposing user description text. | High; explicitly listed in Soulseek rules. |
 | Chat | Not implemented. | High; explicitly listed in Soulseek rules. |
-| Privileges | Core and daemon/API recognition plus explicit acknowledgement are implemented with bounded runtime state. Desktop visibility and live-network verification remain. | High until the visible workflow and live smoke pass. |
+| Privileges | Core, daemon/API and Desktop recognition plus explicit acknowledgement are implemented with bounded runtime state and username-free SignalR invalidation. | Medium; a redacted live-network smoke is still required before public-beta approval. |
 | Legal-use guidance | Present in Desktop About/License surface, `docs/beta-limitations.md`, generated closed-beta tester instructions and staged Windows package notices. | Low for closed/internal beta; re-review exact public release notes before any public beta. |
 
 ## Decision summary
@@ -42,7 +42,7 @@ The corresponding ADR is `docs/adr/0009-closed-beta-until-soulseek-compliance.md
 
 ## Required follow-up before public beta
 
-- Decide whether to implement wishlist, upload/sharing, chat and privilege recognition in scope.
+- Complete upload/sharing and chat implementation, then run redacted live verification for wishlist and privilege recognition.
 - Re-review user-facing legal-use and user-responsibility messaging in onboarding, About/License and release notes for the exact public beta artifact.
 - Use `docs/soulseek-public-beta-compliance-checklist.md` to record feature/compliance tests or manual smoke evidence for every Soulseek feature claim.
 - Re-review Soulseek rules and Terms of Use before tagging any public beta.

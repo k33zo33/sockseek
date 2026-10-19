@@ -64,6 +64,12 @@ public sealed class HeadlessDesktopShellWindowLifetimeTests
             remove { }
         }
 
+        public event EventHandler<Sockseek.Api.ServerEventEnvelopeDto>? ServerEventReceived
+        {
+            add { }
+            remove { }
+        }
+
         public bool CanStartDaemon => false;
 
         public Task<bool> StartAsync(CancellationToken cancellationToken = default)

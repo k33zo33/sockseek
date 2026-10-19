@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sockseek.Api;
 
 namespace Sockseek.Desktop.Tests;
 
@@ -266,6 +267,40 @@ public sealed class DesktopShellWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task WindowViewModel_PrivilegeInvalidation_RefreshesAuthoritativeHttpSnapshot()
+    {
+        var connection = new ControlledDesktopEventHubConnection();
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: _ => connection);
+        var handler = new PrivilegeStatusHandler(new SoulseekPrivilegeStatusDto(5, DateTimeOffset.UtcNow, []));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopShellWindowViewModel(
+            session,
+            fileOpener: null,
+            searchApiClientFactory: _ => new SockseekApiClient(http));
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token\"}");
+        await session.RecoveryCoordinator.WhenIdleAsync();
+        Assert.IsNotNull(viewModel.Search);
+
+        await connection.RaiseServerEventAsync(new ServerEventEnvelopeDto(
+            1,
+            "soulseek.privilege-state.changed",
+            DateTimeOffset.UtcNow,
+            "state",
+            true,
+            null,
+            new SoulseekPrivilegeStateChangedEventDto(Guid.NewGuid(), true)));
+        await handler.RequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(1, handler.RequestCount);
+        Assert.AreEqual(5, viewModel.Search.Privileges.RemainingDays);
+        Assert.IsTrue(viewModel.Search.Privileges.IsLoaded);
+    }
+
+    [TestMethod]
     public async Task WindowViewModel_CommandPaletteBridge_ControlsTopLevelShellPaletteState()
     {
         await using var session = new DesktopShellSession(
@@ -507,6 +542,8 @@ public sealed class DesktopShellWindowViewModelTests
 
     private sealed class ControlledDesktopEventHubConnection : IDesktopEventHubConnection
     {
+        private Func<ServerEventEnvelopeDto, Task>? serverEventHandler;
+
         public event Func<Exception?, Task>? Reconnecting;
         public event Func<string?, Task>? Reconnected
         {
@@ -521,7 +558,7 @@ public sealed class DesktopShellWindowViewModelTests
         }
 
         public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
-            => _ = handler;
+            => serverEventHandler = handler;
 
         public void OnWorkflowUpdateBatch(Func<Sockseek.Api.WorkflowUpdateBatchDto, Task> handler)
             => _ = handler;
@@ -543,6 +580,32 @@ public sealed class DesktopShellWindowViewModelTests
 
         public Task RaiseReconnectingAsync()
             => Reconnecting?.Invoke(null) ?? Task.CompletedTask;
+
+        public Task RaiseServerEventAsync(ServerEventEnvelopeDto envelope)
+            => serverEventHandler?.Invoke(envelope) ?? Task.CompletedTask;
+    }
+
+    private sealed class PrivilegeStatusHandler(SoulseekPrivilegeStatusDto status) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        public TaskCompletionSource RequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.AreEqual(HttpMethod.Get, request.Method);
+            Assert.AreEqual("api/v1/soulseek/privileges", request.RequestUri?.PathAndQuery.TrimStart('/'));
+            RequestCount++;
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(status),
+            };
+            RequestReceived.TrySetResult();
+            return Task.FromResult(response);
+        }
     }
 
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection

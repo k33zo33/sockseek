@@ -23,13 +23,24 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? aboutHandshake;
     private DesktopDaemonHandshake? playerHandshake;
     private readonly IDesktopFileOpener fileOpener;
+    private readonly Func<DesktopDaemonHandshake, Sockseek.Api.SockseekApiClient> searchApiClientFactory;
     private bool isStartingDaemon;
     private bool disposed;
 
     public DesktopShellWindowViewModel(IDesktopShellSession session, IDesktopFileOpener? fileOpener = null)
+        : this(session, fileOpener, handshake => DesktopBackendClientFactory.CreateApiClient(handshake))
+    {
+    }
+
+    internal DesktopShellWindowViewModel(
+        IDesktopShellSession session,
+        IDesktopFileOpener? fileOpener,
+        Func<DesktopDaemonHandshake, Sockseek.Api.SockseekApiClient> searchApiClientFactory)
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
         this.fileOpener = fileOpener ?? new SystemDesktopFileOpener();
+        this.searchApiClientFactory = searchApiClientFactory
+            ?? throw new ArgumentNullException(nameof(searchApiClientFactory));
         navigationButtons = Session.Shell.Items
             .Select(item => new DesktopShellNavigationItemViewModel(
                 item,
@@ -52,6 +63,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         Session.Shell.CommandPalette.PropertyChanged += HandleCommandPalettePropertyChanged;
         PlayerBar.PropertyChanged += HandlePlayerBarPropertyChanged;
         Session.EventsStateChanged += HandleEventsStateChanged;
+        Session.ServerEventReceived += HandleServerEventReceived;
         Session.WorkflowUpdateBatchReceived += HandleWorkflowUpdateBatchReceived;
         UpdateSearchViewModel();
         UpdatePlayerBarConnection();
@@ -282,7 +294,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             if (search is null && CurrentHandshake is not null)
             {
-                search = new DesktopSearchViewModel(DesktopBackendClientFactory.CreateApiClient(CurrentHandshake));
+                search = new DesktopSearchViewModel(searchApiClientFactory(CurrentHandshake));
                 searchHandshake = CurrentHandshake;
             }
 
@@ -421,6 +433,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         Session.Shell.CommandPalette.PropertyChanged -= HandleCommandPalettePropertyChanged;
         PlayerBar.PropertyChanged -= HandlePlayerBarPropertyChanged;
         Session.EventsStateChanged -= HandleEventsStateChanged;
+        Session.ServerEventReceived -= HandleServerEventReceived;
         Session.WorkflowUpdateBatchReceived -= HandleWorkflowUpdateBatchReceived;
     }
 
@@ -667,6 +680,18 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     private void HandleWorkflowUpdateBatchReceived(object? sender, Sockseek.Api.WorkflowUpdateBatchDto batch)
         => Downloads?.ApplyWorkflowUpdate(batch);
+
+    private void HandleServerEventReceived(object? sender, Sockseek.Api.ServerEventEnvelopeDto envelope)
+    {
+        if (disposed
+            || !envelope.SnapshotInvalidation
+            || !StringComparer.Ordinal.Equals(envelope.Type, "soulseek.privilege-state.changed"))
+        {
+            return;
+        }
+
+        _ = Search?.Privileges.RefreshAsync();
+    }
 
     private void UpdateSearchViewModel()
     {

@@ -8,8 +8,8 @@ Close the feature and evidence gaps identified by ADR-0009 while preserving the 
 
 - Search, explicit downloads and remote folder browse already flow through `SoulseekClientManager`, `ISoulseekClient`, the Server adapter and Desktop workflows.
 - `EngineSupervisor` exposes connection/login state plus configured share counts and listen-port indicators, but configured counts are not proof that files are actually shared.
-- The installed Soulseek.NET interface exposes room/public chat, upload and privilege methods/events; the local-files test client currently leaves those members unimplemented.
-- Wishlist behavior, chat UX, actual share-root serving/upload visibility and privilege UX are absent from the daemon/Desktop product.
+- The installed Soulseek.NET interface exposes room/public chat, upload and privilege methods/events; privilege parity is implemented in the local-files client while chat and upload members remain to be implemented.
+- Wishlist and privilege workflows are implemented through the daemon and Desktop; chat UX and actual share-root serving/upload visibility remain absent.
 - ADR-0009 therefore blocks every public Soulseek-enabled artifact even though Sprint 15 performance, diagnostics and Windows RC gates pass.
 - Public beta also lacks exact Windows 11 and Ubuntu LTS package smoke evidence.
 
@@ -51,7 +51,7 @@ Close the feature and evidence gaps identified by ADR-0009 while preserving the 
 1. Produce a checked capability matrix from the installed Soulseek.NET assembly/XML docs and existing manager/mock implementations. Completed in `docs/soulseek-net-capability-matrix.md` for Soulseek.NET 10.0.2.
 2. Define Domain/Application contracts and threat-model decisions for retention, share-root approval and reconnect semantics.
 3. Implement wishlist vertically through persistence, adapter, API and Desktop with deterministic mock coverage. Completed with persisted bounded scheduling, authenticated API/OpenAPI contracts, Desktop controls, migration/upgrade coverage and scheduler/UI tests; live-network checklist evidence remains part of step 7.
-4. Implement privilege recognition and chat vertically with bounded state and redaction tests. Privilege Core/daemon/API support is complete with manual acknowledgement, bounded replay-safe state and username-free invalidation events; Desktop privilege UX and all chat work remain.
+4. Implement privilege recognition and chat vertically with bounded state and redaction tests. Privilege support is complete through Core, daemon/API and Desktop with manual acknowledgement, bounded replay-safe state, username-free invalidation events and automatic HTTP snapshot recovery; redacted live verification and all chat work remain.
 5. Implement explicit sharing/upload vertically, beginning with canonical path policy and adversarial tests before network serving.
 6. Complete reconnect/failure matrices, OpenAPI snapshots and compatibility tests.
 7. Run the redacted live checklist and target-OS package smokes on one exact commit.

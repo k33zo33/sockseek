@@ -1,4 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sockseek.Api;
+using System.Text.Json;
 
 namespace Sockseek.Desktop.Tests;
 
@@ -104,6 +106,37 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
 
         Assert.AreEqual(1, createdConnections.Count);
         Assert.IsFalse(createdConnections[0].Disposed);
+    }
+
+    [TestMethod]
+    public async Task ConnectedManager_ForwardsTypedGlobalServerEvents()
+    {
+        var supervisor = new DesktopDaemonSupervisor();
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"token-1\"}");
+        FakeDesktopEventHubConnection? connection = null;
+
+        await using var coordinator = new DesktopBackendRecoveryCoordinator(
+            supervisor,
+            handshake => connection = new FakeDesktopEventHubConnection(handshake));
+        ServerEventEnvelopeDto? received = null;
+        coordinator.ServerEventReceived += (_, envelope) => received = envelope;
+        await coordinator.WhenIdleAsync();
+
+        var notificationId = Guid.NewGuid();
+        await connection!.RaiseServerEventAsync(new ServerEventEnvelopeDto(
+            7,
+            "soulseek.privilege-state.changed",
+            DateTimeOffset.UtcNow,
+            "state",
+            true,
+            null,
+            JsonSerializer.SerializeToElement(new SoulseekPrivilegeStateChangedEventDto(notificationId, true))));
+
+        Assert.IsNotNull(received);
+        Assert.IsInstanceOfType<SoulseekPrivilegeStateChangedEventDto>(received.Payload);
+        var payload = (SoulseekPrivilegeStateChangedEventDto)received.Payload;
+        Assert.AreEqual(notificationId, payload.NotificationId);
+        Assert.IsTrue(payload.RequiresAcknowledgement);
     }
 
     [TestMethod]
@@ -304,6 +337,8 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
 
     private sealed class FakeDesktopEventHubConnection(DesktopDaemonHandshake handshake) : IDesktopEventHubConnection
     {
+        private Func<ServerEventEnvelopeDto, Task>? serverEventHandler;
+
         public DesktopDaemonHandshake Handshake { get; } = handshake;
 
         public event Func<Exception?, Task>? Reconnecting
@@ -333,7 +368,7 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
         public Exception? DisposeException { get; init; }
 
         public void OnServerEvent(Func<Sockseek.Api.ServerEventEnvelopeDto, Task> handler)
-            => _ = handler;
+            => serverEventHandler = handler;
 
         public void OnWorkflowUpdateBatch(Func<Sockseek.Api.WorkflowUpdateBatchDto, Task> handler)
             => _ = handler;
@@ -370,6 +405,9 @@ public sealed class DesktopBackendRecoveryCoordinatorTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+
+        public Task RaiseServerEventAsync(ServerEventEnvelopeDto envelope)
+            => serverEventHandler?.Invoke(envelope) ?? Task.CompletedTask;
 
         public ValueTask DisposeAsync()
         {
