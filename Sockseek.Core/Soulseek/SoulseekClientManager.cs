@@ -34,9 +34,66 @@ public sealed class SoulseekPrivilegeNotificationEventArgs : EventArgs
     public bool RequiresAcknowledgement => AcknowledgementId.HasValue;
 }
 
+public sealed record SoulseekChatRoomInfo(string Name, int UserCount, bool IsPrivate);
+
+public sealed record SoulseekJoinedRoom(string Name, bool IsPrivate, IReadOnlyList<string> Usernames);
+
+public sealed class SoulseekPrivateChatMessageEventArgs : EventArgs
+{
+    public SoulseekPrivateChatMessageEventArgs(
+        int protocolId,
+        DateTimeOffset occurredAtUtc,
+        string username,
+        string message,
+        bool replayed)
+    {
+        ProtocolId = protocolId;
+        OccurredAtUtc = occurredAtUtc;
+        Username = username;
+        Message = message;
+        Replayed = replayed;
+    }
+
+    public int ProtocolId { get; }
+    public DateTimeOffset OccurredAtUtc { get; }
+    public string Username { get; }
+    public string Message { get; }
+    public bool Replayed { get; }
+}
+
+public sealed class SoulseekRoomChatMessageEventArgs : EventArgs
+{
+    public SoulseekRoomChatMessageEventArgs(string roomName, string username, string message)
+    {
+        RoomName = roomName;
+        Username = username;
+        Message = message;
+    }
+
+    public string RoomName { get; }
+    public string Username { get; }
+    public string Message { get; }
+}
+
+public sealed class SoulseekPublicChatMessageEventArgs : EventArgs
+{
+    public SoulseekPublicChatMessageEventArgs(string roomName, string username, string message)
+    {
+        RoomName = roomName;
+        Username = username;
+        Message = message;
+    }
+
+    public string RoomName { get; }
+    public string Username { get; }
+    public string Message { get; }
+}
+
 public class SoulseekClientManager : IDisposable
 {
-    private const int MaximumPrivilegeUsernameLength = 128;
+    internal const int MaximumChatIdentityLength = 128;
+    internal const int MaximumChatMessageLength = 4096;
+    internal const int MaximumChatCollectionSize = 1000;
     private const string KickedFromServerMessage =
         "Soulseek server kicked this client, probably because the same account logged in elsewhere.";
 
@@ -52,6 +109,9 @@ public class SoulseekClientManager : IDisposable
     public ISoulseekClient? Client => _client;
 
     public event EventHandler<SoulseekPrivilegeNotificationEventArgs>? PrivilegeNotificationReceived;
+    public event EventHandler<SoulseekPrivateChatMessageEventArgs>? PrivateChatMessageReceived;
+    public event EventHandler<SoulseekRoomChatMessageEventArgs>? RoomChatMessageReceived;
+    public event EventHandler<SoulseekPublicChatMessageEventArgs>? PublicChatMessageReceived;
 
     public SoulseekClientStates State => _client?.State ?? SoulseekClientStates.None;
 
@@ -99,6 +159,9 @@ public class SoulseekClientManager : IDisposable
     {
         client.KickedFromServer += OnKickedFromServer;
         client.PrivilegeNotificationReceived += OnPrivilegeNotificationReceived;
+        client.PrivateMessageReceived += OnPrivateMessageReceived;
+        client.RoomMessageReceived += OnRoomMessageReceived;
+        client.PublicChatMessageReceived += OnPublicChatMessageReceived;
     }
 
     private void OnPrivilegeNotificationReceived(object? sender, PrivilegeNotificationReceivedEventArgs args)
@@ -107,12 +170,71 @@ public class SoulseekClientManager : IDisposable
             return;
 
         string username = args.Username.Trim();
-        if (username.Length > MaximumPrivilegeUsernameLength)
-            username = username[..MaximumPrivilegeUsernameLength];
+        if (username.Length > MaximumChatIdentityLength)
+            username = username[..MaximumChatIdentityLength];
 
         PrivilegeNotificationReceived?.Invoke(
             this,
             new SoulseekPrivilegeNotificationEventArgs(username, args.Id));
+    }
+
+    private void OnPrivateMessageReceived(object? sender, PrivateMessageReceivedEventArgs args)
+    {
+        if (args.Id < 0
+            || !TryNormalizeIncoming(args.Username, MaximumChatIdentityLength, out var username)
+            || !TryNormalizeIncoming(args.Message, MaximumChatMessageLength, out var message))
+        {
+            return;
+        }
+
+        var timestamp = args.Timestamp.Kind switch
+        {
+            DateTimeKind.Utc => args.Timestamp,
+            DateTimeKind.Local => args.Timestamp.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(args.Timestamp, DateTimeKind.Utc),
+        };
+        PrivateChatMessageReceived?.Invoke(
+            this,
+            new SoulseekPrivateChatMessageEventArgs(
+                args.Id,
+                new DateTimeOffset(timestamp),
+                username,
+                message,
+                args.Replayed));
+    }
+
+    private void OnRoomMessageReceived(object? sender, RoomMessageReceivedEventArgs args)
+    {
+        if (!TryNormalizeIncoming(args.RoomName, MaximumChatIdentityLength, out var roomName)
+            || !TryNormalizeIncoming(args.Username, MaximumChatIdentityLength, out var username)
+            || !TryNormalizeIncoming(args.Message, MaximumChatMessageLength, out var message))
+        {
+            return;
+        }
+
+        RoomChatMessageReceived?.Invoke(this, new SoulseekRoomChatMessageEventArgs(roomName, username, message));
+    }
+
+    private void OnPublicChatMessageReceived(object? sender, PublicChatMessageReceivedEventArgs args)
+    {
+        if (!TryNormalizeIncoming(args.RoomName, MaximumChatIdentityLength, out var roomName)
+            || !TryNormalizeIncoming(args.Username, MaximumChatIdentityLength, out var username)
+            || !TryNormalizeIncoming(args.Message, MaximumChatMessageLength, out var message))
+        {
+            return;
+        }
+
+        PublicChatMessageReceived?.Invoke(this, new SoulseekPublicChatMessageEventArgs(roomName, username, message));
+    }
+
+    private static bool TryNormalizeIncoming(string? value, int maximumLength, out string normalized)
+    {
+        normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length == 0)
+            return false;
+        if (normalized.Length > maximumLength)
+            normalized = normalized[..maximumLength];
+        return true;
     }
 
     private void OnKickedFromServer(object? sender, EventArgs e)
@@ -247,6 +369,174 @@ public class SoulseekClientManager : IDisposable
         catch (Exception ex)
         {
             throw CreateConnectionFailure(ex);
+        }
+    }
+
+    public async Task<IReadOnlyList<SoulseekChatRoomInfo>> GetChatRoomsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+            var rooms = await _client!.GetRoomListAsync(cancellationToken);
+            return MapChatRooms(rooms.Public, isPrivate: false)
+                .Concat(MapChatRooms(rooms.Private, isPrivate: true))
+                .OrderByDescending(room => room.UserCount)
+                .ThenBy(room => room.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(MaximumChatCollectionSize)
+                .ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SoulseekConnectionUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw CreateConnectionFailure(ex);
+        }
+    }
+
+    public async Task<SoulseekJoinedRoom> JoinChatRoomAsync(
+        string roomName,
+        bool isPrivate = false,
+        CancellationToken cancellationToken = default)
+    {
+        roomName = ValidateChatValue(roomName, nameof(roomName), MaximumChatIdentityLength);
+        try
+        {
+            await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+            var room = await _client!.JoinRoomAsync(roomName, isPrivate, cancellationToken);
+            string returnedName = TryNormalizeIncoming(room.Name, MaximumChatIdentityLength, out var normalizedName)
+                ? normalizedName
+                : roomName;
+            return new SoulseekJoinedRoom(
+                returnedName,
+                room.IsPrivate,
+                MapChatUsernames(room.Users.Select(user => user.Username))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(MaximumChatCollectionSize)
+                    .ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SoulseekConnectionUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw CreateConnectionFailure(ex);
+        }
+    }
+
+    public Task LeaveChatRoomAsync(string roomName, CancellationToken cancellationToken = default)
+    {
+        roomName = ValidateChatValue(roomName, nameof(roomName), MaximumChatIdentityLength);
+        return ExecuteChatOperationAsync(
+            client => client.LeaveRoomAsync(roomName, cancellationToken),
+            cancellationToken);
+    }
+
+    public Task SendPrivateChatMessageAsync(
+        string username,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        username = ValidateChatValue(username, nameof(username), MaximumChatIdentityLength);
+        message = ValidateChatValue(message, nameof(message), MaximumChatMessageLength);
+        return ExecuteChatOperationAsync(
+            client => client.SendPrivateMessageAsync(username, message, cancellationToken),
+            cancellationToken);
+    }
+
+    public Task AcknowledgePrivateChatMessageAsync(
+        int privateMessageId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(privateMessageId);
+        return ExecuteChatOperationAsync(
+            client => client.AcknowledgePrivateMessageAsync(privateMessageId, cancellationToken),
+            cancellationToken);
+    }
+
+    public Task SendRoomChatMessageAsync(
+        string roomName,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        roomName = ValidateChatValue(roomName, nameof(roomName), MaximumChatIdentityLength);
+        message = ValidateChatValue(message, nameof(message), MaximumChatMessageLength);
+        return ExecuteChatOperationAsync(
+            client => client.SendRoomMessageAsync(roomName, message, cancellationToken),
+            cancellationToken);
+    }
+
+    public Task StartPublicChatAsync(CancellationToken cancellationToken = default)
+        => ExecuteChatOperationAsync(
+            client => client.StartPublicChatAsync(cancellationToken),
+            cancellationToken);
+
+    public Task StopPublicChatAsync(CancellationToken cancellationToken = default)
+        => ExecuteChatOperationAsync(
+            client => client.StopPublicChatAsync(cancellationToken),
+            cancellationToken);
+
+    private async Task ExecuteChatOperationAsync(
+        Func<ISoulseekClient, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnsureConnectedAndLoggedInAsync(_initialSettings, cancellationToken);
+            await operation(_client!);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SoulseekConnectionUnavailableException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw CreateConnectionFailure(ex);
+        }
+    }
+
+    private static string ValidateChatValue(string? value, string parameterName, int maximumLength)
+    {
+        string normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length == 0)
+            throw new ArgumentException("Value cannot be empty.", parameterName);
+        if (normalized.Length > maximumLength)
+            throw new ArgumentException($"Value cannot exceed {maximumLength} characters.", parameterName);
+        return normalized;
+    }
+
+    private static IEnumerable<SoulseekChatRoomInfo> MapChatRooms(
+        IEnumerable<RoomInfo> rooms,
+        bool isPrivate)
+    {
+        foreach (var room in rooms)
+        {
+            if (TryNormalizeIncoming(room.Name, MaximumChatIdentityLength, out var name))
+                yield return new SoulseekChatRoomInfo(name, Math.Max(0, room.UserCount), isPrivate);
+        }
+    }
+
+    private static IEnumerable<string> MapChatUsernames(IEnumerable<string> usernames)
+    {
+        foreach (var username in usernames)
+        {
+            if (TryNormalizeIncoming(username, MaximumChatIdentityLength, out var normalized))
+                yield return normalized;
         }
     }
 
@@ -408,6 +698,7 @@ public class SoulseekClientManager : IDisposable
             serverConnectionOptions: serverConnectionOptions,
             listenPort: settings.ListenPort ?? 49998,
             maximumConcurrentSearches: int.MaxValue, // this is limited later in the searcher code
+            autoAcknowledgePrivateMessages: false,
             autoAcknowledgePrivilegeNotifications: false,
             userInfoResolver: userInfoResolver,
             startingToken: startingToken
@@ -421,6 +712,7 @@ public class SoulseekClientManager : IDisposable
                 serverConnectionOptions: serverConnectionOptions,
                 enableListener: false,
                 maximumConcurrentSearches: int.MaxValue,
+                autoAcknowledgePrivateMessages: false,
                 autoAcknowledgePrivilegeNotifications: false,
                 userInfoResolver: userInfoResolver,
                 startingToken: startingToken
@@ -467,6 +759,9 @@ public class SoulseekClientManager : IDisposable
         {
             _client.KickedFromServer -= OnKickedFromServer;
             _client.PrivilegeNotificationReceived -= OnPrivilegeNotificationReceived;
+            _client.PrivateMessageReceived -= OnPrivateMessageReceived;
+            _client.RoomMessageReceived -= OnRoomMessageReceived;
+            _client.PublicChatMessageReceived -= OnPublicChatMessageReceived;
         }
         _client?.Dispose();
         _monitorCts?.Dispose();

@@ -28,6 +28,44 @@ public class LocalFilesSoulseekClientTests
     }
 
     [TestMethod]
+    public async Task Chat_ProvidesDeterministicRoomPrivateAndPublicParity()
+    {
+        var client = new LocalFilesSoulseekClient([]);
+        client.AvailablePublicChatRooms.Add(new RoomInfo("music", 4));
+        PrivateMessageReceivedEventArgs? privateMessage = null;
+        RoomMessageReceivedEventArgs? roomMessage = null;
+        PublicChatMessageReceivedEventArgs? publicMessage = null;
+        client.PrivateMessageReceived += (_, message) => privateMessage = message;
+        client.RoomMessageReceived += (_, message) => roomMessage = message;
+        client.PublicChatMessageReceived += (_, message) => publicMessage = message;
+
+        var rooms = await client.GetRoomListAsync();
+        await client.JoinRoomAsync("music");
+        await client.SendPrivateMessageAsync("listener", "hello");
+        await client.SendRoomMessageAsync("music", "hello room");
+        await client.StartPublicChatAsync();
+        client.RaisePrivateMessage(5, DateTime.UtcNow, "sender", "private");
+        client.RaiseRoomMessage("music", "member", "room");
+        client.RaisePublicChatMessage("ambient", "speaker", "public");
+        await client.AcknowledgePrivateMessageAsync(5);
+
+        Assert.AreEqual(1, rooms.PublicCount);
+        Assert.IsTrue(client.JoinedChatRooms.Contains("music"));
+        Assert.IsTrue(client.IsPublicChatEnabled);
+        CollectionAssert.AreEqual(new[] { ("listener", "hello") }, client.SentPrivateMessages.ToArray());
+        CollectionAssert.AreEqual(new[] { ("music", "hello room") }, client.SentRoomMessages.ToArray());
+        CollectionAssert.AreEqual(new[] { 5 }, client.AcknowledgedPrivateMessageIds.ToArray());
+        Assert.AreEqual("sender", privateMessage?.Username);
+        Assert.AreEqual("member", roomMessage?.Username);
+        Assert.AreEqual("speaker", publicMessage?.Username);
+
+        await client.LeaveRoomAsync("music");
+        await client.StopPublicChatAsync();
+        Assert.IsFalse(client.JoinedChatRooms.Contains("music"));
+        Assert.IsFalse(client.IsPublicChatEnabled);
+    }
+
+    [TestMethod]
     public async Task FromLocalPaths_UsesSoulseekRelativeIdentityAndDownloadsFromLocalSource()
     {
         string root = Path.Combine(Path.GetTempPath(), "Sockseek-local-files-identity-" + Guid.NewGuid());

@@ -42,7 +42,6 @@ namespace Sockseek.Core.Services
         public event EventHandler<string> GlobalMessageReceived;
         public event EventHandler KickedFromServer;
         public event EventHandler LoggedIn;
-        public event EventHandler<PrivateMessageReceivedEventArgs> PrivateMessageReceived;
         public event EventHandler<string> PrivateRoomMembershipAdded;
         public event EventHandler<string> PrivateRoomMembershipRemoved;
         public event EventHandler<RoomInfo> PrivateRoomModeratedUserListReceived;
@@ -51,11 +50,9 @@ namespace Sockseek.Core.Services
         public event EventHandler<RoomInfo> PrivateRoomUserListReceived;
         public event EventHandler<IReadOnlyCollection<string>> PrivilegedUserListReceived;
         public event EventHandler PromotedToDistributedBranchRoot;
-        public event EventHandler<PublicChatMessageReceivedEventArgs> PublicChatMessageReceived;
         public event EventHandler<RoomJoinedEventArgs> RoomJoined;
         public event EventHandler<RoomLeftEventArgs> RoomLeft;
         public event EventHandler<RoomList> RoomListReceived;
-        public event EventHandler<RoomMessageReceivedEventArgs> RoomMessageReceived;
         public event EventHandler<RoomTickerAddedEventArgs> RoomTickerAdded;
         public event EventHandler<RoomTickerListReceivedEventArgs> RoomTickerListReceived;
         public event EventHandler<RoomTickerRemovedEventArgs> RoomTickerRemoved;
@@ -72,11 +69,6 @@ namespace Sockseek.Core.Services
         public event EventHandler<UserStatistics> UserStatisticsChanged;
         public event EventHandler<UserStatus> UserStatusChanged;
         public event EventHandler<DiagnosticEventArgs> DiagnosticGenerated;
-
-        public Task AcknowledgePrivateMessageAsync(int privateMessageId, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
 
         public Task AddPrivateRoomMemberAsync(string roomName, string username, CancellationToken? cancellationToken = null)
         {
@@ -153,11 +145,6 @@ namespace Sockseek.Core.Services
             throw new NotImplementedException();
         }
 
-        public Task<RoomList> GetRoomListAsync(CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<IPEndPoint> GetUserEndPointAsync(string username, CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
@@ -188,16 +175,6 @@ namespace Sockseek.Core.Services
             throw new NotImplementedException();
         }
 
-        public Task<RoomData> JoinRoomAsync(string roomName, bool isPrivate = false, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task LeaveRoomAsync(string roomName, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<long> PingServerAsync(CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
@@ -218,16 +195,6 @@ namespace Sockseek.Core.Services
             throw new NotImplementedException();
         }
 
-        public Task SendPrivateMessageAsync(string username, string message, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task SendRoomMessageAsync(string roomName, string message, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task SendUploadSpeedAsync(int speed, CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
@@ -239,16 +206,6 @@ namespace Sockseek.Core.Services
         }
 
         public Task SetStatusAsync(UserPresence status, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task StartPublicChatAsync(CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task StopPublicChatAsync(CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
         }

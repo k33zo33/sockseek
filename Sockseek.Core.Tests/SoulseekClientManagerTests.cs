@@ -30,6 +30,7 @@ public class SoulseekClientManagerTests
             token);
 
         Assert.AreEqual(token, options.StartingToken);
+        Assert.IsFalse(options.AutoAcknowledgePrivateMessages);
         Assert.IsFalse(options.AutoAcknowledgePrivilegeNotifications);
     }
 
@@ -42,7 +43,115 @@ public class SoulseekClientManagerTests
             token);
 
         Assert.AreEqual(token, options.StartingToken);
+        Assert.IsFalse(options.AutoAcknowledgePrivateMessages);
         Assert.IsFalse(options.AutoAcknowledgePrivilegeNotifications);
+    }
+
+    [TestMethod]
+    public async Task ChatOperations_MapRoomsMessagesAcknowledgementAndPublicOptIn()
+    {
+        var mockClient = new MockSoulseekClient(new());
+        mockClient.AvailablePublicChatRooms.Add(new RoomInfo("music", 12));
+        mockClient.AvailablePrivateChatRooms.Add(new RoomInfo("friends", 3));
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+        SoulseekPrivateChatMessageEventArgs? privateMessage = null;
+        SoulseekRoomChatMessageEventArgs? roomMessage = null;
+        SoulseekPublicChatMessageEventArgs? publicMessage = null;
+        manager.PrivateChatMessageReceived += (_, message) => privateMessage = message;
+        manager.RoomChatMessageReceived += (_, message) => roomMessage = message;
+        manager.PublicChatMessageReceived += (_, message) => publicMessage = message;
+
+        var rooms = await manager.GetChatRoomsAsync();
+        var joined = await manager.JoinChatRoomAsync(" music ");
+        await manager.SendPrivateChatMessageAsync(" listener ", " hello ");
+        await manager.SendRoomChatMessageAsync(" music ", " room hello ");
+        await manager.StartPublicChatAsync();
+        mockClient.RaisePrivateMessage(7, new DateTime(2026, 10, 19, 10, 0, 0, DateTimeKind.Utc), " sender ", " private ", true);
+        mockClient.RaiseRoomMessage(" music ", " member ", " room event ");
+        mockClient.RaisePublicChatMessage(" ambient ", " broadcaster ", " public event ");
+        await manager.AcknowledgePrivateChatMessageAsync(7);
+        await manager.LeaveChatRoomAsync(" music ");
+        await manager.StopPublicChatAsync();
+
+        Assert.AreEqual(2, rooms.Count);
+        Assert.AreEqual("music", rooms[0].Name);
+        Assert.IsFalse(rooms[0].IsPrivate);
+        Assert.AreEqual("music", joined.Name);
+        CollectionAssert.AreEqual(new[] { ("listener", "hello") }, mockClient.SentPrivateMessages);
+        CollectionAssert.AreEqual(new[] { ("music", "room hello") }, mockClient.SentRoomMessages);
+        CollectionAssert.AreEqual(new[] { 7 }, mockClient.AcknowledgedPrivateMessageIds);
+        Assert.IsFalse(mockClient.JoinedChatRooms.Contains("music"));
+        Assert.IsFalse(mockClient.IsPublicChatEnabled);
+        Assert.IsNotNull(privateMessage);
+        Assert.AreEqual(7, privateMessage.ProtocolId);
+        Assert.AreEqual("sender", privateMessage.Username);
+        Assert.AreEqual("private", privateMessage.Message);
+        Assert.IsTrue(privateMessage.Replayed);
+        Assert.IsNotNull(roomMessage);
+        Assert.AreEqual("music", roomMessage.RoomName);
+        Assert.AreEqual("member", roomMessage.Username);
+        Assert.IsNotNull(publicMessage);
+        Assert.AreEqual("ambient", publicMessage.RoomName);
+        Assert.AreEqual("broadcaster", publicMessage.Username);
+    }
+
+    [TestMethod]
+    public void ChatEvents_IgnoreBlankValuesAndBoundIncomingContent()
+    {
+        var mockClient = new MockSoulseekClient(new());
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+        var privateMessages = new List<SoulseekPrivateChatMessageEventArgs>();
+        var roomMessages = new List<SoulseekRoomChatMessageEventArgs>();
+        manager.PrivateChatMessageReceived += (_, message) => privateMessages.Add(message);
+        manager.RoomChatMessageReceived += (_, message) => roomMessages.Add(message);
+
+        mockClient.RaisePrivateMessage(1, DateTime.UtcNow, " ", "ignored");
+        mockClient.RaiseRoomMessage("room", "user", " ");
+        mockClient.RaisePrivateMessage(
+            2,
+            DateTime.UtcNow,
+            new string('u', 150),
+            new string('m', 5000));
+
+        Assert.AreEqual(1, privateMessages.Count);
+        Assert.AreEqual(SoulseekClientManager.MaximumChatIdentityLength, privateMessages[0].Username.Length);
+        Assert.AreEqual(SoulseekClientManager.MaximumChatMessageLength, privateMessages[0].Message.Length);
+        Assert.AreEqual(0, roomMessages.Count);
+    }
+
+    [TestMethod]
+    public async Task ChatOperations_RejectInvalidInputBeforeCallingClient()
+    {
+        var mockClient = new MockSoulseekClient(new());
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+
+        await Assert.ThrowsExceptionAsync<ArgumentException>(() =>
+            manager.SendPrivateChatMessageAsync(" ", "message"));
+        await Assert.ThrowsExceptionAsync<ArgumentException>(() =>
+            manager.SendRoomChatMessageAsync("room", new string('m', SoulseekClientManager.MaximumChatMessageLength + 1)));
+        await Assert.ThrowsExceptionAsync<ArgumentOutOfRangeException>(() =>
+            manager.AcknowledgePrivateChatMessageAsync(-1));
+
+        Assert.AreEqual(0, mockClient.SentPrivateMessages.Count);
+        Assert.AreEqual(0, mockClient.SentRoomMessages.Count);
+        Assert.AreEqual(0, mockClient.AcknowledgedPrivateMessageIds.Count);
+    }
+
+    [TestMethod]
+    public async Task ChatOperations_MapRpcFailuresToConnectionUnavailable()
+    {
+        var mockClient = new MockSoulseekClient(new())
+        {
+            ChatException = new TimeoutException("private transport detail"),
+        };
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+
+        await Assert.ThrowsExceptionAsync<SoulseekConnectionUnavailableException>(() =>
+            manager.GetChatRoomsAsync());
+        await Assert.ThrowsExceptionAsync<SoulseekConnectionUnavailableException>(() =>
+            manager.SendPrivateChatMessageAsync("listener", "message"));
+        await Assert.ThrowsExceptionAsync<SoulseekConnectionUnavailableException>(() =>
+            manager.StartPublicChatAsync());
     }
 
     [TestMethod]
