@@ -112,6 +112,7 @@ public class SoulseekClientManager : IDisposable
     public event EventHandler<SoulseekPrivateChatMessageEventArgs>? PrivateChatMessageReceived;
     public event EventHandler<SoulseekRoomChatMessageEventArgs>? RoomChatMessageReceived;
     public event EventHandler<SoulseekPublicChatMessageEventArgs>? PublicChatMessageReceived;
+    public event EventHandler? SessionReady;
 
     public SoulseekClientStates State => _client?.State ?? SoulseekClientStates.None;
 
@@ -193,14 +194,21 @@ public class SoulseekClientManager : IDisposable
             DateTimeKind.Local => args.Timestamp.ToUniversalTime(),
             _ => DateTime.SpecifyKind(args.Timestamp, DateTimeKind.Utc),
         };
-        PrivateChatMessageReceived?.Invoke(
-            this,
-            new SoulseekPrivateChatMessageEventArgs(
-                args.Id,
-                new DateTimeOffset(timestamp),
-                username,
-                message,
-                args.Replayed));
+        try
+        {
+            PrivateChatMessageReceived?.Invoke(
+                this,
+                new SoulseekPrivateChatMessageEventArgs(
+                    args.Id,
+                    new DateTimeOffset(timestamp),
+                    username,
+                    message,
+                    args.Replayed));
+        }
+        finally
+        {
+            _ = AcknowledgeReceivedPrivateMessageAsync(args.Id);
+        }
     }
 
     private void OnRoomMessageReceived(object? sender, RoomMessageReceivedEventArgs args)
@@ -235,6 +243,19 @@ public class SoulseekClientManager : IDisposable
         if (normalized.Length > maximumLength)
             normalized = normalized[..maximumLength];
         return true;
+    }
+
+    private async Task AcknowledgeReceivedPrivateMessageAsync(int privateMessageId)
+    {
+        try
+        {
+            if (_client is not null)
+                await _client.AcknowledgePrivateMessageAsync(privateMessageId);
+        }
+        catch (Exception)
+        {
+            // The server may replay the message; consumers deduplicate the bounded protocol id.
+        }
     }
 
     private void OnKickedFromServer(object? sender, EventArgs e)
@@ -303,6 +324,7 @@ public class SoulseekClientManager : IDisposable
                 await LoginInternalAsync(_client, loginSettings, cancellationToken);
                 _readyTcs.TrySetResult();
                 StartMonitoring();
+                SessionReady?.Invoke(this, EventArgs.Empty);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

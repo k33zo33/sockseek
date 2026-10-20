@@ -40,6 +40,29 @@ and exposes opaque local notification ids instead of protocol ids. The global
 `soulseek.privilege-state.changed` SignalR event invalidates the HTTP snapshot but
 does not include the notifying username.
 
+## Soulseek chat
+
+The authenticated versioned API exposes bounded in-memory private, room and public
+chat state plus explicit user commands:
+
+- `GET /api/v1/soulseek/chat`
+- `POST /api/v1/soulseek/chat/rooms/refresh`
+- `POST /api/v1/soulseek/chat/rooms/join`
+- `POST /api/v1/soulseek/chat/rooms/leave`
+- `POST /api/v1/soulseek/chat/private/messages`
+- `POST /api/v1/soulseek/chat/rooms/messages`
+- `POST /api/v1/soulseek/chat/public/start`
+- `POST /api/v1/soulseek/chat/public/stop`
+
+The daemon retains at most 500 messages and 20 joined-room intents in memory; it
+does not persist chat content. Private-message protocol ids remain internal and
+replayed messages are deduplicated while retained. The Core adapter explicitly
+acknowledges receipt after handing the message to local subscribers, preserving
+legacy CLI behavior while package auto-acknowledgement stays disabled. Joined rooms
+and public-chat opt-in are restored after a Soulseek reconnect. The global
+`soulseek.chat-state.changed` SignalR event carries only revision and reason fields;
+clients reload message content from the protected HTTP snapshot.
+
 ## .NET clients
 .NET consumers should prefer `Sockseek.Api.SockseekApiClient` over hand-written endpoint calls.
 

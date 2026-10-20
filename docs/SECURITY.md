@@ -11,6 +11,10 @@ See also the release-focused [threat model](threat-model.md).
 - Privilege notifications are bounded to 100 in-memory records and are not persisted.
   Notification usernames are absent from logs and SignalR invalidation payloads;
   only the authenticated HTTP snapshot exposes them for local acknowledgement UX.
+- Chat state is bounded to 500 in-memory messages and 20 joined-room intents. Message
+  text, usernames and private-message protocol ids are not persisted or logged.
+- Chat SignalR invalidation contains only a revision and stable reason. Message text
+  and usernames are returned only by the authenticated loopback HTTP snapshot.
 
 ## 15. Sigurnost, privatnost i operativna pravila
 

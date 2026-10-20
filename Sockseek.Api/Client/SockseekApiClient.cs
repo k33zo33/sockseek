@@ -564,6 +564,62 @@ public sealed class SockseekApiClient
         return true;
     }
 
+    public async Task<SoulseekChatSnapshotDto> GetSoulseekChatAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/soulseek/chat", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekChatSnapshotDto>(response, ct);
+    }
+
+    public async Task<SoulseekChatSnapshotDto> RefreshSoulseekChatRoomsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/v1/soulseek/chat/rooms/refresh", null, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekChatSnapshotDto>(response, ct);
+    }
+
+    public Task<SoulseekChatSnapshotDto> JoinSoulseekChatRoomAsync(
+        JoinSoulseekChatRoomRequestDto request,
+        CancellationToken ct = default)
+        => PostRequiredAsync<SoulseekChatSnapshotDto, JoinSoulseekChatRoomRequestDto>(
+            "api/v1/soulseek/chat/rooms/join",
+            request,
+            ct);
+
+    public Task<SoulseekChatSnapshotDto> LeaveSoulseekChatRoomAsync(
+        LeaveSoulseekChatRoomRequestDto request,
+        CancellationToken ct = default)
+        => PostRequiredAsync<SoulseekChatSnapshotDto, LeaveSoulseekChatRoomRequestDto>(
+            "api/v1/soulseek/chat/rooms/leave",
+            request,
+            ct);
+
+    public Task<SoulseekChatSnapshotDto> SendSoulseekPrivateChatMessageAsync(
+        SendSoulseekPrivateChatMessageRequestDto request,
+        CancellationToken ct = default)
+        => PostRequiredAsync<SoulseekChatSnapshotDto, SendSoulseekPrivateChatMessageRequestDto>(
+            "api/v1/soulseek/chat/private/messages",
+            request,
+            ct);
+
+    public Task<SoulseekChatSnapshotDto> SendSoulseekRoomChatMessageAsync(
+        SendSoulseekRoomChatMessageRequestDto request,
+        CancellationToken ct = default)
+        => PostRequiredAsync<SoulseekChatSnapshotDto, SendSoulseekRoomChatMessageRequestDto>(
+            "api/v1/soulseek/chat/rooms/messages",
+            request,
+            ct);
+
+    public async Task<SoulseekChatSnapshotDto> SetSoulseekPublicChatEnabledAsync(
+        bool enabled,
+        CancellationToken ct = default)
+    {
+        string action = enabled ? "start" : "stop";
+        using var response = await http.PostAsync($"api/v1/soulseek/chat/public/{action}", null, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekChatSnapshotDto>(response, ct);
+    }
+
     /// <summary>Returns available daemon profiles.</summary>
     public async Task<IReadOnlyList<ProfileSummaryDto>> GetProfilesAsync(CancellationToken ct = default)
     {

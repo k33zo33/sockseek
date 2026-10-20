@@ -132,6 +132,7 @@ public static class ServerHost
         builder.Services.AddSingleton<PlaylistWorkflowRecoveryService>();
         builder.Services.AddSingleton<SoulseekWishlistScheduler>();
         builder.Services.AddSingleton<SoulseekPrivilegeService>();
+        builder.Services.AddSingleton<SoulseekChatService>();
         if (!IsOpenApiGenerationProcess())
         {
             builder.Services.AddHostedService<ServerDatabaseMigrationHostedService>();
@@ -146,6 +147,7 @@ public static class ServerHost
         _ = app.Services.GetRequiredService<ServerEventBroadcaster>();
         _ = app.Services.GetRequiredService<ServerActivityLogReporter>();
         _ = app.Services.GetRequiredService<SoulseekPrivilegeService>();
+        _ = app.Services.GetRequiredService<SoulseekChatService>();
 
         app.Use(async (context, next) =>
         {
@@ -372,6 +374,35 @@ public static class ServerHost
         string code,
         string message)
         => Results.BadRequest(new AppErrorDto(code, message, GetCorrelationId(context)));
+
+    private static async Task<IResult> ExecuteSoulseekChatActionAsync(
+        HttpContext context,
+        Func<Task<SoulseekChatSnapshotDto>> action)
+    {
+        try
+        {
+            return Results.Ok(await action());
+        }
+        catch (Exception ex) when (ex is SoulseekRuntimeUnavailableException or SoulseekConnectionUnavailableException)
+        {
+            return Results.Json(
+                new AppErrorDto(
+                    "soulseek_unavailable",
+                    "Soulseek is not connected. Wait for reconnection, then retry.",
+                    GetCorrelationId(context)),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadAppRequest(context, "invalid_chat_request", ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(
+                new AppErrorDto("chat_operation_conflict", ex.Message, GetCorrelationId(context)),
+                statusCode: StatusCodes.Status409Conflict);
+        }
+    }
 
     private static async Task<PlaylistDownloadOptionsRequestDto> ReadPlaylistDownloadOptionsAsync(
         HttpContext context,
@@ -1686,6 +1717,114 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound)
             .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/soulseek/chat", (SoulseekChatService chat) =>
+            Results.Ok(chat.GetSnapshot()))
+            .WithTags("Soulseek")
+            .WithSummary("Returns bounded in-memory private, room and public Soulseek chat state.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/rooms/refresh", (
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(context, () => chat.RefreshRoomsAsync(ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Refreshes the bounded Soulseek room list explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/rooms/join", (
+            JoinSoulseekChatRoomRequestDto request,
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(
+                    context,
+                    () => chat.JoinRoomAsync(request.RoomName, request.IsPrivate, ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Joins one Soulseek chat room explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/rooms/leave", (
+            LeaveSoulseekChatRoomRequestDto request,
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(context, () => chat.LeaveRoomAsync(request.RoomName, ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Leaves one joined Soulseek chat room explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/private/messages", (
+            SendSoulseekPrivateChatMessageRequestDto request,
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(
+                    context,
+                    () => chat.SendPrivateMessageAsync(request.Username, request.Message, ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Sends one private Soulseek chat message explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/rooms/messages", (
+            SendSoulseekRoomChatMessageRequestDto request,
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(
+                    context,
+                    () => chat.SendRoomMessageAsync(request.RoomName, request.Message, ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Sends one message to a joined Soulseek room explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/public/start", (
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(context, () => chat.SetPublicChatEnabledAsync(true, ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Starts receiving Soulseek public chat messages explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/chat/public/stop", (
+            HttpContext context,
+            SoulseekChatService chat,
+            CancellationToken ct) =>
+                ExecuteSoulseekChatActionAsync(context, () => chat.SetPublicChatEnabledAsync(false, ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Stops receiving Soulseek public chat messages explicitly.")
+            .Produces<SoulseekChatSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status503ServiceUnavailable)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 

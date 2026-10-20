@@ -69,7 +69,6 @@ public class SoulseekClientManagerTests
         mockClient.RaisePrivateMessage(7, new DateTime(2026, 10, 19, 10, 0, 0, DateTimeKind.Utc), " sender ", " private ", true);
         mockClient.RaiseRoomMessage(" music ", " member ", " room event ");
         mockClient.RaisePublicChatMessage(" ambient ", " broadcaster ", " public event ");
-        await manager.AcknowledgePrivateChatMessageAsync(7);
         await manager.LeaveChatRoomAsync(" music ");
         await manager.StopPublicChatAsync();
 

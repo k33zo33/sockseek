@@ -94,6 +94,11 @@ public sealed record SoulseekPrivilegeStateChangedEventDto(
     Guid NotificationId,
     bool RequiresAcknowledgement);
 
+/// <summary>Invalidates the chat snapshot without placing message or username content in SignalR.</summary>
+public sealed record SoulseekChatStateChangedEventDto(
+    long Revision,
+    string Reason);
+
 /// <summary>
 /// Diagnostic event emitted when an exception-backed failure has detailed context.
 /// </summary>

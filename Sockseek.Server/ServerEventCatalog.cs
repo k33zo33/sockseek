@@ -17,6 +17,7 @@ public static class ServerEventCatalog
             State("workflow.update-batch", nameof(WorkflowUpdateBatchDto)),
             State("search.updated", nameof(SearchUpdatedDto)),
             State("soulseek.privilege-state.changed", nameof(SoulseekPrivilegeStateChangedEventDto)),
+            State("soulseek.chat-state.changed", nameof(SoulseekChatStateChangedEventDto)),
             Diagnostic("diagnostic.error", nameof(DiagnosticErrorEventDto)),
             Progress("download.progress", nameof(DownloadProgressEventDto)),
             Activity("extraction.started", nameof(ExtractionStartedEventDto)),

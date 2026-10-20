@@ -53,6 +53,31 @@ public class ServerEventCatalogTests
     }
 
     [TestMethod]
+    public void ChatStateChangedEvent_RehydratesWithoutMessageOrUsernamePayload()
+    {
+        var payload = JsonSerializer.SerializeToElement(
+            new SoulseekChatStateChangedEventDto(9, "message-received"),
+            SockseekApiJson.CreateSerializerOptions());
+        var envelope = new ServerEventEnvelopeDto(
+            9,
+            "soulseek.chat-state.changed",
+            DateTimeOffset.UtcNow,
+            ServerEventCatalog.StateCategory,
+            SnapshotInvalidation: true,
+            WorkflowId: null,
+            payload);
+
+        var converted = ServerEventPayloadConverter.RehydrateEnvelope(envelope);
+
+        Assert.IsInstanceOfType<SoulseekChatStateChangedEventDto>(converted.Payload);
+        var changed = (SoulseekChatStateChangedEventDto)converted.Payload;
+        Assert.AreEqual(9, changed.Revision);
+        Assert.AreEqual("message-received", changed.Reason);
+        Assert.IsFalse(payload.TryGetProperty("message", out _));
+        Assert.IsFalse(payload.TryGetProperty("username", out _));
+    }
+
+    [TestMethod]
     public void Describe_ClassifiesDownloadProgressSeparatelyFromState()
     {
         var descriptor = ServerEventCatalog.Describe("download.progress");

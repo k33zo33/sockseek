@@ -615,3 +615,32 @@ public sealed record SoulseekPrivilegeNotificationDto(
     string Username,
     DateTimeOffset ReceivedAtUtc,
     bool RequiresAcknowledgement);
+
+/// <summary>Bounded in-memory Soulseek chat state. Chat content is never persisted.</summary>
+public sealed record SoulseekChatSnapshotDto(
+    long Revision,
+    bool PublicChatEnabled,
+    IReadOnlyList<SoulseekChatRoomDto> AvailableRooms,
+    IReadOnlyList<SoulseekJoinedChatRoomDto> JoinedRooms,
+    IReadOnlyList<SoulseekChatMessageDto> Messages);
+
+public sealed record SoulseekChatRoomDto(
+    string Name,
+    int UserCount,
+    bool IsPrivate);
+
+public sealed record SoulseekJoinedChatRoomDto(
+    string Name,
+    bool IsPrivate,
+    IReadOnlyList<string> Usernames);
+
+/// <summary>One locally identified bounded chat message without any protocol identifier.</summary>
+public sealed record SoulseekChatMessageDto(
+    Guid Id,
+    string Kind,
+    string? RoomName,
+    string Username,
+    string Message,
+    DateTimeOffset OccurredAtUtc,
+    bool IsOutgoing,
+    bool Replayed);

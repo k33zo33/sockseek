@@ -302,3 +302,21 @@ public sealed record SaveSoulseekWishlistEntryRequestDto(
     string Query,
     int IntervalMinutes = 30,
     bool Enabled = true);
+
+/// <summary>Joins one public or private Soulseek chat room explicitly.</summary>
+public sealed record JoinSoulseekChatRoomRequestDto(
+    string RoomName,
+    bool IsPrivate = false);
+
+/// <summary>Leaves one joined Soulseek chat room explicitly.</summary>
+public sealed record LeaveSoulseekChatRoomRequestDto(string RoomName);
+
+/// <summary>Sends one private Soulseek chat message.</summary>
+public sealed record SendSoulseekPrivateChatMessageRequestDto(
+    string Username,
+    string Message);
+
+/// <summary>Sends one message to a joined Soulseek room.</summary>
+public sealed record SendSoulseekRoomChatMessageRequestDto(
+    string RoomName,
+    string Message);

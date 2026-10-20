@@ -16,9 +16,9 @@ engineering inventory, not a public-beta compliance decision.
 | Download | `DownloadAsync`, `EnqueueDownloadAsync`, download/transfer events | Implemented through existing Core jobs and server adapter. | Existing Core/Server boundary. |
 | Folder browse | `BrowseAsync`, `GetDirectoryContentsAsync` | Remote browse is implemented. No local share browse response is configured. | Existing remote flow; sharing resolvers in Core. |
 | Upload / sharing | `SearchResponseResolver`, `BrowseResponseResolver`, `DirectoryContentsResolver`, `EnqueueDownload`, `PlaceInQueueResolver`, `UploadAsync`, `EnqueueUploadAsync`, `Uploads`, transfer events | Only caller-supplied advertised counts are set during login. No approved roots, resolvers or upload visibility exist. | Infrastructure path/index policy; Core resolver and transfer adapter; Server API/events; Desktop controls. |
-| Private chat | `PrivateMessageReceived`, `SendPrivateMessageAsync`, `AcknowledgePrivateMessageAsync` | Core event/command mapping and deterministic mock parity are implemented with bounded input and explicit receipt acknowledgement; Server/API/Desktop remain. Package auto-acknowledgement is disabled. | Core event adapter and commands; bounded Server memory; Desktop conversation UI. |
-| Room chat | `GetRoomListAsync`, `JoinRoomAsync`, `LeaveRoomAsync`, `SendRoomMessageAsync`, room message/member/ticker events | Core list/join/leave/send/event mapping and deterministic mock parity are implemented with bounded room/member snapshots; Server/API/Desktop remain. Private-room membership/moderation methods are also available but not required for the initial chat workflow. | Core event adapter and commands; bounded Server state; Desktop room UI. |
-| Public chat | `StartPublicChatAsync`, `StopPublicChatAsync`, `PublicChatMessageReceived` | Core receive opt-in/event mapping and deterministic mock parity are implemented; Server/API/Desktop remain. | Core adapter and explicit Desktop opt-in. |
+| Private chat | `PrivateMessageReceived`, `SendPrivateMessageAsync`, `AcknowledgePrivateMessageAsync` | Core and daemon/API mapping are implemented with bounded input/state, replay dedupe, explicit adapter receipt acknowledgement and content-free invalidation events. Package auto-acknowledgement is disabled. Desktop and live smoke remain. | Core event adapter and commands; bounded Server memory; Desktop conversation UI. |
+| Room chat | `GetRoomListAsync`, `JoinRoomAsync`, `LeaveRoomAsync`, `SendRoomMessageAsync`, room message/member/ticker events | Core and daemon/API list/join/leave/send/event mapping are implemented with bounded room/member snapshots, 20-room joined intent and reconnect rejoin. Desktop and live smoke remain. Private-room membership/moderation methods are available but not required for the initial chat workflow. | Core event adapter and commands; bounded Server state; Desktop room UI. |
+| Public chat | `StartPublicChatAsync`, `StopPublicChatAsync`, `PublicChatMessageReceived` | Core and daemon/API receive opt-in/event mapping are implemented with reconnect restoration and bounded state. Desktop and live smoke remain. | Core adapter and explicit Desktop opt-in. |
 | Privileges | `GetPrivilegesAsync`, `GetUserPrivilegedAsync`, `GrantUserPrivilegesAsync`, `PrivilegedUserListReceived`, `PrivilegeNotificationReceived`, `AcknowledgePrivilegeNotificationAsync` | Core, daemon/API and Desktop status/notification recognition plus explicit acknowledgement are implemented. Runtime state is bounded, username-free SignalR invalidations reload the authoritative HTTP snapshot and package auto-acknowledgement is disabled. Redacted live smoke remains. | Core adapter; Server status/notification state; Desktop recognition and acknowledgement. |
 
 ## Sharing resolver contract
@@ -46,8 +46,9 @@ snapshot used by the resolvers.
 - Maximum concurrent uploads defaults to `10`; Sockseek must expose a conservative
   bounded setting before enabling shares.
 - Private messages and privilege notifications are automatically acknowledged by
-  default. Sockseek must disable the relevant auto-acknowledgement when manual
-  acknowledgement is part of the visible workflow.
+  default. Sockseek disables both package defaults: the Core adapter acknowledges
+  private-message receipt after local handoff, while privilege acknowledgement is
+  an explicit visible action.
 - Private-room invitations default to disabled and must remain explicit opt-in.
 - Incoming search deduplication defaults to enabled and should remain enabled.
 - Event dispatch is synchronous by default. Event handlers must remain short and
@@ -60,7 +61,8 @@ snapshot used by the resolvers.
   the scheduler must use a bounded interval and survive daemon restarts.
 - Chat events can be replayed by the server (`PrivateMessageReceivedEventArgs.Replayed`).
   Deduplication uses the server message id where available. Message text is not
-  written to logs or diagnostics.
+  written to logs, diagnostics or persistence; only the latest 500 messages remain
+  in memory.
 - Event subscriptions must be attached once per client instance and remain valid
   across reconnects. Commands must wait for `SoulseekClientManager` readiness.
 - Upload state comes from `Uploads` and transfer state/progress events. Retained

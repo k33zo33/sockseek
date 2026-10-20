@@ -31,6 +31,10 @@ public sealed class EngineSupervisor
 
     public event Action<DownloadEngine>? EngineCreated;
     public event EventHandler<SoulseekPrivilegeNotificationEventArgs>? PrivilegeNotificationReceived;
+    public event EventHandler<SoulseekPrivateChatMessageEventArgs>? PrivateChatMessageReceived;
+    public event EventHandler<SoulseekRoomChatMessageEventArgs>? RoomChatMessageReceived;
+    public event EventHandler<SoulseekPublicChatMessageEventArgs>? PublicChatMessageReceived;
+    public event EventHandler? SoulseekSessionReady;
 
     public DateTimeOffset StartedAtUtc { get; } = DateTimeOffset.UtcNow;
     public EngineStateStore StateStore { get; }
@@ -107,6 +111,10 @@ public sealed class EngineSupervisor
                         currentClientManager = null;
                 }
                 clientManager.PrivilegeNotificationReceived -= OnPrivilegeNotificationReceived;
+                clientManager.PrivateChatMessageReceived -= OnPrivateChatMessageReceived;
+                clientManager.RoomChatMessageReceived -= OnRoomChatMessageReceived;
+                clientManager.PublicChatMessageReceived -= OnPublicChatMessageReceived;
+                clientManager.SessionReady -= OnSoulseekSessionReady;
                 await engine.DisposeAsync();
                 clientManager.Dispose();
             }
@@ -738,10 +746,49 @@ public sealed class EngineSupervisor
             privilegeNotificationId,
             cancellationToken);
 
+    public Task<IReadOnlyList<SoulseekChatRoomInfo>> GetChatRoomsAsync(CancellationToken cancellationToken)
+        => GetCurrentClientManager().GetChatRoomsAsync(cancellationToken);
+
+    public Task<SoulseekJoinedRoom> JoinChatRoomAsync(
+        string roomName,
+        bool isPrivate,
+        CancellationToken cancellationToken)
+        => GetCurrentClientManager().JoinChatRoomAsync(roomName, isPrivate, cancellationToken);
+
+    public Task LeaveChatRoomAsync(string roomName, CancellationToken cancellationToken)
+        => GetCurrentClientManager().LeaveChatRoomAsync(roomName, cancellationToken);
+
+    public Task SendPrivateChatMessageAsync(
+        string username,
+        string message,
+        CancellationToken cancellationToken)
+        => GetCurrentClientManager().SendPrivateChatMessageAsync(username, message, cancellationToken);
+
+    public Task AcknowledgePrivateChatMessageAsync(
+        int privateMessageId,
+        CancellationToken cancellationToken)
+        => GetCurrentClientManager().AcknowledgePrivateChatMessageAsync(privateMessageId, cancellationToken);
+
+    public Task SendRoomChatMessageAsync(
+        string roomName,
+        string message,
+        CancellationToken cancellationToken)
+        => GetCurrentClientManager().SendRoomChatMessageAsync(roomName, message, cancellationToken);
+
+    public Task StartPublicChatAsync(CancellationToken cancellationToken)
+        => GetCurrentClientManager().StartPublicChatAsync(cancellationToken);
+
+    public Task StopPublicChatAsync(CancellationToken cancellationToken)
+        => GetCurrentClientManager().StopPublicChatAsync(cancellationToken);
+
     private (DownloadEngine Engine, SoulseekClientManager ClientManager) CreateEngine()
     {
         var clientManager = new SoulseekClientManager(engineSettings, options.ClientFactory?.Invoke(engineSettings));
         clientManager.PrivilegeNotificationReceived += OnPrivilegeNotificationReceived;
+        clientManager.PrivateChatMessageReceived += OnPrivateChatMessageReceived;
+        clientManager.RoomChatMessageReceived += OnRoomChatMessageReceived;
+        clientManager.PublicChatMessageReceived += OnPublicChatMessageReceived;
+        clientManager.SessionReady += OnSoulseekSessionReady;
         var engine = new DownloadEngine(engineSettings, clientManager, jobSettingsResolver);
         StateStore.AttachEngine(engine);
         lock (engineGate)
@@ -766,6 +813,24 @@ public sealed class EngineSupervisor
         object? sender,
         SoulseekPrivilegeNotificationEventArgs notification)
         => PrivilegeNotificationReceived?.Invoke(this, notification);
+
+    private void OnPrivateChatMessageReceived(
+        object? sender,
+        SoulseekPrivateChatMessageEventArgs message)
+        => PrivateChatMessageReceived?.Invoke(this, message);
+
+    private void OnRoomChatMessageReceived(
+        object? sender,
+        SoulseekRoomChatMessageEventArgs message)
+        => RoomChatMessageReceived?.Invoke(this, message);
+
+    private void OnPublicChatMessageReceived(
+        object? sender,
+        SoulseekPublicChatMessageEventArgs message)
+        => PublicChatMessageReceived?.Invoke(this, message);
+
+    private void OnSoulseekSessionReady(object? sender, EventArgs args)
+        => SoulseekSessionReady?.Invoke(this, EventArgs.Empty);
 
     private void OnStateStoreWorkflowPruned(Guid workflowId)
     {
