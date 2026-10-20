@@ -303,6 +303,12 @@ public sealed record SaveSoulseekWishlistEntryRequestDto(
     int IntervalMinutes = 30,
     bool Enabled = true);
 
+/// <summary>Creates or updates one explicitly approved local Soulseek share root.</summary>
+public sealed record SaveSoulseekShareRootRequestDto(
+    string Path,
+    string VirtualName,
+    bool Enabled = true);
+
 /// <summary>Joins one public or private Soulseek chat room explicitly.</summary>
 public sealed record JoinSoulseekChatRoomRequestDto(
     string RoomName,

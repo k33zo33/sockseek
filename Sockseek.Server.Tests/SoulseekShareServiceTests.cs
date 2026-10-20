@@ -40,6 +40,15 @@ public sealed class SoulseekShareServiceTests
         Assert.IsTrue(fixture.ShareService.GetBuildResult().Roots.Single().Included);
         Assert.AreEqual(1, changed);
 
+        fixture.ShareService.Invalidate();
+        Assert.AreEqual(0, fixture.ShareService.GetSnapshot().FileCount);
+        await Assert.ThrowsExceptionAsync<FileNotFoundException>(() =>
+            fixture.ShareService.OpenReadAsync("@@Music\\Artist\\Album\\track.mp3", 0));
+
+        first = await fixture.ShareService.RebuildAsync();
+        Assert.AreEqual(3, first.Revision);
+        Assert.AreEqual(1, first.FileCount);
+
         await using (var stream = await fixture.ShareService.OpenReadAsync(
             "@@Music/Artist/Album/track.mp3",
             offset: 2))
@@ -58,10 +67,10 @@ public sealed class SoulseekShareServiceTests
 
         var second = await fixture.ShareService.RebuildAsync();
 
-        Assert.AreEqual(2, second.Revision);
+        Assert.AreEqual(4, second.Revision);
         Assert.AreEqual(0, second.DirectoryCount);
         Assert.AreEqual(0, second.FileCount);
-        Assert.AreEqual(2, changed);
+        Assert.AreEqual(4, changed);
         Assert.IsTrue(File.Exists(audioPath), "Removing a share root must never delete local audio.");
         await Assert.ThrowsExceptionAsync<FileNotFoundException>(() =>
             fixture.ShareService.OpenReadAsync("@@Music\\Artist\\Album\\track.mp3", 0));

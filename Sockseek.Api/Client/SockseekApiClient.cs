@@ -543,6 +543,53 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SoulseekWishlistEntryDto>(response, ct);
     }
 
+    public async Task<SoulseekSharingSnapshotDto> GetSoulseekSharingAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/soulseek/sharing", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekSharingSnapshotDto>(response, ct);
+    }
+
+    public Task<SoulseekSharingSnapshotDto> CreateSoulseekShareRootAsync(
+        SaveSoulseekShareRootRequestDto request,
+        CancellationToken ct = default)
+        => PostRequiredAsync<SoulseekSharingSnapshotDto, SaveSoulseekShareRootRequestDto>(
+            "api/v1/soulseek/sharing/roots",
+            request,
+            ct);
+
+    public async Task<SoulseekSharingSnapshotDto?> UpdateSoulseekShareRootAsync(
+        Guid id,
+        SaveSoulseekShareRootRequestDto request,
+        CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync(
+            $"api/v1/soulseek/sharing/roots/{id}",
+            request,
+            jsonOptions,
+            ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekSharingSnapshotDto>(response, ct);
+    }
+
+    public async Task<bool> DeleteSoulseekShareRootAsync(Guid id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/soulseek/sharing/roots/{id}", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(response, ct);
+        return true;
+    }
+
+    public async Task<SoulseekSharingSnapshotDto> RebuildSoulseekSharingAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/v1/soulseek/sharing/rebuild", null, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekSharingSnapshotDto>(response, ct);
+    }
+
     public async Task<SoulseekPrivilegeStatusDto> GetSoulseekPrivilegeStatusAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/soulseek/privileges", ct);

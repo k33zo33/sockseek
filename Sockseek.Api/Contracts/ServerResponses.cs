@@ -603,6 +603,26 @@ public sealed record SoulseekWishlistEntryDto(
     int? LastResultCount,
     string? LastErrorCode);
 
+/// <summary>Current configured Soulseek share roots and active immutable snapshot counts.</summary>
+public sealed record SoulseekSharingSnapshotDto(
+    long Revision,
+    int DirectoryCount,
+    int FileCount,
+    IReadOnlyList<SoulseekShareRootDto> Roots);
+
+/// <summary>One explicitly configured local share root and its latest indexing status.</summary>
+public sealed record SoulseekShareRootDto(
+    Guid Id,
+    string Path,
+    string VirtualName,
+    bool Enabled,
+    bool Included,
+    string StatusCode,
+    int DirectoryCount,
+    int FileCount,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
 /// <summary>Current Soulseek privilege status and bounded pending notifications.</summary>
 public sealed record SoulseekPrivilegeStatusDto(
     int RemainingDays,

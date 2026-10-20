@@ -48,6 +48,24 @@ public sealed class SoulseekShareService : ISoulseekShareSource, IDisposable
             return current;
     }
 
+    internal (SoulseekShareSourceSnapshot Snapshot, SoulseekShareBuildResult BuildResult) GetState()
+    {
+        lock (stateLock)
+            return (GetSnapshotLocked(), current);
+    }
+
+    internal void Invalidate()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        lock (stateLock)
+        {
+            current = new SoulseekShareBuildResult(SoulseekShareSnapshot.Empty, []);
+            revision++;
+        }
+
+        SnapshotChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public async Task<SoulseekShareSourceSnapshot> RebuildAsync(
         CancellationToken cancellationToken = default)
     {

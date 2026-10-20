@@ -40,6 +40,26 @@ and exposes opaque local notification ids instead of protocol ids. The global
 `soulseek.privilege-state.changed` SignalR event invalidates the HTTP snapshot but
 does not include the notifying username.
 
+## Soulseek sharing
+
+The authenticated versioned API exposes explicit local share-root configuration
+and the active immutable share snapshot:
+
+- `GET /api/v1/soulseek/sharing`
+- `POST /api/v1/soulseek/sharing/roots`
+- `PUT /api/v1/soulseek/sharing/roots/{id}`
+- `DELETE /api/v1/soulseek/sharing/roots/{id}`
+- `POST /api/v1/soulseek/sharing/rebuild`
+
+Share roots are separate from library/download roots and are never inferred. The
+snapshot contains supported completed audio files only, exposes stable virtual
+Soulseek paths to peers and reports per-root `ready`, `disabled` or stable failure
+status codes to the local Desktop client. A successful configuration mutation
+invalidates the previous snapshot before rebuilding, so cancellation or scan
+failure cannot leave a removed/disabled root served. Deleting configuration never
+deletes physical audio files. Local paths are returned only by this protected
+loopback API and never appear in Soulseek responses or SignalR events.
+
 ## Soulseek chat
 
 The authenticated versioned API exposes bounded in-memory private, room and public

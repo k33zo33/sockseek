@@ -86,6 +86,7 @@ public static class ServerHost
         });
         builder.Services.AddSingleton<SoulseekShareSnapshotBuilder>();
         builder.Services.AddSingleton<SoulseekShareService>();
+        builder.Services.AddSingleton<SoulseekShareEndpointService>();
         builder.Services.AddSingleton<ISoulseekShareSource>(sp => sp.GetRequiredService<SoulseekShareService>());
         builder.Services.AddSingleton<EngineSupervisor>();
         builder.Services.AddSingleton(sp => sp.GetRequiredService<EngineSupervisor>().StateStore);
@@ -404,6 +405,36 @@ public static class ServerHost
         {
             return Results.Json(
                 new AppErrorDto("chat_operation_conflict", ex.Message, GetCorrelationId(context)),
+                statusCode: StatusCodes.Status409Conflict);
+        }
+    }
+
+    private static async Task<IResult> SaveSoulseekShareRootAsync(
+        HttpContext context,
+        SoulseekShareEndpointService sharing,
+        Guid? id,
+        SaveSoulseekShareRootRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Results.Ok(await sharing.SaveAsync(id, request, cancellationToken));
+        }
+        catch (KeyNotFoundException)
+        {
+            return Results.NotFound();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadAppRequest(context, "invalid_share_root", ex.Message);
+        }
+        catch (DbUpdateException)
+        {
+            return Results.Json(
+                new AppErrorDto(
+                    "share_root_conflict",
+                    "The share root conflicts with an existing path or virtual name.",
+                    GetCorrelationId(context)),
                 statusCode: StatusCodes.Status409Conflict);
         }
     }
@@ -1657,6 +1688,68 @@ public static class ServerHost
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
             .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/soulseek/sharing", async (
+            SoulseekShareEndpointService sharing,
+            CancellationToken ct) =>
+            Results.Ok(await sharing.GetAsync(ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Returns explicitly configured Soulseek share roots and active snapshot counts.")
+            .Produces<SoulseekSharingSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/sharing/roots", (
+            SaveSoulseekShareRootRequestDto request,
+            HttpContext context,
+            SoulseekShareEndpointService sharing,
+            CancellationToken ct) =>
+            SaveSoulseekShareRootAsync(context, sharing, null, request, ct))
+            .WithTags("Soulseek")
+            .WithSummary("Adds one explicit local Soulseek share root and rebuilds the active snapshot.")
+            .Produces<SoulseekSharingSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPut("/api/v1/soulseek/sharing/roots/{id:guid}", (
+            Guid id,
+            SaveSoulseekShareRootRequestDto request,
+            HttpContext context,
+            SoulseekShareEndpointService sharing,
+            CancellationToken ct) =>
+            SaveSoulseekShareRootAsync(context, sharing, id, request, ct))
+            .WithTags("Soulseek")
+            .WithSummary("Updates one explicit Soulseek share root and rebuilds the active snapshot.")
+            .Produces<SoulseekSharingSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapDelete("/api/v1/soulseek/sharing/roots/{id:guid}", async (
+            Guid id,
+            SoulseekShareEndpointService sharing,
+            CancellationToken ct) =>
+            await sharing.RemoveAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .WithTags("Soulseek")
+            .WithSummary("Removes one share-root configuration without deleting physical audio files.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPost("/api/v1/soulseek/sharing/rebuild", async (
+            SoulseekShareEndpointService sharing,
+            CancellationToken ct) =>
+            Results.Ok(await sharing.RebuildAsync(ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Rebuilds the immutable Soulseek share snapshot from configured roots.")
+            .Produces<SoulseekSharingSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
         app.MapGet("/api/v1/soulseek/privileges", async (

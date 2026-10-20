@@ -21,6 +21,11 @@ See also the release-focused [threat model](threat-model.md).
 - Remote share paths are normalized virtual paths and never interpreted as local
   paths. Opening a shared file revalidates canonical containment, every directory
   segment, reparse attributes and snapshot size before returning a read stream.
+- Share-root CRUD and rebuild routes require the local session token. Local root
+  paths are available only through that protected loopback snapshot; peer responses
+  contain virtual paths only. A successful root mutation invalidates the previous
+  snapshot before rebuild so cancellation fails closed, and removing configuration
+  never removes physical audio.
 
 ## 15. Sigurnost, privatnost i operativna pravila
 
