@@ -143,6 +143,42 @@ public sealed class ReleaseArtifactValidatorTests
         CollectionAssert.Contains(result.Errors.ToArray(), "sbom.spdx.json must include at least one package.");
     }
 
+    [TestMethod]
+    public void ValidateLinux_WhenWindowsLibVlcPayloadIsPresent_ReturnsActionableError()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(Path.Combine(temp.Path, "Sockseek.Desktop"), "desktop");
+        Directory.CreateDirectory(Path.Combine(temp.Path, "daemon"));
+        File.WriteAllText(Path.Combine(temp.Path, "daemon", "Sockseek.Server"), "daemon");
+        WriteRequiredTextArtifacts(temp.Path);
+        File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LinuxInstallerFileName), "install");
+        File.WriteAllText(Path.Combine(temp.Path, ReleaseArtifactValidator.LinuxUninstallerFileName), "uninstall");
+        WriteValidSbom(temp.Path);
+        File.WriteAllText(
+            Path.Combine(temp.Path, ReleaseArtifactValidator.MetadataFileName),
+            """
+            {
+              "version": "3.0.5",
+              "commit": "abc123",
+              "sourceUrl": "https://github.com/k33zo33/sockseek",
+              "license": "AGPL-3.0"
+            }
+            """);
+        string windowsPayload = Path.Combine(temp.Path, "daemon", "libvlc", "win-x64", "libvlc.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(windowsPayload)!);
+        File.WriteAllText(windowsPayload, "windows native payload");
+
+        var result = ReleaseArtifactValidator.ValidateLinux(
+            temp.Path,
+            "Sockseek.Desktop",
+            Path.Combine("daemon", "Sockseek.Server"));
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(error => error.Contains(
+            "Linux release artifact must not include the Windows LibVLC native payload",
+            StringComparison.Ordinal)));
+    }
+
     private static void WriteValidSbom(string directory)
     {
         File.WriteAllText(

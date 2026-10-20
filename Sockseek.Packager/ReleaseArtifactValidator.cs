@@ -30,12 +30,21 @@ public static class ReleaseArtifactValidator
         string stagingDirectory,
         string desktopExecutableName,
         string daemonExecutableName)
-        => ValidateCore(
+    {
+        var result = ValidateCore(
             stagingDirectory,
             desktopExecutableName,
             daemonExecutableName,
             LinuxInstallerFileName,
             LinuxUninstallerFileName);
+
+        if (!Directory.Exists(result.StagingDirectory))
+            return result;
+
+        var errors = result.Errors.ToList();
+        ValidateNoWindowsLibVlcPayload(result.StagingDirectory, errors);
+        return new ReleaseArtifactValidationResult(result.StagingDirectory, errors);
+    }
 
     private static ReleaseArtifactValidationResult ValidateCore(
         string stagingDirectory,
@@ -189,6 +198,21 @@ public static class ReleaseArtifactValidator
             {
                 errors.Add($"{SbomFileName} must include at least one package.");
             }
+        }
+    }
+
+    private static void ValidateNoWindowsLibVlcPayload(string stagingDirectory, List<string> errors)
+    {
+        var unexpectedPath = Directory
+            .EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(stagingDirectory, path).Replace('\\', '/'))
+            .FirstOrDefault(path => path.StartsWith("libvlc/win-", StringComparison.OrdinalIgnoreCase)
+                || path.Contains("/libvlc/win-", StringComparison.OrdinalIgnoreCase));
+
+        if (unexpectedPath is not null)
+        {
+            errors.Add(
+                $"Linux release artifact must not include the Windows LibVLC native payload: {unexpectedPath}");
         }
     }
 
