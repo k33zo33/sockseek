@@ -103,7 +103,7 @@ namespace Tests.Cancellation
         {
             var listFile  = Path.GetTempFileName();
             var (engine, outputDir) = CreateEngine(
-                new ClientTests.MockSoulseekClient(TestHelpers.CreateTestIndex(), searchDelayMs: SearchDelay),
+                new ClientTests.MockSoulseekClient(TestHelpers.CreateTestIndex(), searchDelayMs: 5_000),
                 listFile,
                 new[] { "--input-type", "list" });
 
@@ -135,8 +135,12 @@ namespace Tests.Cancellation
                 // Cancel the list — both songs' CTSes are linked to it.
                 rootList.Cancel(JobCancellationSource.UserRequestedJob);
 
-                // RunAsync should abort well before the search delay expires.
-                var completed = await Task.WhenAny(runTask, Task.Delay(SearchDelay / 2)) == runTask;
+                // RunAsync should abort well before the five-second simulated search expires.
+                // Two seconds leaves room for a loaded parallel test host without weakening
+                // the assertion that linked cancellation interrupted the search delay.
+                var completed = await Task.WhenAny(runTask, Task.Delay(TimeSpan.FromSeconds(2))) == runTask;
+                if (!completed)
+                    engine.Cancel();
                 await IgnoreCancellation(runTask);
 
                 Assert.IsTrue(completed,
