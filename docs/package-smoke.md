@@ -1,12 +1,27 @@
 # Package smoke
 
-Use the Sprint 15 helper before publishing a Windows release candidate. It assumes a clean worktree and writes ignored artifacts under `.tmp\sprint15-package-smoke-<commit>\`.
+Use the Sprint 16 helper before publishing a Windows release candidate. It requires a clean worktree and writes ignored artifacts under `.tmp\sprint16-windows-package-smoke-<commit>\`.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_windows_package_smoke.ps1 -Force
 ```
 
-The helper runs the same publish, SBOM, staging and archive steps shown below. Keep the console output and generated SHA256 manifest with the release-candidate evidence.
+The helper records the full checked-out commit and rejects a dirty worktree or a
+different requested commit. It runs the same publish, SBOM, staging and archive
+steps shown below, then extracts the exact ZIP and verifies:
+
+- the packaged daemon returns a healthy loopback `/health` response;
+- the protected `/api/v1/system/info` endpoint rejects an anonymous request;
+- the daemon has no non-loopback TCP listener;
+- the packaged Desktop starts its packaged child daemon from the extracted archive;
+- the Desktop child daemon is healthy, protected and loopback-only; and
+- cleanup is limited to the exact smoke process IDs and isolated smoke data directories.
+
+The helper writes `package-smoke-evidence.json` with the full commit, archive hash,
+runtime, host Windows caption/version/build/architecture and passed runtime checks.
+Keep that file, the console output and generated SHA256 manifest with the
+release-candidate evidence. Host metadata is evidence, not a target-OS substitute:
+a run on Windows 10 does not satisfy the Windows 11 gate.
 
 Run the fast tester-instructions smoke when changing beta limitation, diagnostics, security or tester-instruction text:
 

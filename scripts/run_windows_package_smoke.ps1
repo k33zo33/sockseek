@@ -34,15 +34,195 @@ function Invoke-CheckedCommand {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($Commit)) {
-    $Commit = (& git rev-parse --short HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Commit)) {
-        throw "Unable to resolve the current Git commit. Pass -Commit explicitly."
+function Get-AvailableLoopbackPort {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+        $listener.Start()
+        return ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+    }
+    finally {
+        $listener.Stop()
     }
 }
 
+function Wait-ForHealth {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUrl,
+
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+
+        [int]$TimeoutSeconds = 90
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        $Process.Refresh()
+        if ($Process.HasExited) {
+            throw "Process $($Process.Id) exited with code $($Process.ExitCode) before $BaseUrl/health became ready."
+        }
+
+        try {
+            $response = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/health" -TimeoutSec 5
+            if ($response.StatusCode -eq 200 -and $response.Content -match '"status"\s*:\s*"ok"') {
+                return
+            }
+        }
+        catch {
+            if ([DateTimeOffset]::UtcNow -ge $deadline) {
+                throw
+            }
+        }
+
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    throw "Timed out waiting for $BaseUrl/health."
+}
+
+function Assert-ProtectedApiRejectsAnonymousRequest {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUrl
+    )
+
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/api/v1/system/info" -TimeoutSec 5
+        throw "Protected API unexpectedly returned HTTP $($response.StatusCode) without a session token."
+    }
+    catch {
+        $statusCode = $null
+        if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+        }
+
+        if ($statusCode -ne 401) {
+            throw
+        }
+    }
+}
+
+function Assert-ProcessListensOnlyOnLoopback {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$ProcessId
+    )
+
+    $listeners = @(Get-NetTCPConnection -State Listen -OwningProcess $ProcessId -ErrorAction Stop)
+    if ($listeners.Count -eq 0) {
+        throw "Process $ProcessId has no listening TCP endpoint."
+    }
+
+    $nonLoopback = @($listeners | Where-Object {
+        $_.LocalAddress -ne '127.0.0.1' -and $_.LocalAddress -ne '::1'
+    })
+    if ($nonLoopback.Count -gt 0) {
+        $addresses = ($nonLoopback | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" }) -join ', '
+        throw "Process $ProcessId exposed a non-loopback listener: $addresses"
+    }
+}
+
+function Stop-SmokeProcess {
+    param(
+        [System.Diagnostics.Process]$Process
+    )
+
+    if ($null -eq $Process) {
+        return
+    }
+
+    try {
+        $Process.Refresh()
+        if (-not $Process.HasExited) {
+            Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+            $Process.WaitForExit(10000) | Out-Null
+        }
+    }
+    finally {
+        $Process.Dispose()
+    }
+}
+
+function Wait-ForDesktopDaemon {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$DesktopProcess,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedDaemonPath,
+
+        [int]$TimeoutSeconds = 90
+    )
+
+    $expectedPath = [System.IO.Path]::GetFullPath($ExpectedDaemonPath)
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        $DesktopProcess.Refresh()
+        if ($DesktopProcess.HasExited) {
+            throw "Packaged Desktop exited with code $($DesktopProcess.ExitCode) before its daemon became ready."
+        }
+
+        $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $($DesktopProcess.Id)" -ErrorAction SilentlyContinue)
+        foreach ($child in $children) {
+            if ([string]::IsNullOrWhiteSpace($child.ExecutablePath) -or
+                (-not [System.IO.Path]::GetFullPath($child.ExecutablePath).Equals($expectedPath, [StringComparison]::OrdinalIgnoreCase))) {
+                continue
+            }
+
+            $listeners = @(Get-NetTCPConnection -State Listen -OwningProcess $child.ProcessId -ErrorAction SilentlyContinue |
+                Where-Object { $_.LocalAddress -eq '127.0.0.1' })
+            foreach ($listener in $listeners) {
+                $daemonProcess = Get-Process -Id $child.ProcessId -ErrorAction SilentlyContinue
+                if ($null -eq $daemonProcess) {
+                    continue
+                }
+
+                $baseUrl = "http://127.0.0.1:$($listener.LocalPort)"
+                try {
+                    Wait-ForHealth -BaseUrl $baseUrl -Process $daemonProcess -TimeoutSeconds 5
+                    return [PSCustomObject]@{
+                        Process = $daemonProcess
+                        BaseUrl = $baseUrl
+                    }
+                }
+                catch {
+                    $daemonProcess.Dispose()
+                }
+            }
+        }
+
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    throw 'Timed out waiting for the packaged Desktop child daemon on loopback.'
+}
+
+$headCommit = (& git rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($headCommit)) {
+    throw 'Unable to resolve the current Git commit.'
+}
+
+if ([string]::IsNullOrWhiteSpace($Commit)) {
+    $Commit = $headCommit
+}
+elseif (-not $headCommit.StartsWith($Commit, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Requested commit $Commit is not the checked-out commit $headCommit."
+}
+else {
+    $Commit = $headCommit
+}
+
+$workingTreeChanges = @(& git status --porcelain --untracked-files=all)
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to inspect the Git working tree.'
+}
+if ($workingTreeChanges.Count -gt 0) {
+    throw 'Windows package smoke requires a clean working tree so the artifact matches its recorded commit.'
+}
+
 if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
-    $ArtifactsRoot = ".tmp\sprint15-package-smoke-$Commit"
+    $ArtifactsRoot = ".tmp\sprint16-windows-package-smoke-$($headCommit.Substring(0, 7))"
 }
 
 $repoRoot = (Resolve-Path -LiteralPath '.').Path
@@ -66,6 +246,11 @@ $stageDir = Join-Path $artifactsRootFullPath "stage-$Runtime"
 $sbomPath = Join-Path $artifactsRootFullPath 'release-sbom.spdx.json'
 $archivePath = Join-Path $artifactsRootFullPath "Sockseek-$Runtime.zip"
 $manifestPath = Join-Path $artifactsRootFullPath "Sockseek-$Runtime.sha256"
+$extractedDir = Join-Path $artifactsRootFullPath "extracted-$Runtime"
+$runtimeDataDir = Join-Path $artifactsRootFullPath 'runtime-data'
+$daemonDataDir = Join-Path $runtimeDataDir 'daemon'
+$desktopDataDir = Join-Path $runtimeDataDir 'desktop'
+$evidencePath = Join-Path $artifactsRootFullPath 'package-smoke-evidence.json'
 $testerInstructionsFileName = 'closed-beta-tester-instructions.md'
 $testerInstructionsPath = Join-Path $stageDir $testerInstructionsFileName
 
@@ -189,8 +374,112 @@ if ($manifest -notmatch [Regex]::Escape($testerInstructionsFileName)) {
     throw "SHA256 manifest is missing $testerInstructionsFileName"
 }
 
+Write-Host 'Extracting and running the exact Windows release archive.'
+Expand-Archive -LiteralPath $archivePath -DestinationPath $extractedDir
+
+$extractedDesktopPath = Join-Path $extractedDir 'Sockseek.Desktop.exe'
+$extractedDaemonPath = Join-Path $extractedDir 'daemon\Sockseek.Server.exe'
+foreach ($requiredExecutable in @($extractedDesktopPath, $extractedDaemonPath)) {
+    if (-not (Test-Path -LiteralPath $requiredExecutable -PathType Leaf)) {
+        throw "Extracted archive is missing executable: $requiredExecutable"
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $daemonDataDir, $desktopDataDir | Out-Null
+$originalServerConfigDir = [Environment]::GetEnvironmentVariable('SockseekServer__ConfigDir', 'Process')
+$originalDesktopConfigDir = [Environment]::GetEnvironmentVariable('SOCKSEEK_DESKTOP_CONFIG_DIR', 'Process')
+$daemonProcess = $null
+$desktopProcess = $null
+$desktopDaemon = $null
+$directDaemonUrl = $null
+$desktopDaemonUrl = $null
+
+try {
+    [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $daemonDataDir, 'Process')
+    $port = Get-AvailableLoopbackPort
+    $directDaemonUrl = "http://127.0.0.1:$port"
+    $daemonStdout = Join-Path $artifactsRootFullPath 'daemon.stdout.log'
+    $daemonStderr = Join-Path $artifactsRootFullPath 'daemon.stderr.log'
+    $daemonProcess = Start-Process -FilePath $extractedDaemonPath `
+        -ArgumentList "--urls $directDaemonUrl" `
+        -WorkingDirectory (Split-Path -Parent $extractedDaemonPath) `
+        -RedirectStandardOutput $daemonStdout `
+        -RedirectStandardError $daemonStderr `
+        -WindowStyle Hidden `
+        -PassThru
+
+    Wait-ForHealth -BaseUrl $directDaemonUrl -Process $daemonProcess
+    Assert-ProcessListensOnlyOnLoopback -ProcessId $daemonProcess.Id
+    Assert-ProtectedApiRejectsAnonymousRequest -BaseUrl $directDaemonUrl
+    Write-Host "Exact packaged daemon is healthy and keeps /api/v1 protected at $directDaemonUrl."
+    Stop-SmokeProcess -Process $daemonProcess
+    $daemonProcess = $null
+
+    [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $null, 'Process')
+    [Environment]::SetEnvironmentVariable('SOCKSEEK_DESKTOP_CONFIG_DIR', $desktopDataDir, 'Process')
+    $desktopStdout = Join-Path $artifactsRootFullPath 'desktop.stdout.log'
+    $desktopStderr = Join-Path $artifactsRootFullPath 'desktop.stderr.log'
+    $escapedRepoRoot = $repoRoot.Replace('"', '\"')
+    $desktopProcess = Start-Process -FilePath $extractedDesktopPath `
+        -ArgumentList "--headless --workspace-root `"$escapedRepoRoot`"" `
+        -WorkingDirectory $extractedDir `
+        -RedirectStandardOutput $desktopStdout `
+        -RedirectStandardError $desktopStderr `
+        -WindowStyle Hidden `
+        -PassThru
+
+    $desktopDaemon = Wait-ForDesktopDaemon `
+        -DesktopProcess $desktopProcess `
+        -ExpectedDaemonPath $extractedDaemonPath
+    $desktopDaemonUrl = $desktopDaemon.BaseUrl
+    Assert-ProcessListensOnlyOnLoopback -ProcessId $desktopDaemon.Process.Id
+    Assert-ProtectedApiRejectsAnonymousRequest -BaseUrl $desktopDaemonUrl
+    Write-Host "Exact packaged Desktop launched its healthy protected daemon at $desktopDaemonUrl."
+}
+finally {
+    if ($null -ne $desktopDaemon) {
+        Stop-SmokeProcess -Process $desktopDaemon.Process
+    }
+    Stop-SmokeProcess -Process $desktopProcess
+    Stop-SmokeProcess -Process $daemonProcess
+    [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $originalServerConfigDir, 'Process')
+    [Environment]::SetEnvironmentVariable('SOCKSEEK_DESKTOP_CONFIG_DIR', $originalDesktopConfigDir, 'Process')
+}
+
+$archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$os = Get-CimInstance Win32_OperatingSystem
+$evidence = [ordered]@{
+    schemaVersion = 1
+    recordedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    commit = $headCommit
+    version = $Version
+    runtime = $Runtime
+    archive = [System.IO.Path]::GetFileName($archivePath)
+    archiveSha256 = $archiveHash
+    host = [ordered]@{
+        caption = $os.Caption
+        version = $os.Version
+        buildNumber = $os.BuildNumber
+        osArchitecture = $os.OSArchitecture
+    }
+    checks = [ordered]@{
+        archiveExtracted = $true
+        daemonHealth = $true
+        daemonProtectedApiRejectsAnonymous = $true
+        desktopStartedPackagedDaemon = $true
+        desktopDaemonHealth = $true
+        desktopDaemonProtectedApiRejectsAnonymous = $true
+        loopbackOnly = $true
+    }
+}
+$evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $evidencePath -Encoding UTF8
+
 Write-Host "Windows package smoke completed successfully."
+Write-Host "Commit: $headCommit"
+Write-Host "Host: $($os.Caption) $($os.Version) $($os.OSArchitecture)"
 Write-Host "Stage: $stageDir"
 Write-Host "Archive: $archivePath"
+Write-Host "Archive SHA256: $archiveHash"
 Write-Host "Manifest: $manifestPath"
 Write-Host "Tester instructions: $testerInstructionsPath"
+Write-Host "Evidence: $evidencePath"
