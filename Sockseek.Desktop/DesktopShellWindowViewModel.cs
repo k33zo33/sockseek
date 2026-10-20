@@ -11,6 +11,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? lastKnownHandshake;
     private DesktopSearchViewModel? search;
     private DesktopDaemonHandshake? searchHandshake;
+    private DesktopSoulseekChatViewModel? chat;
+    private DesktopDaemonHandshake? chatHandshake;
     private DesktopDownloadQueueViewModel? downloads;
     private DesktopDaemonHandshake? downloadsHandshake;
     private DesktopPlaylistsViewModel? playlists;
@@ -23,7 +25,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? aboutHandshake;
     private DesktopDaemonHandshake? playerHandshake;
     private readonly IDesktopFileOpener fileOpener;
-    private readonly Func<DesktopDaemonHandshake, Sockseek.Api.SockseekApiClient> searchApiClientFactory;
+    private readonly Func<DesktopDaemonHandshake, Sockseek.Api.SockseekApiClient> apiClientFactory;
     private bool isStartingDaemon;
     private bool disposed;
 
@@ -35,12 +37,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     internal DesktopShellWindowViewModel(
         IDesktopShellSession session,
         IDesktopFileOpener? fileOpener,
-        Func<DesktopDaemonHandshake, Sockseek.Api.SockseekApiClient> searchApiClientFactory)
+        Func<DesktopDaemonHandshake, Sockseek.Api.SockseekApiClient> apiClientFactory)
     {
         Session = session ?? throw new ArgumentNullException(nameof(session));
         this.fileOpener = fileOpener ?? new SystemDesktopFileOpener();
-        this.searchApiClientFactory = searchApiClientFactory
-            ?? throw new ArgumentNullException(nameof(searchApiClientFactory));
+        this.apiClientFactory = apiClientFactory
+            ?? throw new ArgumentNullException(nameof(apiClientFactory));
         navigationButtons = Session.Shell.Items
             .Select(item => new DesktopShellNavigationItemViewModel(
                 item,
@@ -65,7 +67,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         Session.EventsStateChanged += HandleEventsStateChanged;
         Session.ServerEventReceived += HandleServerEventReceived;
         Session.WorkflowUpdateBatchReceived += HandleWorkflowUpdateBatchReceived;
-        UpdateSearchViewModel();
+        UpdateBackendViewModels();
         UpdatePlayerBarConnection();
     }
 
@@ -241,6 +243,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public bool IsSearchWorkspaceVisible => CurrentSection == ShellSection.Search && IsSearchReady;
 
+    public bool IsChatWorkspaceVisible => CurrentSection == ShellSection.Chat && IsChatReady;
+
     public bool IsDownloadsQueueVisible => CurrentSection == ShellSection.Downloads && IsDownloadsReady;
 
     public bool IsPlaylistsVisible => CurrentSection == ShellSection.Playlists && IsPlaylistsReady;
@@ -294,7 +298,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             if (search is null && CurrentHandshake is not null)
             {
-                search = new DesktopSearchViewModel(searchApiClientFactory(CurrentHandshake));
+                search = new DesktopSearchViewModel(apiClientFactory(CurrentHandshake));
                 searchHandshake = CurrentHandshake;
             }
 
@@ -303,6 +307,23 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     }
 
     public bool IsSearchReady => Search is not null;
+
+    public DesktopSoulseekChatViewModel? Chat
+    {
+        get
+        {
+            if (chat is null && CurrentHandshake is not null)
+            {
+                chat = new DesktopSoulseekChatViewModel(apiClientFactory(CurrentHandshake));
+                chatHandshake = CurrentHandshake;
+                _ = chat.RefreshAsync();
+            }
+
+            return chat;
+        }
+    }
+
+    public bool IsChatReady => Chat is not null;
 
     public DesktopDownloadQueueViewModel? Downloads
     {
@@ -527,6 +548,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(CurrentPageHighlights));
                 OnPropertyChanged(nameof(IsHomeSectionActive));
                 OnPropertyChanged(nameof(IsSearchWorkspaceVisible));
+                OnPropertyChanged(nameof(IsChatWorkspaceVisible));
                 OnPropertyChanged(nameof(IsDownloadsQueueVisible));
                 OnPropertyChanged(nameof(IsPlaylistsReady));
                 OnPropertyChanged(nameof(IsPlaylistsVisible));
@@ -571,7 +593,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(DiagnosticsText));
                 break;
             case nameof(ShellNavigationViewModel.CurrentHandshake):
-                UpdateSearchViewModel();
+                UpdateBackendViewModels();
                 UpdatePlayerBarConnection();
                 UpdateHomeSummaryFacts();
                 OnPropertyChanged(nameof(CurrentHandshake));
@@ -579,6 +601,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(Search));
                 OnPropertyChanged(nameof(IsSearchReady));
                 OnPropertyChanged(nameof(IsSearchWorkspaceVisible));
+                OnPropertyChanged(nameof(Chat));
+                OnPropertyChanged(nameof(IsChatReady));
+                OnPropertyChanged(nameof(IsChatWorkspaceVisible));
                 OnPropertyChanged(nameof(Downloads));
                 OnPropertyChanged(nameof(IsDownloadsReady));
                 OnPropertyChanged(nameof(IsDownloadsQueueVisible));
@@ -683,22 +708,28 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     private void HandleServerEventReceived(object? sender, Sockseek.Api.ServerEventEnvelopeDto envelope)
     {
-        if (disposed
-            || !envelope.SnapshotInvalidation
-            || !StringComparer.Ordinal.Equals(envelope.Type, "soulseek.privilege-state.changed"))
-        {
+        if (disposed || !envelope.SnapshotInvalidation)
             return;
-        }
 
-        _ = Search?.Privileges.RefreshAsync();
+        switch (envelope.Type)
+        {
+            case "soulseek.privilege-state.changed":
+                _ = Search?.Privileges.RefreshAsync();
+                break;
+            case "soulseek.chat-state.changed" when chat is not null:
+                _ = chat.RefreshAsync();
+                break;
+        }
     }
 
-    private void UpdateSearchViewModel()
+    private void UpdateBackendViewModels()
     {
         if (CurrentHandshake is null)
         {
             search = null;
             searchHandshake = null;
+            chat = null;
+            chatHandshake = null;
             downloads = null;
             downloadsHandshake = null;
             playlists = null;
@@ -716,6 +747,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             search = null;
             searchHandshake = CurrentHandshake;
+        }
+
+        if (!Equals(chatHandshake, CurrentHandshake))
+        {
+            chat = null;
+            chatHandshake = CurrentHandshake;
         }
 
         if (!Equals(downloadsHandshake, CurrentHandshake))

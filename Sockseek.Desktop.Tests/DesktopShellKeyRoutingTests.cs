@@ -27,6 +27,7 @@ public sealed class DesktopShellKeyRoutingTests
     [DataRow("Ctrl+3", ShellSection.Library)]
     [DataRow("Ctrl+4", ShellSection.Downloads)]
     [DataRow("Ctrl+5", ShellSection.Accounts)]
+    [DataRow("Ctrl+6", ShellSection.Chat)]
     [DataRow("Ctrl+,", ShellSection.Settings)]
     public async Task TryHandleShellInput_Shortcut_NavigatesToExpectedSection(string shortcut, ShellSection expectedSection)
     {

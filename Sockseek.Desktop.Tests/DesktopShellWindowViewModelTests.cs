@@ -204,21 +204,31 @@ public sealed class DesktopShellWindowViewModelTests
         supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"secret-token\"}");
 
         Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsChatWorkspaceVisible);
         Assert.IsFalse(viewModel.IsLibraryVisible);
         Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
 
         session.Shell.NavigateTo(ShellSection.Search);
         Assert.IsTrue(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsChatWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsLibraryVisible);
+        Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
+
+        session.Shell.NavigateTo(ShellSection.Chat);
+        Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsTrue(viewModel.IsChatWorkspaceVisible);
         Assert.IsFalse(viewModel.IsLibraryVisible);
         Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
 
         session.Shell.NavigateTo(ShellSection.Library);
         Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsChatWorkspaceVisible);
         Assert.IsTrue(viewModel.IsLibraryVisible);
         Assert.IsFalse(viewModel.IsDownloadsQueueVisible);
 
         session.Shell.NavigateTo(ShellSection.Downloads);
         Assert.IsFalse(viewModel.IsSearchWorkspaceVisible);
+        Assert.IsFalse(viewModel.IsChatWorkspaceVisible);
         Assert.IsFalse(viewModel.IsLibraryVisible);
         Assert.IsTrue(viewModel.IsDownloadsQueueVisible);
     }
@@ -279,7 +289,7 @@ public sealed class DesktopShellWindowViewModelTests
         var viewModel = new DesktopShellWindowViewModel(
             session,
             fileOpener: null,
-            searchApiClientFactory: _ => new SockseekApiClient(http));
+            apiClientFactory: _ => new SockseekApiClient(http));
 
         supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token\"}");
         await session.RecoveryCoordinator.WhenIdleAsync();
@@ -298,6 +308,68 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(1, handler.RequestCount);
         Assert.AreEqual(5, viewModel.Search.Privileges.RemainingDays);
         Assert.IsTrue(viewModel.Search.Privileges.IsLoaded);
+    }
+
+    [TestMethod]
+    public async Task WindowViewModel_ChatInvalidation_RefreshesAuthoritativeHttpSnapshotWithoutEventContent()
+    {
+        var connection = new ControlledDesktopEventHubConnection();
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: _ => connection);
+        var snapshot = new SoulseekChatSnapshotDto(
+            12,
+            false,
+            [],
+            [],
+            [new SoulseekChatMessageDto(
+                Guid.NewGuid(),
+                "private",
+                null,
+                "local-http-only-user",
+                "local-http-only-message",
+                DateTimeOffset.UtcNow,
+                false,
+                false)]);
+        var handler = new ChatSnapshotHandler(snapshot);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopShellWindowViewModel(
+            session,
+            fileOpener: null,
+            apiClientFactory: _ => new SockseekApiClient(http));
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token\"}");
+        await session.RecoveryCoordinator.WhenIdleAsync();
+        session.Shell.NavigateTo(ShellSection.Chat);
+        Assert.IsNotNull(viewModel.Chat);
+        await handler.FirstRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForConditionAsync(() => viewModel.Chat.IsLoaded, TimeSpan.FromSeconds(5));
+
+        var eventPayload = new SoulseekChatStateChangedEventDto(12, "message-received");
+        await connection.RaiseServerEventAsync(new ServerEventEnvelopeDto(
+            2,
+            "soulseek.chat-state.changed",
+            DateTimeOffset.UtcNow,
+            "state",
+            true,
+            null,
+            eventPayload));
+        await handler.SecondRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(2, handler.RequestCount);
+        Assert.AreEqual(12, viewModel.Chat.Revision);
+        Assert.AreEqual("local-http-only-message", viewModel.Chat.Messages.Single().Message);
+        Assert.IsFalse(eventPayload.ToString().Contains("local-http-only", StringComparison.Ordinal));
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!predicate() && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.IsTrue(predicate(), "The expected asynchronous desktop state was not reached in time.");
     }
 
     [TestMethod]
@@ -604,6 +676,33 @@ public sealed class DesktopShellWindowViewModelTests
                 Content = System.Net.Http.Json.JsonContent.Create(status),
             };
             RequestReceived.TrySetResult();
+            return Task.FromResult(response);
+        }
+    }
+
+    private sealed class ChatSnapshotHandler(SoulseekChatSnapshotDto snapshot) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        public TaskCompletionSource FirstRequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource SecondRequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.AreEqual(HttpMethod.Get, request.Method);
+            Assert.AreEqual("api/v1/soulseek/chat", request.RequestUri?.PathAndQuery.TrimStart('/'));
+            RequestCount++;
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(snapshot),
+            };
+            FirstRequestReceived.TrySetResult();
+            if (RequestCount >= 2)
+                SecondRequestReceived.TrySetResult();
             return Task.FromResult(response);
         }
     }

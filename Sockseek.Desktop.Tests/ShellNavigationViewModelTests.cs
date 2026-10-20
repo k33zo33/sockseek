@@ -54,6 +54,7 @@ public class ShellNavigationViewModelTests
     [DataRow("Ctrl+3", ShellSection.Library)]
     [DataRow("Ctrl+4", ShellSection.Downloads)]
     [DataRow("Ctrl+5", ShellSection.Accounts)]
+    [DataRow("Ctrl+6", ShellSection.Chat)]
     [DataRow("Ctrl+,", ShellSection.Settings)]
     public void TryHandleShortcut_KnownShortcut_NavigatesToExpectedSection(string shortcut, ShellSection expectedSection)
     {
@@ -103,7 +104,7 @@ public class ShellNavigationViewModelTests
         Assert.IsTrue(opened);
         Assert.IsTrue(viewModel.CommandPalette.IsOpen);
         Assert.AreEqual("Shell.CommandPalette.Title", viewModel.CommandPalette.TitleResourceKey);
-        Assert.AreEqual(7, viewModel.CommandPalette.Items.Count);
+        Assert.AreEqual(8, viewModel.CommandPalette.Items.Count);
         Assert.AreEqual(DesktopDesignTokens.Typography.CommandPaletteTitle, viewModel.CommandPalette.TitleTypographyToken);
         Assert.AreEqual(DesktopDesignTokens.Typography.CommandPaletteItem, viewModel.CommandPalette.ItemTypographyToken);
         Assert.AreEqual("Shell.CommandPalette.Placeholder", viewModel.CommandPalette.PlaceholderResourceKey);
@@ -182,6 +183,7 @@ public class ShellNavigationViewModelTests
     [DataRow(ShellSection.Library, "Local library browsing and scans will appear here.", "Library roots still need indexing.", "Roots and scan status")]
     [DataRow(ShellSection.Downloads, "Active and completed download workflows will appear here.", "No download workflows are running right now.", "Queue and transfer health")]
     [DataRow(ShellSection.Accounts, "Provider connections and authorization status will appear here.", "No provider or Soulseek account is connected yet.", "Connection cards")]
+    [DataRow(ShellSection.Chat, "Private, room, and public Soulseek conversations.", "No chat messages are loaded.", "Rooms")]
     [DataRow(ShellSection.Settings, "Theme, daemon, and library preferences will appear here.", "Desktop preferences are not configurable here yet.", "Appearance and shortcuts")]
     public void NavigateTo_AllPrimarySections_ExposesExpectedPlaceholderPage(ShellSection section, string expectedDescription, string expectedEmptyStateTitle, string expectedFirstHighlightTitle)
     {
@@ -280,6 +282,7 @@ public class ShellNavigationViewModelTests
             ShellSection.Library => DesktopDesignTokens.Icon.Library,
             ShellSection.Downloads => DesktopDesignTokens.Icon.Downloads,
             ShellSection.Accounts => DesktopDesignTokens.Icon.Accounts,
+            ShellSection.Chat => DesktopDesignTokens.Icon.Chat,
             ShellSection.Settings => DesktopDesignTokens.Icon.Settings,
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };
@@ -293,6 +296,7 @@ public class ShellNavigationViewModelTests
             ShellSection.Library => "Shell.Library.Title",
             ShellSection.Downloads => "Shell.Downloads.Title",
             ShellSection.Accounts => "Shell.Accounts.Title",
+            ShellSection.Chat => "Shell.Chat.Title",
             ShellSection.Settings => "Shell.Settings.Title",
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };
@@ -306,6 +310,7 @@ public class ShellNavigationViewModelTests
             ShellSection.Library => "Ctrl+3",
             ShellSection.Downloads => "Ctrl+4",
             ShellSection.Accounts => "Ctrl+5",
+            ShellSection.Chat => "Ctrl+6",
             ShellSection.Settings => "Ctrl+,",
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };
@@ -319,6 +324,7 @@ public class ShellNavigationViewModelTests
             ShellSection.Library => "Shell.Navigation.Library.Hint",
             ShellSection.Downloads => "Shell.Navigation.Downloads.Hint",
             ShellSection.Accounts => "Shell.Navigation.Accounts.Hint",
+            ShellSection.Chat => "Shell.Navigation.Chat.Hint",
             ShellSection.Settings => "Shell.Navigation.Settings.Hint",
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };

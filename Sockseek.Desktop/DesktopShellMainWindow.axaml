@@ -229,6 +229,179 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
+                  IsVisible="{Binding IsChatWorkspaceVisible}">
+            <StackPanel Spacing="12">
+              <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="Soulseek chat" FontSize="20" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Chat.RefreshCommand}" />
+              </DockPanel>
+              <WrapPanel Orientation="Horizontal">
+                <ToggleSwitch Margin="0,0,14,8"
+                              Content="Public chat"
+                              IsChecked="{Binding Chat.PublicChatEnabled, Mode=OneWay}"
+                              Command="{Binding Chat.TogglePublicChatCommand}" />
+                <TextBlock Margin="0,0,14,8"
+                           VerticalAlignment="Center"
+                           Text="{Binding Chat.PublicChatStatusSummary}"
+                           Opacity="0.75" />
+                <TextBlock Margin="0,0,14,8"
+                           VerticalAlignment="Center"
+                           Text="{Binding Chat.RevisionSummary}"
+                           Opacity="0.65" />
+              </WrapPanel>
+              <TextBlock Text="{Binding Chat.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Chat.OperationSummary}" Opacity="0.75" TextWrapping="Wrap" />
+
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="18">
+                <StackPanel Grid.Column="0" Spacing="8">
+                  <DockPanel LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" Text="Available rooms" FontSize="18" FontWeight="SemiBold" />
+                    <Button DockPanel.Dock="Right" Content="Refresh rooms" Command="{Binding Chat.RefreshRoomsCommand}" />
+                  </DockPanel>
+                  <TextBlock Text="No rooms available"
+                             IsVisible="{Binding Chat.IsAvailableRoomsEmpty}"
+                             Opacity="0.65" />
+                  <ListBox ItemsSource="{Binding Chat.AvailableRooms}"
+                           SelectedItem="{Binding Chat.SelectedAvailableRoom, Mode=TwoWay}"
+                           IsVisible="{Binding Chat.HasAvailableRooms}"
+                           MaxHeight="260"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           SelectionMode="Single">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="desktop:DesktopSoulseekChatRoomViewModel">
+                        <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <StackPanel Grid.Column="0" Spacing="3">
+                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                              <WrapPanel Orientation="Horizontal">
+                                <TextBlock Margin="0,0,12,0" Text="{Binding UserCountSummary}" Opacity="0.7" />
+                                <TextBlock Text="{Binding AccessSummary}" Opacity="0.7" />
+                              </WrapPanel>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Content="Join"
+                                    Command="{Binding DataContext.Chat.JoinSelectedRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <TextBox Grid.Column="0" Watermark="Room name" Text="{Binding Chat.RoomName}" />
+                    <CheckBox Grid.Column="1"
+                              VerticalAlignment="Center"
+                              Content="Private"
+                              IsChecked="{Binding Chat.JoinAsPrivate}" />
+                    <Button Grid.Column="2" Content="Join" Command="{Binding Chat.JoinRoomCommand}" />
+                  </Grid>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Spacing="8">
+                  <TextBlock Text="Joined rooms" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock Text="No joined rooms"
+                             IsVisible="{Binding Chat.IsJoinedRoomsEmpty}"
+                             Opacity="0.65" />
+                  <ListBox ItemsSource="{Binding Chat.JoinedRooms}"
+                           SelectedItem="{Binding Chat.SelectedJoinedRoom, Mode=TwoWay}"
+                           IsVisible="{Binding Chat.HasJoinedRooms}"
+                           MaxHeight="260"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           SelectionMode="Single">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="desktop:DesktopSoulseekJoinedChatRoomViewModel">
+                        <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <StackPanel Grid.Column="0" Spacing="3">
+                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                              <WrapPanel Orientation="Horizontal">
+                                <TextBlock Margin="0,0,12,0" Text="{Binding ParticipantSummary}" Opacity="0.7" />
+                                <TextBlock Text="{Binding AccessSummary}" Opacity="0.7" />
+                              </WrapPanel>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Content="Leave"
+                                    Command="{Binding DataContext.Chat.LeaveRoomCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <TextBlock Text="{Binding Chat.SelectedRoomSummary}" Opacity="0.7" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Grid.Column="0"
+                             Watermark="Room message"
+                             Text="{Binding Chat.RoomMessage}"
+                             IsEnabled="{Binding Chat.HasSelectedJoinedRoom}" />
+                    <Button Grid.Column="1"
+                            Content="Send"
+                            Command="{Binding Chat.SendRoomMessageCommand}"
+                            IsEnabled="{Binding Chat.HasSelectedJoinedRoom}" />
+                  </Grid>
+                </StackPanel>
+              </Grid>
+
+              <Separator Margin="0,4" />
+              <TextBlock Text="Private message" FontSize="18" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="220,*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Watermark="Username" Text="{Binding Chat.PrivateUsername}" />
+                <TextBox Grid.Column="1" Watermark="Message" Text="{Binding Chat.PrivateMessage}" />
+                <Button Grid.Column="2" Content="Send" Command="{Binding Chat.SendPrivateMessageCommand}" />
+              </Grid>
+
+              <Separator Margin="0,4" />
+              <TextBlock Text="Messages" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="No messages in this daemon session"
+                         IsVisible="{Binding Chat.IsMessageTimelineEmpty}"
+                         Opacity="0.65" />
+              <ListBox ItemsSource="{Binding Chat.Messages}"
+                       IsVisible="{Binding Chat.HasMessages}"
+                       MaxHeight="420"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopSoulseekChatMessageViewModel">
+                    <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                      <StackPanel Spacing="4">
+                        <WrapPanel Orientation="Horizontal">
+                          <TextBlock Margin="0,0,12,0" Text="{Binding ScopeSummary}" FontWeight="SemiBold" />
+                          <TextBlock Margin="0,0,12,0" Text="{Binding SenderSummary}" />
+                          <TextBlock Margin="0,0,12,0" Text="{Binding OccurredSummary}" Opacity="0.65" />
+                          <TextBlock Text="{Binding DeliverySummary}" Opacity="0.65" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
                   IsVisible="{Binding IsSearchWorkspaceVisible}">
             <StackPanel Spacing="12">
               <TextBlock Text="Search workspace" FontSize="20" FontWeight="SemiBold" />

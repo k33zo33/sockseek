@@ -8,5 +8,6 @@ public enum ShellSection
     Library,
     Downloads,
     Accounts,
+    Chat,
     Settings,
 }

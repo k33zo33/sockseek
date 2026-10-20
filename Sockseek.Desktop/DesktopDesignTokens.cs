@@ -36,6 +36,7 @@ public static class DesktopDesignTokens
         public const string Library = "Icon.Library";
         public const string Downloads = "Icon.Downloads";
         public const string Accounts = "Icon.Accounts";
+        public const string Chat = "Icon.Chat";
         public const string Settings = "Icon.Settings";
         public const string BannerInfo = "Icon.Banner.Info";
         public const string BannerSuccess = "Icon.Banner.Success";

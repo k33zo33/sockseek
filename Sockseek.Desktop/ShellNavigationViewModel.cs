@@ -19,6 +19,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ["Ctrl+3"] = ShellSection.Library,
             ["Ctrl+4"] = ShellSection.Downloads,
             ["Ctrl+5"] = ShellSection.Accounts,
+            ["Ctrl+6"] = ShellSection.Chat,
             ["Ctrl+,"] = ShellSection.Settings,
         };
 
@@ -31,6 +32,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             [ShellSection.Library] = CreatePage(ShellSection.Library, "Shell.Library", DesktopDesignTokens.Icon.Library),
             [ShellSection.Downloads] = CreatePage(ShellSection.Downloads, "Shell.Downloads", DesktopDesignTokens.Icon.Downloads),
             [ShellSection.Accounts] = CreatePage(ShellSection.Accounts, "Shell.Accounts", DesktopDesignTokens.Icon.Accounts),
+            [ShellSection.Chat] = CreatePage(ShellSection.Chat, "Shell.Chat", DesktopDesignTokens.Icon.Chat),
             [ShellSection.Settings] = CreatePage(ShellSection.Settings, "Shell.Settings", DesktopDesignTokens.Icon.Settings),
         };
 
@@ -42,6 +44,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             CreateCommandPaletteItem("navigate-library", "Ctrl+3", "Shell.CommandPalette.NavigateLibrary", ShellSection.Library),
             CreateCommandPaletteItem("navigate-downloads", "Ctrl+4", "Shell.CommandPalette.NavigateDownloads", ShellSection.Downloads),
             CreateCommandPaletteItem("navigate-accounts", "Ctrl+5", "Shell.CommandPalette.NavigateAccounts", ShellSection.Accounts),
+            CreateCommandPaletteItem("navigate-chat", "Ctrl+6", "Shell.CommandPalette.NavigateChat", ShellSection.Chat),
             CreateCommandPaletteItem("navigate-settings", "Ctrl+,", "Shell.CommandPalette.NavigateSettings", ShellSection.Settings)
         ];
 
@@ -245,6 +248,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ShellSection.Library => "LB",
             ShellSection.Downloads => "DL",
             ShellSection.Accounts => "AC",
+            ShellSection.Chat => "CH",
             ShellSection.Settings => "ST",
             _ => section.ToString()[..Math.Min(2, section.ToString().Length)].ToUpperInvariant(),
         };
@@ -307,6 +311,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ShellSection.Library => DesktopDesignTokens.Icon.Library,
             ShellSection.Downloads => DesktopDesignTokens.Icon.Downloads,
             ShellSection.Accounts => DesktopDesignTokens.Icon.Accounts,
+            ShellSection.Chat => DesktopDesignTokens.Icon.Chat,
             ShellSection.Settings => DesktopDesignTokens.Icon.Settings,
             _ => DesktopDesignTokens.Icon.Home,
         };
@@ -320,6 +325,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ShellSection.Library => "Shell.Library.Title",
             ShellSection.Downloads => "Shell.Downloads.Title",
             ShellSection.Accounts => "Shell.Accounts.Title",
+            ShellSection.Chat => "Shell.Chat.Title",
             ShellSection.Settings => "Shell.Settings.Title",
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };
@@ -333,6 +339,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ShellSection.Library => "Ctrl+3",
             ShellSection.Downloads => "Ctrl+4",
             ShellSection.Accounts => "Ctrl+5",
+            ShellSection.Chat => "Ctrl+6",
             ShellSection.Settings => "Ctrl+,",
             _ => string.Empty
         };
@@ -346,6 +353,7 @@ public sealed class ShellNavigationViewModel : ObservableObject
             ShellSection.Library => "Shell.Navigation.Library.Hint",
             ShellSection.Downloads => "Shell.Navigation.Downloads.Hint",
             ShellSection.Accounts => "Shell.Navigation.Accounts.Hint",
+            ShellSection.Chat => "Shell.Navigation.Chat.Hint",
             ShellSection.Settings => "Shell.Navigation.Settings.Hint",
             _ => throw new ArgumentOutOfRangeException(nameof(section), section, null)
         };
