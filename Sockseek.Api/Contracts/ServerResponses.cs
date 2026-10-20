@@ -623,6 +623,27 @@ public sealed record SoulseekShareRootDto(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+/// <summary>Bounded current and recently completed Soulseek upload state.</summary>
+public sealed record SoulseekUploadSnapshotDto(
+    long Revision,
+    int ActiveCount,
+    int TerminalCount,
+    int TruncatedCount,
+    IReadOnlyList<SoulseekUploadDto> Uploads);
+
+/// <summary>One upload transfer without a local path, endpoint or exception detail.</summary>
+public sealed record SoulseekUploadDto(
+    Guid Id,
+    string Username,
+    string Filename,
+    string State,
+    long Size,
+    long BytesTransferred,
+    double BytesPerSecond,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? EndedAtUtc,
+    bool IsTerminal);
+
 /// <summary>Current Soulseek privilege status and bounded pending notifications.</summary>
 public sealed record SoulseekPrivilegeStatusDto(
     int RemainingDays,

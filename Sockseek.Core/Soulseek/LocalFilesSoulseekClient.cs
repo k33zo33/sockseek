@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using Soulseek;
 
 #pragma warning disable CS8618, CS8625, CS8600, CS8632, CS0067
@@ -25,7 +26,10 @@ namespace Sockseek.Core.Services
         private readonly HashSet<string> failingUsers;
         private readonly Dictionary<string, string> localFilePaths;
         private readonly ConcurrentQueue<int> acknowledgedPrivilegeNotificationIds = new();
+        private readonly ConcurrentDictionary<int, Transfer> uploads = new();
         private int remainingFailedDownloads;
+
+        public IReadOnlyCollection<Transfer> Uploads => uploads.Values.ToArray();
 
         public int SearchesCancelledMidDelay { get; private set; }
         public int PrivilegeDays { get; set; }
@@ -164,6 +168,237 @@ namespace Sockseek.Core.Services
             acknowledgedPrivilegeNotificationIds.Enqueue(privilegeNotificationId);
             return Task.CompletedTask;
         }
+
+        public Task<Task<Transfer>> EnqueueUploadAsync(
+            string username,
+            string remoteFilename,
+            string localFilename,
+            int? token = null,
+            TransferOptions options = null,
+            CancellationToken? cancellationToken = null)
+        {
+            long size = new FileInfo(localFilename).Length;
+            return EnqueueUploadAsync(
+                username,
+                remoteFilename,
+                size,
+                offset => Task.FromResult<Stream>(OpenUploadFile(localFilename, offset)),
+                token,
+                options,
+                cancellationToken);
+        }
+
+        public Task<Task<Transfer>> EnqueueUploadAsync(
+            string username,
+            string remoteFilename,
+            long size,
+            Func<long, Task<Stream>> inputStreamFactory,
+            int? token = null,
+            TransferOptions options = null,
+            CancellationToken? cancellationToken = null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(username);
+            ArgumentException.ThrowIfNullOrWhiteSpace(remoteFilename);
+            ArgumentOutOfRangeException.ThrowIfNegative(size);
+            ArgumentNullException.ThrowIfNull(inputStreamFactory);
+            var ct = cancellationToken.GetValueOrDefault(CancellationToken.None);
+            ct.ThrowIfCancellationRequested();
+            int transferToken = token ?? Random.Shared.Next(1, int.MaxValue);
+            var queued = new Transfer(
+                TransferDirection.Upload,
+                username,
+                remoteFilename,
+                transferToken,
+                TransferStates.Queued,
+                size,
+                startOffset: 0);
+            uploads[transferToken] = queued;
+            FireUploadStateChanged(TransferStates.Requested, queued, options);
+            Task<Transfer> completion = Task.Run(
+                () => CompleteUploadAsync(queued, inputStreamFactory, options, ct),
+                CancellationToken.None);
+            return Task.FromResult(completion);
+        }
+
+        public async Task<Transfer> UploadAsync(
+            string username,
+            string remoteFilename,
+            string localFilename,
+            int? token = null,
+            TransferOptions options = null,
+            CancellationToken? cancellationToken = null)
+        {
+            var completion = await EnqueueUploadAsync(
+                username,
+                remoteFilename,
+                localFilename,
+                token,
+                options,
+                cancellationToken);
+            return await completion;
+        }
+
+        public async Task<Transfer> UploadAsync(
+            string username,
+            string remoteFilename,
+            long size,
+            Func<long, Task<Stream>> inputStreamFactory,
+            int? token = null,
+            TransferOptions options = null,
+            CancellationToken? cancellationToken = null)
+        {
+            var completion = await EnqueueUploadAsync(
+                username,
+                remoteFilename,
+                size,
+                inputStreamFactory,
+                token,
+                options,
+                cancellationToken);
+            return await completion;
+        }
+
+        private async Task<Transfer> CompleteUploadAsync(
+            Transfer queued,
+            Func<long, Task<Stream>> inputStreamFactory,
+            TransferOptions? options,
+            CancellationToken cancellationToken)
+        {
+            Transfer current = queued;
+            try
+            {
+                current = CreateUploadTransfer(queued, TransferStates.Initializing, 0);
+                uploads[queued.Token] = current;
+                FireUploadStateChanged(TransferStates.Queued, current, options);
+
+                await using var input = await inputStreamFactory(0);
+                DateTime startedAt = DateTime.UtcNow;
+                current = CreateUploadTransfer(queued, TransferStates.InProgress, 0, startedAt: startedAt);
+                uploads[queued.Token] = current;
+                FireUploadStateChanged(TransferStates.Initializing, current, options);
+
+                byte[] buffer = new byte[16 * 1024];
+                long bytesTransferred = 0;
+                while (bytesTransferred < queued.Size)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    int requested = (int)Math.Min(buffer.Length, queued.Size - bytesTransferred);
+                    int bytesRead = await input.ReadAsync(buffer.AsMemory(0, requested), cancellationToken);
+                    if (bytesRead == 0)
+                        throw new EndOfStreamException("The mock upload source ended before the declared size.");
+
+                    long previous = bytesTransferred;
+                    bytesTransferred += bytesRead;
+                    double elapsedSeconds = Math.Max((DateTime.UtcNow - startedAt).TotalSeconds, 0.001);
+                    current = CreateUploadTransfer(
+                        queued,
+                        TransferStates.InProgress,
+                        bytesTransferred,
+                        bytesTransferred / elapsedSeconds,
+                        startedAt);
+                    uploads[queued.Token] = current;
+                    FireUploadProgressUpdated(previous, current, options);
+                }
+
+                double totalSeconds = Math.Max((DateTime.UtcNow - startedAt).TotalSeconds, 0.001);
+                current = CreateUploadTransfer(
+                    queued,
+                    TransferStates.Completed | TransferStates.Succeeded,
+                    bytesTransferred,
+                    bytesTransferred / totalSeconds,
+                    startedAt,
+                    DateTime.UtcNow);
+                uploads[queued.Token] = current;
+                FireUploadStateChanged(TransferStates.InProgress, current, options);
+                return current;
+            }
+            catch (OperationCanceledException)
+            {
+                current = CreateUploadTransfer(
+                    queued,
+                    TransferStates.Completed | TransferStates.Cancelled,
+                    current.BytesTransferred,
+                    current.AverageSpeed,
+                    current.StartTime,
+                    DateTime.UtcNow);
+                uploads[queued.Token] = current;
+                FireUploadStateChanged(TransferStates.InProgress, current, options);
+                throw;
+            }
+            catch (Exception exception)
+            {
+                current = CreateUploadTransfer(
+                    queued,
+                    TransferStates.Completed | TransferStates.Errored,
+                    current.BytesTransferred,
+                    current.AverageSpeed,
+                    current.StartTime,
+                    DateTime.UtcNow,
+                    exception);
+                uploads[queued.Token] = current;
+                FireUploadStateChanged(TransferStates.InProgress, current, options);
+                throw;
+            }
+            finally
+            {
+                uploads.TryRemove(queued.Token, out _);
+            }
+        }
+
+        private static Stream OpenUploadFile(string localFilename, long offset)
+        {
+            var stream = System.IO.File.Open(localFilename, FileMode.Open, FileAccess.Read, FileShare.Read);
+            stream.Seek(offset, SeekOrigin.Begin);
+            return stream;
+        }
+
+        private static Transfer CreateUploadTransfer(
+            Transfer source,
+            TransferStates state,
+            long bytesTransferred,
+            double averageSpeed = 0,
+            DateTime? startedAt = null,
+            DateTime? endedAt = null,
+            Exception? exception = null)
+            => new(
+                TransferDirection.Upload,
+                source.Username,
+                source.Filename,
+                source.Token,
+                state,
+                source.Size,
+                source.StartOffset,
+                bytesTransferred,
+                averageSpeed,
+                startedAt,
+                endedAt,
+                exception: exception);
+
+        private void FireUploadProgressUpdated(long previousBytesTransferred, Transfer transfer, TransferOptions? options)
+        {
+            options?.ProgressUpdated?.Invoke((previousBytesTransferred, transfer));
+            TransferProgressUpdated?.Invoke(
+                this,
+                CreateTransferEventArgs<TransferProgressUpdatedEventArgs>(previousBytesTransferred, transfer));
+        }
+
+        private void FireUploadStateChanged(TransferStates previousState, Transfer transfer, TransferOptions? options)
+        {
+            options?.StateChanged?.Invoke((previousState, transfer));
+            TransferStateChanged?.Invoke(
+                this,
+                CreateTransferEventArgs<TransferStateChangedEventArgs>(previousState, transfer));
+        }
+
+        private static TEventArgs CreateTransferEventArgs<TEventArgs>(params object[] arguments)
+            where TEventArgs : EventArgs
+            => (TEventArgs)(Activator.CreateInstance(
+                typeof(TEventArgs),
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                args: arguments,
+                culture: null)
+                ?? throw new InvalidOperationException($"Could not create {typeof(TEventArgs).Name}."));
 
         public void RaisePrivilegeNotification(string username, int? acknowledgementId = null)
             => PrivilegeNotificationReceived?.Invoke(

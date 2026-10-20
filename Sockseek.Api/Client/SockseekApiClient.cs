@@ -590,6 +590,13 @@ public sealed class SockseekApiClient
         return await ReadRequiredAsync<SoulseekSharingSnapshotDto>(response, ct);
     }
 
+    public async Task<SoulseekUploadSnapshotDto> GetSoulseekUploadsAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/soulseek/uploads", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekUploadSnapshotDto>(response, ct);
+    }
+
     public async Task<SoulseekPrivilegeStatusDto> GetSoulseekPrivilegeStatusAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/soulseek/privileges", ct);

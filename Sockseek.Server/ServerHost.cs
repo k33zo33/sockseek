@@ -138,6 +138,7 @@ public static class ServerHost
         builder.Services.AddSingleton<SoulseekWishlistScheduler>();
         builder.Services.AddSingleton<SoulseekPrivilegeService>();
         builder.Services.AddSingleton<SoulseekChatService>();
+        builder.Services.AddSingleton<SoulseekUploadService>();
         if (!IsOpenApiGenerationProcess())
         {
             builder.Services.AddHostedService<ServerDatabaseMigrationHostedService>();
@@ -153,6 +154,7 @@ public static class ServerHost
         _ = app.Services.GetRequiredService<ServerActivityLogReporter>();
         _ = app.Services.GetRequiredService<SoulseekPrivilegeService>();
         _ = app.Services.GetRequiredService<SoulseekChatService>();
+        _ = app.Services.GetRequiredService<SoulseekUploadService>();
 
         app.Use(async (context, next) =>
         {
@@ -1749,6 +1751,14 @@ public static class ServerHost
             .WithTags("Soulseek")
             .WithSummary("Rebuilds the immutable Soulseek share snapshot from configured roots.")
             .Produces<SoulseekSharingSnapshotDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/soulseek/uploads", (SoulseekUploadService uploads) =>
+            Results.Ok(uploads.GetSnapshot()))
+            .WithTags("Soulseek")
+            .WithSummary("Returns bounded active and recently completed Soulseek upload state without local paths.")
+            .Produces<SoulseekUploadSnapshotDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 

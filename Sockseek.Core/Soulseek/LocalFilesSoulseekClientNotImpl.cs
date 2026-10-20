@@ -22,8 +22,6 @@ namespace Sockseek.Core.Services
 
         public ServerInfo ServerInfo => throw new NotImplementedException();
 
-        public IReadOnlyCollection<Transfer> Uploads => throw new NotImplementedException();
-
         public string Username => throw new NotImplementedException();
 
         public event EventHandler<BrowseProgressUpdatedEventArgs> BrowseProgressUpdated;
@@ -120,16 +118,6 @@ namespace Sockseek.Core.Services
             throw new NotImplementedException();
         }
 
-        public Task<Task<Transfer>> EnqueueUploadAsync(string username, string remoteFilename, string localFilename, int? token = null, TransferOptions options = null, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<Task<Transfer>> EnqueueUploadAsync(string username, string remoteFilename, long size, Func<long, Task<Stream>> inputStreamFactory, int? token = null, TransferOptions options = null, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
         public Task<IReadOnlyCollection<Soulseek.Directory>> GetDirectoryContentsAsync(string username, string directoryName, int? token = null, CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
@@ -211,16 +199,6 @@ namespace Sockseek.Core.Services
         }
 
         public Task UnwatchUserAsync(string username, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<Transfer> UploadAsync(string username, string remoteFilename, string localFilename, int? token = null, TransferOptions options = null, CancellationToken? cancellationToken = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<Transfer> UploadAsync(string username, string remoteFilename, long size, Func<long, Task<Stream>> inputStreamFactory, int? token = null, TransferOptions options = null, CancellationToken? cancellationToken = null)
         {
             throw new NotImplementedException();
         }

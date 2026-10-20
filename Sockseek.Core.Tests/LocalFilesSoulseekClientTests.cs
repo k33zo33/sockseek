@@ -66,6 +66,59 @@ public class LocalFilesSoulseekClientTests
     }
 
     [TestMethod]
+    public async Task Upload_StreamsInputAndRaisesGlobalStateAndProgressEvents()
+    {
+        var client = new LocalFilesSoulseekClient([]);
+        var states = new List<Transfer>();
+        var progress = new List<Transfer>();
+        client.TransferStateChanged += (_, change) => states.Add(change.Transfer);
+        client.TransferProgressUpdated += (_, change) => progress.Add(change.Transfer);
+        byte[] content = Enumerable.Range(0, 40_000).Select(index => (byte)(index % 251)).ToArray();
+
+        Task<Transfer> completion = await client.EnqueueUploadAsync(
+            "listener",
+            "@@Music\\Album\\track.flac",
+            content.Length,
+            _ => Task.FromResult<Stream>(new MemoryStream(content, writable: false)),
+            token: 77);
+        var completed = await completion;
+
+        Assert.IsTrue(completed.State.HasFlag(TransferStates.Completed));
+        Assert.IsTrue(completed.State.HasFlag(TransferStates.Succeeded));
+        Assert.AreEqual(content.Length, completed.BytesTransferred);
+        Assert.IsTrue(states.Any(transfer => transfer.State == TransferStates.Queued));
+        Assert.IsTrue(states.Any(transfer => transfer.State == TransferStates.InProgress));
+        Assert.IsTrue(states.Any(transfer => transfer.State.HasFlag(TransferStates.Completed)));
+        Assert.IsTrue(progress.Count >= 2);
+        Assert.AreEqual(content.Length, progress[^1].BytesTransferred);
+        Assert.AreEqual(0, client.Uploads.Count);
+    }
+
+    [TestMethod]
+    public async Task Upload_ShortInputRaisesRedactedTerminalErrorStateAndClearsActiveTransfer()
+    {
+        var client = new LocalFilesSoulseekClient([]);
+        Transfer? terminal = null;
+        client.TransferStateChanged += (_, change) =>
+        {
+            if (change.Transfer.State.HasFlag(TransferStates.Completed))
+                terminal = change.Transfer;
+        };
+
+        Task<Transfer> completion = await client.EnqueueUploadAsync(
+            "listener",
+            "@@Music\\short.flac",
+            10,
+            _ => Task.FromResult<Stream>(new MemoryStream([1, 2, 3], writable: false)),
+            token: 78);
+
+        await Assert.ThrowsExceptionAsync<EndOfStreamException>(async () => await completion);
+        Assert.IsNotNull(terminal);
+        Assert.IsTrue(terminal.State.HasFlag(TransferStates.Errored));
+        Assert.AreEqual(0, client.Uploads.Count);
+    }
+
+    [TestMethod]
     public async Task FromLocalPaths_UsesSoulseekRelativeIdentityAndDownloadsFromLocalSource()
     {
         string root = Path.Combine(Path.GetTempPath(), "Sockseek-local-files-identity-" + Guid.NewGuid());

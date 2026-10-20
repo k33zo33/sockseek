@@ -78,6 +78,35 @@ public class ServerEventCatalogTests
     }
 
     [TestMethod]
+    public void UploadStateChangedEvent_RehydratesWithoutPeerOrFilenamePayload()
+    {
+        var descriptor = ServerEventCatalog.Describe("soulseek.upload-state.changed");
+        Assert.AreEqual(ServerEventCatalog.StateCategory, descriptor.Category);
+        Assert.IsTrue(descriptor.SnapshotInvalidation);
+        Assert.AreEqual(nameof(SoulseekUploadStateChangedEventDto), descriptor.PayloadDto);
+        var payload = JsonSerializer.SerializeToElement(
+            new SoulseekUploadStateChangedEventDto(11, "progress-updated"),
+            SockseekApiJson.CreateSerializerOptions());
+        var envelope = new ServerEventEnvelopeDto(
+            11,
+            "soulseek.upload-state.changed",
+            DateTimeOffset.UtcNow,
+            ServerEventCatalog.StateCategory,
+            SnapshotInvalidation: true,
+            WorkflowId: null,
+            payload);
+
+        var converted = ServerEventPayloadConverter.RehydrateEnvelope(envelope);
+
+        Assert.IsInstanceOfType<SoulseekUploadStateChangedEventDto>(converted.Payload);
+        var changed = (SoulseekUploadStateChangedEventDto)converted.Payload;
+        Assert.AreEqual(11, changed.Revision);
+        Assert.AreEqual("progress-updated", changed.Reason);
+        Assert.IsFalse(payload.TryGetProperty("username", out _));
+        Assert.IsFalse(payload.TryGetProperty("filename", out _));
+    }
+
+    [TestMethod]
     public void Describe_ClassifiesDownloadProgressSeparatelyFromState()
     {
         var descriptor = ServerEventCatalog.Describe("download.progress");

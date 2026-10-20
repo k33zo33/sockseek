@@ -60,6 +60,21 @@ failure cannot leave a removed/disabled root served. Deleting configuration neve
 deletes physical audio files. Local paths are returned only by this protected
 loopback API and never appear in Soulseek responses or SignalR events.
 
+## Soulseek uploads
+
+The authenticated versioned API exposes bounded current and recently completed
+upload state:
+
+- `GET /api/v1/soulseek/uploads`
+
+The snapshot reports active, terminal and truncated counts and returns at most 200
+rows. Terminal history is held in memory only and is limited to the latest 100
+transfers. Rows contain an opaque local id, peer username, shared-file basename,
+state, byte counts, speed and timestamps; local paths, remote endpoints and
+exception details are never included. The global
+`soulseek.upload-state.changed` SignalR event carries only a revision and stable
+reason. Progress invalidations are coalesced to avoid flooding clients.
+
 ## Soulseek chat
 
 The authenticated versioned API exposes bounded in-memory private, room and public

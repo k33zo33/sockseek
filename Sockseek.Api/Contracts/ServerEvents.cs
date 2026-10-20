@@ -99,6 +99,11 @@ public sealed record SoulseekChatStateChangedEventDto(
     long Revision,
     string Reason);
 
+/// <summary>Invalidates upload state without placing peer or filename content in SignalR.</summary>
+public sealed record SoulseekUploadStateChangedEventDto(
+    long Revision,
+    string Reason);
+
 /// <summary>
 /// Diagnostic event emitted when an exception-backed failure has detailed context.
 /// </summary>

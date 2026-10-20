@@ -26,6 +26,11 @@ See also the release-focused [threat model](threat-model.md).
   contain virtual paths only. A successful root mutation invalidates the previous
   snapshot before rebuild so cancellation fails closed, and removing configuration
   never removes physical audio.
+- Upload visibility is available only through the authenticated loopback API. The
+  daemon exposes a shared-file basename, never the transfer exception, remote IP or
+  full local/remote path. It retains at most 100 terminal summaries in memory and
+  sends only revision/reason invalidations over SignalR; progress invalidations are
+  coalesced.
 
 ## 15. Sigurnost, privatnost i operativna pravila
 

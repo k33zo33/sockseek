@@ -35,6 +35,7 @@ public sealed class EngineSupervisor
     public event EventHandler<SoulseekPrivateChatMessageEventArgs>? PrivateChatMessageReceived;
     public event EventHandler<SoulseekRoomChatMessageEventArgs>? RoomChatMessageReceived;
     public event EventHandler<SoulseekPublicChatMessageEventArgs>? PublicChatMessageReceived;
+    public event EventHandler<SoulseekUploadChangedEventArgs>? UploadChanged;
     public event EventHandler? SoulseekSessionReady;
 
     public DateTimeOffset StartedAtUtc { get; } = DateTimeOffset.UtcNow;
@@ -118,6 +119,7 @@ public sealed class EngineSupervisor
                 clientManager.PrivateChatMessageReceived -= OnPrivateChatMessageReceived;
                 clientManager.RoomChatMessageReceived -= OnRoomChatMessageReceived;
                 clientManager.PublicChatMessageReceived -= OnPublicChatMessageReceived;
+                clientManager.UploadChanged -= OnUploadChanged;
                 clientManager.SessionReady -= OnSoulseekSessionReady;
                 await engine.DisposeAsync();
                 clientManager.Dispose();
@@ -786,6 +788,14 @@ public sealed class EngineSupervisor
     public Task StopPublicChatAsync(CancellationToken cancellationToken)
         => GetCurrentClientManager().StopPublicChatAsync(cancellationToken);
 
+    public IReadOnlyList<SoulseekUploadTransferSnapshot> GetUploadTransfers()
+    {
+        SoulseekClientManager? manager;
+        lock (engineGate)
+            manager = currentClientManager;
+        return manager?.GetUploadTransfers() ?? [];
+    }
+
     private (DownloadEngine Engine, SoulseekClientManager ClientManager) CreateEngine()
     {
         var clientManager = new SoulseekClientManager(
@@ -796,6 +806,7 @@ public sealed class EngineSupervisor
         clientManager.PrivateChatMessageReceived += OnPrivateChatMessageReceived;
         clientManager.RoomChatMessageReceived += OnRoomChatMessageReceived;
         clientManager.PublicChatMessageReceived += OnPublicChatMessageReceived;
+        clientManager.UploadChanged += OnUploadChanged;
         clientManager.SessionReady += OnSoulseekSessionReady;
         var engine = new DownloadEngine(engineSettings, clientManager, jobSettingsResolver);
         StateStore.AttachEngine(engine);
@@ -836,6 +847,9 @@ public sealed class EngineSupervisor
         object? sender,
         SoulseekPublicChatMessageEventArgs message)
         => PublicChatMessageReceived?.Invoke(this, message);
+
+    private void OnUploadChanged(object? sender, SoulseekUploadChangedEventArgs upload)
+        => UploadChanged?.Invoke(this, upload);
 
     private void OnSoulseekSessionReady(object? sender, EventArgs args)
         => SoulseekSessionReady?.Invoke(this, EventArgs.Empty);

@@ -2801,6 +2801,46 @@
         }
       }
     },
+    "/api/v1/soulseek/uploads": {
+      "get": {
+        "tags": [
+          "Soulseek"
+        ],
+        "summary": "Returns bounded active and recently completed Soulseek upload state without local paths.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SoulseekUploadSnapshotDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/soulseek/privileges": {
       "get": {
         "tags": [
@@ -10854,6 +10894,127 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SoulseekShareRootDto"
+            }
+          }
+        }
+      },
+      "SoulseekUploadDto": {
+        "required": [
+          "id",
+          "username",
+          "filename",
+          "state",
+          "size",
+          "bytesTransferred",
+          "bytesPerSecond",
+          "startedAtUtc",
+          "endedAtUtc",
+          "isTerminal"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "size": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "bytesTransferred": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "bytesPerSecond": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "startedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "endedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "isTerminal": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SoulseekUploadSnapshotDto": {
+        "required": [
+          "revision",
+          "activeCount",
+          "terminalCount",
+          "truncatedCount",
+          "uploads"
+        ],
+        "type": "object",
+        "properties": {
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "activeCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "terminalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncatedCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "uploads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SoulseekUploadDto"
             }
           }
         }

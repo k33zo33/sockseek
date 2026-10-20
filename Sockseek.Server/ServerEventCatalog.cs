@@ -18,6 +18,7 @@ public static class ServerEventCatalog
             State("search.updated", nameof(SearchUpdatedDto)),
             State("soulseek.privilege-state.changed", nameof(SoulseekPrivilegeStateChangedEventDto)),
             State("soulseek.chat-state.changed", nameof(SoulseekChatStateChangedEventDto)),
+            State("soulseek.upload-state.changed", nameof(SoulseekUploadStateChangedEventDto)),
             Diagnostic("diagnostic.error", nameof(DiagnosticErrorEventDto)),
             Progress("download.progress", nameof(DownloadProgressEventDto)),
             Activity("extraction.started", nameof(ExtractionStartedEventDto)),

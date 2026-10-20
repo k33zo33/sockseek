@@ -29,6 +29,7 @@ public static class ServerEventPayloadConverter
             "search.updated" => Deserialize<SearchUpdatedDto>(payload, options),
             "soulseek.privilege-state.changed" => Deserialize<SoulseekPrivilegeStateChangedEventDto>(payload, options),
             "soulseek.chat-state.changed" => Deserialize<SoulseekChatStateChangedEventDto>(payload, options),
+            "soulseek.upload-state.changed" => Deserialize<SoulseekUploadStateChangedEventDto>(payload, options),
             "diagnostic.error" => Deserialize<DiagnosticErrorEventDto>(payload, options),
             "extraction.started" => Deserialize<ExtractionStartedEventDto>(payload, options),
             "extraction.failed" => Deserialize<ExtractionFailedEventDto>(payload, options),
