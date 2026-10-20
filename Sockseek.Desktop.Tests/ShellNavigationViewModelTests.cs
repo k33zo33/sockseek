@@ -184,7 +184,7 @@ public class ShellNavigationViewModelTests
     [DataRow(ShellSection.Downloads, "Active and completed download workflows will appear here.", "No download workflows are running right now.", "Queue and transfer health")]
     [DataRow(ShellSection.Accounts, "Provider connections and authorization status will appear here.", "No provider or Soulseek account is connected yet.", "Connection cards")]
     [DataRow(ShellSection.Chat, "Private, room, and public Soulseek conversations.", "No chat messages are loaded.", "Rooms")]
-    [DataRow(ShellSection.Settings, "Theme, daemon, and library preferences will appear here.", "Desktop preferences are not configurable here yet.", "Appearance and shortcuts")]
+    [DataRow(ShellSection.Settings, "Theme, daemon, Soulseek sharing, and local application details.", "Local settings and application details.", "Appearance and shortcuts")]
     public void NavigateTo_AllPrimarySections_ExposesExpectedPlaceholderPage(ShellSection section, string expectedDescription, string expectedEmptyStateTitle, string expectedFirstHighlightTitle)
     {
         var viewModel = new ShellNavigationViewModel();

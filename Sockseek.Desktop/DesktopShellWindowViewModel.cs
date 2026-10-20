@@ -13,6 +13,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     private DesktopDaemonHandshake? searchHandshake;
     private DesktopSoulseekChatViewModel? chat;
     private DesktopDaemonHandshake? chatHandshake;
+    private DesktopSoulseekSharingViewModel? sharing;
+    private DesktopDaemonHandshake? sharingHandshake;
     private DesktopDownloadQueueViewModel? downloads;
     private DesktopDaemonHandshake? downloadsHandshake;
     private DesktopPlaylistsViewModel? playlists;
@@ -255,6 +257,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
 
     public bool IsSettingsVisible => CurrentSection == ShellSection.Settings;
 
+    public bool IsSharingWorkspaceVisible => CurrentSection == ShellSection.Settings && IsSharingReady;
+
     public DesktopAboutViewModel? About
     {
         get
@@ -324,6 +328,23 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
     }
 
     public bool IsChatReady => Chat is not null;
+
+    public DesktopSoulseekSharingViewModel? Sharing
+    {
+        get
+        {
+            if (sharing is null && CurrentHandshake is not null)
+            {
+                sharing = new DesktopSoulseekSharingViewModel(apiClientFactory(CurrentHandshake));
+                sharingHandshake = CurrentHandshake;
+                _ = sharing.RefreshAsync();
+            }
+
+            return sharing;
+        }
+    }
+
+    public bool IsSharingReady => Sharing is not null;
 
     public DesktopDownloadQueueViewModel? Downloads
     {
@@ -557,6 +578,7 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsAccountsReady));
                 OnPropertyChanged(nameof(IsAccountsVisible));
                 OnPropertyChanged(nameof(IsSettingsVisible));
+                OnPropertyChanged(nameof(IsSharingWorkspaceVisible));
                 OnPropertyChanged(nameof(IsAboutReady));
                 OnPropertyChanged(nameof(WindowTitle));
                 OnPropertyChanged(nameof(DiagnosticsText));
@@ -604,6 +626,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(Chat));
                 OnPropertyChanged(nameof(IsChatReady));
                 OnPropertyChanged(nameof(IsChatWorkspaceVisible));
+                OnPropertyChanged(nameof(Sharing));
+                OnPropertyChanged(nameof(IsSharingReady));
+                OnPropertyChanged(nameof(IsSharingWorkspaceVisible));
                 OnPropertyChanged(nameof(Downloads));
                 OnPropertyChanged(nameof(IsDownloadsReady));
                 OnPropertyChanged(nameof(IsDownloadsQueueVisible));
@@ -730,6 +755,8 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             searchHandshake = null;
             chat = null;
             chatHandshake = null;
+            sharing = null;
+            sharingHandshake = null;
             downloads = null;
             downloadsHandshake = null;
             playlists = null;
@@ -753,6 +780,12 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
         {
             chat = null;
             chatHandshake = CurrentHandshake;
+        }
+
+        if (!Equals(sharingHandshake, CurrentHandshake))
+        {
+            sharing = null;
+            sharingHandshake = CurrentHandshake;
         }
 
         if (!Equals(downloadsHandshake, CurrentHandshake))

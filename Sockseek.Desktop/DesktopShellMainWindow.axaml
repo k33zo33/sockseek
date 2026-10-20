@@ -944,6 +944,81 @@
           <Border Background="{DynamicResource ShellCardBrush}"
                   CornerRadius="14"
                   Padding="20"
+                  IsVisible="{Binding IsSharingWorkspaceVisible}">
+            <StackPanel Spacing="12">
+              <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="Soulseek sharing" FontSize="20" FontWeight="SemiBold" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <Button Content="Refresh" Command="{Binding Sharing.RefreshCommand}" />
+                  <Button Content="Rebuild" Command="{Binding Sharing.RebuildCommand}" />
+                </StackPanel>
+              </DockPanel>
+              <TextBlock Text="{Binding Sharing.SnapshotSummary}" Opacity="0.75" />
+              <TextBlock Text="{Binding Sharing.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Sharing.OperationSummary}" Opacity="0.75" TextWrapping="Wrap" />
+
+              <Grid ColumnDefinitions="2*,*,Auto,Auto,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Watermark="Local folder path" Text="{Binding Sharing.RootPath}" />
+                <TextBox Grid.Column="1" Watermark="Virtual share name" Text="{Binding Sharing.VirtualName}" />
+                <CheckBox Grid.Column="2"
+                          VerticalAlignment="Center"
+                          Content="Enabled"
+                          IsChecked="{Binding Sharing.Enabled}" />
+                <Button Grid.Column="3"
+                        Content="{Binding Sharing.SaveActionLabel}"
+                        Command="{Binding Sharing.SaveCommand}" />
+                <Button Grid.Column="4"
+                        Content="Clear"
+                        Command="{Binding Sharing.ClearSelectionCommand}"
+                        IsVisible="{Binding Sharing.IsEditing}" />
+              </Grid>
+
+              <TextBlock Text="No share roots configured"
+                         IsVisible="{Binding Sharing.IsEmpty}"
+                         Opacity="0.65" />
+              <ListBox ItemsSource="{Binding Sharing.Roots}"
+                       SelectedItem="{Binding Sharing.SelectedRoot, Mode=TwoWay}"
+                       IsVisible="{Binding Sharing.HasRoots}"
+                       MaxHeight="360"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopSoulseekShareRootViewModel">
+                    <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                          <TextBlock Text="{Binding VirtualName}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding Path}" Opacity="0.72" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding StatusSummary}" Opacity="0.72" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                          <Button Content="Edit"
+                                  Command="{Binding DataContext.Sharing.EditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="{Binding ToggleEnabledLabel}"
+                                  Command="{Binding DataContext.Sharing.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}" />
+                          <Button Content="Remove"
+                                  Command="{Binding DataContext.Sharing.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{DynamicResource ShellCardBrush}"
+                  CornerRadius="14"
+                  Padding="20"
                   IsVisible="{Binding IsSettingsVisible}">
             <StackPanel Spacing="12">
               <DockPanel>

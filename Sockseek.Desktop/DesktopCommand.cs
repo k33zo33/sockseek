@@ -18,6 +18,25 @@ internal sealed class DesktopCommand(Action execute) : ICommand
     public void Execute(object? parameter) => execute();
 }
 
+internal sealed class DesktopCommandParameter<T>(Action<T> execute) : ICommand
+{
+    private readonly Action<T> execute = execute ?? throw new ArgumentNullException(nameof(execute));
+
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
+
+    public bool CanExecute(object? parameter) => parameter is T;
+
+    public void Execute(object? parameter)
+    {
+        if (parameter is T typedParameter)
+            execute(typedParameter);
+    }
+}
+
 internal sealed class DesktopAsyncCommand(Func<Task> executeAsync) : ICommand
 {
     private readonly Func<Task> executeAsync = executeAsync ?? throw new ArgumentNullException(nameof(executeAsync));

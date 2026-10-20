@@ -234,6 +234,29 @@ public sealed class DesktopShellWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task WindowViewModel_SettingsCreatesSharingWorkspaceForCurrentHandshake()
+    {
+        var handler = new SharingSnapshotHandler(new SoulseekSharingSnapshotDto(1, 0, 0, []));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
+        var viewModel = new DesktopShellWindowViewModel(
+            session,
+            fileOpener: null,
+            apiClientFactory: _ => new SockseekApiClient(http));
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"secret-token\"}");
+
+        session.Shell.NavigateTo(ShellSection.Settings);
+
+        Assert.IsTrue(viewModel.IsSharingWorkspaceVisible);
+        Assert.IsNotNull(viewModel.Sharing);
+        await WaitForConditionAsync(() => viewModel.Sharing.IsLoaded, TimeSpan.FromSeconds(5));
+        Assert.AreEqual(1, handler.RequestCount);
+    }
+
+    [TestMethod]
     public async Task WindowViewModel_WhenSessionCanLaunchAndBackendDisconnects_ExposesStartDaemonAction()
     {
         await using var session = new DesktopShellSession(
@@ -704,6 +727,25 @@ public sealed class DesktopShellWindowViewModelTests
             if (RequestCount >= 2)
                 SecondRequestReceived.TrySetResult();
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class SharingSnapshotHandler(SoulseekSharingSnapshotDto snapshot) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.AreEqual(HttpMethod.Get, request.Method);
+            Assert.AreEqual("api/v1/soulseek/sharing", request.RequestUri?.PathAndQuery.TrimStart('/'));
+            RequestCount++;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(snapshot),
+            });
         }
     }
 
