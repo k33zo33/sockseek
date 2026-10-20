@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Packager;
+using System.Formats.Tar;
 using System.IO.Compression;
 
 namespace Tests.Packager;
@@ -250,6 +251,66 @@ public sealed class ReleaseStagerTests
         Assert.IsFalse(File.Exists(archivePath));
     }
 
+    [TestMethod]
+    public void StageLinux_WithPublishedDesktopDaemonAndReleaseArtifacts_CreatesValidStagingDirectory()
+    {
+        using var temp = TempDirectory.Create();
+        string staging = CreateValidLinuxStaging(temp);
+
+        Assert.IsTrue(File.Exists(Path.Combine(staging, "Sockseek.Desktop")));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, "daemon", "Sockseek.Server")));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.LinuxInstallerFileName)));
+        Assert.IsTrue(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.LinuxUninstallerFileName)));
+        Assert.IsFalse(File.Exists(Path.Combine(staging, ReleaseArtifactValidator.WindowsInstallerFileName)));
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.LinuxInstallerFileName)),
+            "$HOME/.local/opt/sockseek");
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.LinuxUninstallerFileName)),
+            "Sockseek user data preserved");
+    }
+
+    [TestMethod]
+    public async Task ArchiveLinux_WithValidStaging_CreatesTarGzWithExecutableModesAndManifest()
+    {
+        using var temp = TempDirectory.Create();
+        string staging = CreateValidLinuxStaging(temp);
+        string archivePath = Path.Combine(temp.Path, "Sockseek-linux-x64.tar.gz");
+        string manifestPath = Path.Combine(temp.Path, "Sockseek-linux-x64.sha256");
+
+        var result = await ReleaseArchiveBuilder.ArchiveLinuxAsync(new ReleaseArchiveRequest(
+            staging,
+            archivePath,
+            manifestPath,
+            "Sockseek.Desktop",
+            "Sockseek.Server"));
+
+        Assert.IsTrue(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+        Assert.IsTrue(File.Exists(archivePath));
+        Assert.IsTrue(File.Exists(manifestPath));
+
+        var modes = new Dictionary<string, UnixFileMode>(StringComparer.Ordinal);
+        await using (var archive = File.OpenRead(archivePath))
+        await using (var gzip = new GZipStream(archive, CompressionMode.Decompress))
+        await using (var reader = new TarReader(gzip))
+        {
+            while (await reader.GetNextEntryAsync() is { } entry)
+                modes[entry.Name] = entry.Mode;
+        }
+
+        Assert.IsTrue(modes["Sockseek.Desktop"].HasFlag(UnixFileMode.UserExecute));
+        Assert.IsTrue(modes["daemon/Sockseek.Server"].HasFlag(UnixFileMode.UserExecute));
+        Assert.IsTrue(modes[ReleaseArtifactValidator.LinuxInstallerFileName].HasFlag(UnixFileMode.UserExecute));
+        Assert.IsFalse(modes["LICENSE"].HasFlag(UnixFileMode.UserExecute));
+
+        string manifest = File.ReadAllText(manifestPath);
+        StringAssert.Contains(manifest, "Sockseek-linux-x64.tar.gz");
+        StringAssert.Contains(manifest, "Sockseek.Desktop");
+        StringAssert.Contains(manifest, "daemon/Sockseek.Server");
+        StringAssert.Contains(manifest, ReleaseArtifactValidator.LinuxInstallerFileName);
+        StringAssert.Contains(manifest, "sbom.spdx.json");
+    }
+
     private static string CreateValidWindowsStaging(TempDirectory temp)
     {
         string repoRoot = Path.Combine(temp.Path, "repo");
@@ -272,6 +333,37 @@ public sealed class ReleaseStagerTests
             staging,
             "Sockseek.Desktop.exe",
             "Sockseek.Server.exe",
+            "3.0.5",
+            "abc123",
+            "https://github.com/k33zo33/sockseek",
+            sbomPath));
+        Assert.IsTrue(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+        return staging;
+    }
+
+    private static string CreateValidLinuxStaging(TempDirectory temp)
+    {
+        string repoRoot = Path.Combine(temp.Path, "repo-linux");
+        string desktopPublish = Path.Combine(temp.Path, "desktop-linux");
+        string daemonPublish = Path.Combine(temp.Path, "daemon-linux");
+        string staging = Path.Combine(temp.Path, "staging-linux");
+        Directory.CreateDirectory(repoRoot);
+        Directory.CreateDirectory(desktopPublish);
+        Directory.CreateDirectory(daemonPublish);
+        WriteRequiredRepoArtifacts(repoRoot);
+        File.WriteAllText(Path.Combine(desktopPublish, "Sockseek.Desktop"), "desktop");
+        File.WriteAllText(Path.Combine(desktopPublish, "libAvalonia.so"), "desktop native dependency");
+        File.WriteAllText(Path.Combine(daemonPublish, "Sockseek.Server"), "daemon");
+        string sbomPath = Path.Combine(temp.Path, "sbom-linux.spdx.json");
+        WriteValidSbom(sbomPath);
+
+        var result = ReleaseStager.StageLinux(new ReleaseStageRequest(
+            repoRoot,
+            desktopPublish,
+            daemonPublish,
+            staging,
+            "Sockseek.Desktop",
+            "Sockseek.Server",
             "3.0.5",
             "abc123",
             "https://github.com/k33zo33/sockseek",

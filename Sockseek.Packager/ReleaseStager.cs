@@ -5,6 +5,30 @@ namespace Sockseek.Packager;
 public static class ReleaseStager
 {
     public static ReleaseStageResult StageWindows(ReleaseStageRequest request)
+        => Stage(
+            request,
+            ReleaseArtifactValidator.WindowsInstallerFileName,
+            WindowsInstallScript,
+            ReleaseArtifactValidator.WindowsUninstallerFileName,
+            WindowsUninstallScript,
+            ReleaseArtifactValidator.Validate);
+
+    public static ReleaseStageResult StageLinux(ReleaseStageRequest request)
+        => Stage(
+            request,
+            ReleaseArtifactValidator.LinuxInstallerFileName,
+            LinuxInstallScript,
+            ReleaseArtifactValidator.LinuxUninstallerFileName,
+            LinuxUninstallScript,
+            ReleaseArtifactValidator.ValidateLinux);
+
+    private static ReleaseStageResult Stage(
+        ReleaseStageRequest request,
+        string installerFileName,
+        string installerScript,
+        string uninstallerFileName,
+        string uninstallerScript,
+        Func<string, string, string, ReleaseArtifactValidationResult> validate)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -49,8 +73,8 @@ public static class ReleaseStager
         CopyFile(repoRoot, stagingDirectory, ReleaseArtifactValidator.SecurityFileName);
         CopyFile(repoRoot, stagingDirectory, ReleaseArtifactValidator.BetaLimitationsFileName);
         File.Copy(sbomPath, Path.Combine(stagingDirectory, ReleaseArtifactValidator.SbomFileName), overwrite: true);
-        File.WriteAllText(Path.Combine(stagingDirectory, ReleaseArtifactValidator.WindowsInstallerFileName), WindowsInstallScript);
-        File.WriteAllText(Path.Combine(stagingDirectory, ReleaseArtifactValidator.WindowsUninstallerFileName), WindowsUninstallScript);
+        File.WriteAllText(Path.Combine(stagingDirectory, installerFileName), installerScript);
+        File.WriteAllText(Path.Combine(stagingDirectory, uninstallerFileName), uninstallerScript);
 
         var metadata = new ReleaseMetadata(
             request.Version,
@@ -61,7 +85,7 @@ public static class ReleaseStager
             Path.Combine(stagingDirectory, ReleaseArtifactValidator.MetadataFileName),
             JsonSerializer.Serialize(metadata, ReleaseMetadataJsonContext.Default.ReleaseMetadata));
 
-        var validation = ReleaseArtifactValidator.Validate(
+        var validation = validate(
             stagingDirectory,
             request.DesktopExecutableName,
             Path.Combine("daemon", request.DaemonExecutableName));
@@ -185,6 +209,45 @@ public static class ReleaseStager
         else {
             Write-Host "Sockseek user data preserved at $dataDirFull"
         }
+        """;
+
+    private const string LinuxInstallScript =
+        """
+        #!/usr/bin/env sh
+        set -eu
+
+        install_dir="${1:-$HOME/.local/opt/sockseek}"
+        bin_dir="${2:-$HOME/.local/bin}"
+        source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+        mkdir -p "$install_dir" "$bin_dir"
+        cp -R "$source_dir"/. "$install_dir"/
+        chmod +x "$install_dir/Sockseek.Desktop" "$install_dir/daemon/Sockseek.Server"
+        ln -sfn "$install_dir/Sockseek.Desktop" "$bin_dir/sockseek-desktop"
+
+        printf 'Sockseek installed to %s\n' "$install_dir"
+        printf 'Desktop launcher: %s\n' "$bin_dir/sockseek-desktop"
+        """;
+
+    private const string LinuxUninstallScript =
+        """
+        #!/usr/bin/env sh
+        set -eu
+
+        install_dir="${1:-$HOME/.local/opt/sockseek}"
+        bin_dir="${2:-$HOME/.local/bin}"
+        data_dir="${3:-$HOME/.local/share/Sockseek}"
+        remove_user_data="${4:-false}"
+
+        rm -f "$bin_dir/sockseek-desktop"
+        rm -rf "$install_dir"
+
+        if [ "$remove_user_data" = "true" ]; then
+            rm -rf "$data_dir"
+            printf 'Sockseek user data removed from %s\n' "$data_dir"
+        else
+            printf 'Sockseek user data preserved at %s\n' "$data_dir"
+        fi
         """;
 }
 

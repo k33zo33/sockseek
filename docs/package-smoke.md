@@ -109,3 +109,23 @@ Remove-Item -LiteralPath `
 ```
 
 Sprint 15 smoke artifacts recorded above were written under `.tmp\sprint15-package-smoke-9a7db5a\`, which is ignored by Git.
+
+## Ubuntu 24.04 x64 package smoke
+
+Run the Sprint 16 helper from a clean worktree with Docker Desktop using Linux containers:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_ubuntu_package_smoke.ps1
+```
+
+The helper records the full checked-out commit and rejects a dirty worktree. It then:
+
+- publishes the self-contained `linux-x64` Desktop and daemon inside the .NET 10 Ubuntu Noble SDK image;
+- generates the SPDX SBOM, Linux staging layout, closed-beta tester instructions, `tar.gz` archive and SHA256 manifest;
+- builds a pinned Ubuntu 24.04 runtime image with the required Avalonia and LibVLC native dependencies;
+- extracts the exact archive and verifies required legal/security files and executable modes;
+- starts the packaged daemon and requires a healthy loopback `/health` response;
+- starts the packaged Desktop under Xvfb and requires its packaged local daemon to become healthy; and
+- exercises the packaged user-local `install.sh` and `uninstall.sh` while confirming user data is preserved by default.
+
+Artifacts are written under `.tmp\sprint16-ubuntu-package-smoke-<commit>\`. Keep the archive hash, manifest and console transcript with release-candidate evidence. This Ubuntu smoke is distinct from the Alpine Docker/headless path documented in `docs/docker.md`.

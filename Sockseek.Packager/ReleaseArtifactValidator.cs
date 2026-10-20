@@ -12,11 +12,37 @@ public static class ReleaseArtifactValidator
     public const string SbomFileName = "sbom.spdx.json";
     public const string WindowsInstallerFileName = "install.ps1";
     public const string WindowsUninstallerFileName = "uninstall.ps1";
+    public const string LinuxInstallerFileName = "install.sh";
+    public const string LinuxUninstallerFileName = "uninstall.sh";
 
     public static ReleaseArtifactValidationResult Validate(
         string stagingDirectory,
         string desktopExecutableName,
         string daemonExecutableName)
+        => ValidateCore(
+            stagingDirectory,
+            desktopExecutableName,
+            daemonExecutableName,
+            WindowsInstallerFileName,
+            WindowsUninstallerFileName);
+
+    public static ReleaseArtifactValidationResult ValidateLinux(
+        string stagingDirectory,
+        string desktopExecutableName,
+        string daemonExecutableName)
+        => ValidateCore(
+            stagingDirectory,
+            desktopExecutableName,
+            daemonExecutableName,
+            LinuxInstallerFileName,
+            LinuxUninstallerFileName);
+
+    private static ReleaseArtifactValidationResult ValidateCore(
+        string stagingDirectory,
+        string desktopExecutableName,
+        string daemonExecutableName,
+        string installerFileName,
+        string uninstallerFileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stagingDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(desktopExecutableName);
@@ -36,8 +62,8 @@ public static class ReleaseArtifactValidator
         RequireFile(fullStagingDirectory, BetaLimitationsFileName, errors);
         RequireFile(fullStagingDirectory, desktopExecutableName, errors);
         RequireFile(fullStagingDirectory, daemonExecutableName, errors);
-        RequireFile(fullStagingDirectory, WindowsInstallerFileName, errors);
-        RequireFile(fullStagingDirectory, WindowsUninstallerFileName, errors);
+        RequireFile(fullStagingDirectory, installerFileName, errors);
+        RequireFile(fullStagingDirectory, uninstallerFileName, errors);
         ValidateMetadata(fullStagingDirectory, errors);
         ValidateSbom(fullStagingDirectory, errors);
 
