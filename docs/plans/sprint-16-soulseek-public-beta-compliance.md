@@ -7,9 +7,9 @@ Close the feature and evidence gaps identified by ADR-0009 while preserving the 
 ## Current-state findings
 
 - Search, explicit downloads and remote folder browse already flow through `SoulseekClientManager`, `ISoulseekClient`, the Server adapter and Desktop workflows.
-- `EngineSupervisor` exposes connection/login state plus configured share counts and listen-port indicators, but configured counts are not proof that files are actually shared.
-- The installed Soulseek.NET interface exposes room/public chat, upload and privilege methods/events; privilege and chat parity are implemented in the local-files client while upload members remain to be implemented.
-- Wishlist, privilege and chat workflows are implemented through the daemon and Desktop with bounded state and deterministic automated coverage; redacted live verification and actual share-root serving/upload visibility remain absent.
+- `EngineSupervisor` exposes connection/login state plus counts from the active immutable share snapshot and listen-port indicators; legacy configured counts remain only when no share source is installed.
+- The installed Soulseek.NET interface exposes room/public chat, upload and privilege methods/events; privilege and chat parity are implemented in the local-files client while upload-state parity remains to be implemented.
+- Wishlist, privilege and chat workflows are implemented through the daemon and Desktop with bounded state and deterministic automated coverage. Share-root serving and incoming upload enqueueing are connected to Soulseek.NET, while API/Desktop configuration, upload visibility and redacted live verification remain absent.
 - ADR-0009 therefore blocks every public Soulseek-enabled artifact even though Sprint 15 performance, diagnostics and Windows RC gates pass.
 - Public beta also lacks exact Windows 11 and Ubuntu LTS package smoke evidence.
 
@@ -52,7 +52,7 @@ Close the feature and evidence gaps identified by ADR-0009 while preserving the 
 2. Define Domain/Application contracts and threat-model decisions for retention, share-root approval and reconnect semantics.
 3. Implement wishlist vertically through persistence, adapter, API and Desktop with deterministic mock coverage. Completed with persisted bounded scheduling, authenticated API/OpenAPI contracts, Desktop controls, migration/upgrade coverage and scheduler/UI tests; live-network checklist evidence remains part of step 7.
 4. Implement privilege recognition and chat vertically with bounded state and redaction tests. Automated implementation is complete through Core, daemon/API and Desktop. Privileges provide manual acknowledgement, bounded replay-safe state, username-free invalidation and HTTP snapshot recovery. Chat provides deterministic private/room/public parity, explicit adapter receipt acknowledgement, 500-message/20-room bounds, bounded virtualized Desktop lists, explicit public-chat opt-in, replay dedupe, content-free invalidation, coalesced HTTP snapshot recovery and reconnect restoration. Redacted live verification remains in step 7.
-5. Implement explicit sharing/upload vertically, beginning with canonical path policy and adversarial tests before network serving. In progress: explicit SQLite-backed roots, immutable audio-only snapshots, virtual remote paths, reparse-point exclusion and pre-open canonical/path/size revalidation are implemented with migration and adversarial tests. Network resolvers, truthful count publication, upload state/API and Desktop controls remain.
+5. Implement explicit sharing/upload vertically, beginning with canonical path policy and adversarial tests before network serving. In progress: explicit SQLite-backed roots, immutable audio-only snapshots, virtual remote paths, reparse-point exclusion and pre-open canonical/path/size revalidation are implemented with migration and adversarial tests. Soulseek.NET incoming search/browse/directory/upload resolvers now use the snapshot, enforce one upload slot and publish serialized snapshot-derived counts on login/rebuild. Upload state/API, Desktop root controls and live evidence remain.
 6. Complete reconnect/failure matrices, OpenAPI snapshots and compatibility tests.
 7. Run the redacted live checklist and target-OS package smokes on one exact commit.
 8. Update release notes and accept a superseding ADR only if every gate passes.

@@ -31,10 +31,14 @@ namespace Tests.ClientTests
         public int DownloadCallCount;
         public int BrowseCallCount;
         public int DownloadCallCountAtFirstBrowse = -1;
+        public ConcurrentQueue<(int Directories, int Files)> SharedCountUpdates { get; } = new();
+        public ConcurrentQueue<(string Username, string RemoteFilename, long Size)> EnqueuedUploads { get; } = new();
+        private readonly ConcurrentQueue<Transfer> uploads = new();
         public Action? BrowseStarted;
         public Func<string, string, CancellationToken, Task>? BeforeDownloadStartsAsync;
         public Func<string, string, CancellationToken, Task>? BeforeDownloadCompletesAsync;
         public Func<string, string, TransferStates, CancellationToken, Task>? AfterDownloadStateChangedAsync;
+        public Func<int, int, Task>? BeforeSetSharedCountsAsync;
         public bool BrowseReturnsBasenames { get; set; }
         public bool IsDisposed { get; private set; }
         public Exception? ConnectException { get; set; }
@@ -170,9 +174,12 @@ namespace Tests.ClientTests
             return Task.CompletedTask;
         }
 
-        public Task SetSharedCountsAsync(int directories, int files, CancellationToken? cancellationToken = null)
+        public async Task SetSharedCountsAsync(int directories, int files, CancellationToken? cancellationToken = null)
         {
-            return Task.CompletedTask;
+            cancellationToken?.ThrowIfCancellationRequested();
+            if (BeforeSetSharedCountsAsync is not null)
+                await BeforeSetSharedCountsAsync(directories, files);
+            SharedCountUpdates.Enqueue((directories, files));
         }
 
         public Task<int> GetPrivilegesAsync(CancellationToken? cancellationToken = null)

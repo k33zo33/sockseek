@@ -25,6 +25,7 @@ using Sockseek.Infrastructure.LocalLibrary;
 using Sockseek.Infrastructure.Persistence;
 using Sockseek.Infrastructure.Persistence.Entities;
 using Sockseek.Infrastructure.Security;
+using Sockseek.Infrastructure.SoulseekSharing;
 using Sockseek.Integrations.Abstractions;
 using Sockseek.Integrations.Bandcamp;
 using Sockseek.Integrations.Spotify;
@@ -83,6 +84,9 @@ public static class ServerHost
                 return Task.CompletedTask;
             });
         });
+        builder.Services.AddSingleton<SoulseekShareSnapshotBuilder>();
+        builder.Services.AddSingleton<SoulseekShareService>();
+        builder.Services.AddSingleton<ISoulseekShareSource>(sp => sp.GetRequiredService<SoulseekShareService>());
         builder.Services.AddSingleton<EngineSupervisor>();
         builder.Services.AddSingleton(sp => sp.GetRequiredService<EngineSupervisor>().StateStore);
         builder.Services.AddSingleton<ISoulseekEngineGateway, ServerSoulseekEngineGateway>();

@@ -11,11 +11,11 @@ engineering inventory, not a public-beta compliance decision.
 
 | Required area | Soulseek.NET 10.0.2 surface | Current Sockseek state | Planned owner |
 | --- | --- | --- | --- |
-| Search | `SearchAsync`, `SearchRequestReceived`, `SearchResponseResolver` | Outbound search and result/download workflows are implemented. No incoming search response is configured. | Existing Core search jobs; sharing resolver in Core. |
+| Search | `SearchAsync`, `SearchRequestReceived`, `SearchResponseResolver` | Outbound search and result/download workflows are implemented. Incoming searches return a bounded result set from the active approved share snapshot only. | Existing Core search jobs; sharing resolver in Core. |
 | Wishlist | No native wishlist API. `SearchAsync` provides the protocol operation needed for repeated searches. | Implemented through persisted bounded scheduling, the existing engine gateway, authenticated daemon API and Desktop controls. Redacted live smoke remains. | Domain model, Infrastructure store, Server scheduler, existing engine gateway and Desktop controls. |
 | Download | `DownloadAsync`, `EnqueueDownloadAsync`, download/transfer events | Implemented through existing Core jobs and server adapter. | Existing Core/Server boundary. |
-| Folder browse | `BrowseAsync`, `GetDirectoryContentsAsync` | Remote browse is implemented. No local share browse response is configured. | Existing remote flow; sharing resolvers in Core. |
-| Upload / sharing | `SearchResponseResolver`, `BrowseResponseResolver`, `DirectoryContentsResolver`, `EnqueueDownload`, `PlaceInQueueResolver`, `UploadAsync`, `EnqueueUploadAsync`, `Uploads`, transfer events | Explicit persisted share roots, an immutable audio-only snapshot, virtual remote-path normalization and canonical/reparse/size revalidation are implemented in Infrastructure. They are not yet connected to network resolvers, advertised counts, API or Desktop, so sharing remains disabled in practice. | Infrastructure path/index policy; Core resolver and transfer adapter; Server API/events; Desktop controls. |
+| Folder browse | `BrowseAsync`, `GetDirectoryContentsAsync` | Remote browse is implemented. Local browse and directory responses project only virtual paths from the active approved share snapshot. | Existing remote flow; sharing resolvers in Core. |
+| Upload / sharing | `SearchResponseResolver`, `BrowseResponseResolver`, `DirectoryContentsResolver`, `EnqueueDownload`, `PlaceInQueueResolver`, `UploadAsync`, `EnqueueUploadAsync`, `Uploads`, transfer events | Explicit persisted roots feed an immutable audio-only snapshot with virtual paths and canonical/reparse/size revalidation. Core now serves incoming search/browse/directory requests, enqueues requested files through a single bounded upload slot and publishes snapshot-derived counts on login/rebuild. Authenticated API/Desktop root controls and visible bounded upload state remain absent. | Infrastructure path/index policy; Core resolver and transfer adapter; Server API/events; Desktop controls. |
 | Private chat | `PrivateMessageReceived`, `SendPrivateMessageAsync`, `AcknowledgePrivateMessageAsync` | Core, daemon/API and Desktop receive/send workflows are implemented with bounded input/state, replay dedupe, explicit adapter receipt acknowledgement, content-free invalidation events and coalesced HTTP snapshot recovery. Package auto-acknowledgement is disabled. Redacted live smoke remains. | Core event adapter and commands; bounded Server memory; Desktop conversation UI. |
 | Room chat | `GetRoomListAsync`, `JoinRoomAsync`, `LeaveRoomAsync`, `SendRoomMessageAsync`, room message/member/ticker events | Core, daemon/API and Desktop list/join/leave/send workflows are implemented with bounded virtualized UI, bounded room/member snapshots, 20-room joined intent and reconnect rejoin. Redacted live smoke remains. Private-room membership/moderation methods are available but not required for the initial chat workflow. | Core event adapter and commands; bounded Server state; Desktop room UI. |
 | Public chat | `StartPublicChatAsync`, `StopPublicChatAsync`, `PublicChatMessageReceived` | Core, daemon/API and explicit Desktop opt-in/stop workflows are implemented with reconnect restoration and bounded state. Redacted live smoke remains. | Core adapter and explicit Desktop opt-in. |
@@ -43,8 +43,8 @@ snapshot used by the resolvers.
 
 - Listener is enabled by default on port `50000`; Sockseek currently uses the
   configured port or disables the listener when no port is configured.
-- Maximum concurrent uploads defaults to `10`; Sockseek must expose a conservative
-  bounded setting before enabling shares.
+- Maximum concurrent uploads defaults to `10`; Sockseek overrides it with one
+  upload slot. User-visible transfer state and controls remain required.
 - Private messages and privilege notifications are automatically acknowledged by
   default. Sockseek disables both package defaults: the Core adapter acknowledges
   private-message receipt after local handoff, while privilege acknowledgement is

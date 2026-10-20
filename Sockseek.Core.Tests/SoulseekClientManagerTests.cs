@@ -48,6 +48,157 @@ public class SoulseekClientManagerTests
     }
 
     [TestMethod]
+    public async Task CreateClientOptions_WithShareSource_MapsSearchBrowseDirectoryAndUploadResolvers()
+    {
+        var source = new FakeShareSource(new SoulseekShareSourceSnapshot(
+            4,
+            3,
+            [
+                new SoulseekShareSourceFile("@@Music\\Artist\\Album\\track.mp3", 5, ".mp3"),
+                new SoulseekShareSourceFile("@@Music\\Artist\\Live\\concert.flac", 7, ".flac"),
+            ]));
+        var mockClient = new MockSoulseekClient(new());
+        var options = SoulseekClientManager.CreateClientOptions(
+            new EngineSettings { ListenPort = 49998, UserDescription = "Local shares" },
+            123,
+            source,
+            () => "local-user",
+            () => mockClient);
+        var endpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 1234);
+
+        Assert.AreEqual(1, options.MaximumConcurrentUploads);
+        Assert.IsNotNull(options.SearchResponseResolver);
+        Assert.IsNotNull(options.BrowseResponseResolver);
+        Assert.IsNotNull(options.DirectoryContentsResolver);
+        Assert.IsNotNull(options.EnqueueDownload);
+        Assert.IsNotNull(options.PlaceInQueueResolver);
+
+        var response = await options.SearchResponseResolver(
+            "requester",
+            77,
+            new SearchQuery(["artist"], ["live"]));
+        Assert.AreEqual("local-user", response.Username);
+        Assert.AreEqual(77, response.Token);
+        Assert.AreEqual(1, response.FileCount);
+        Assert.AreEqual("@@Music\\Artist\\Album\\track.mp3", response.Files.Single().Filename);
+
+        var browse = await options.BrowseResponseResolver("requester", endpoint);
+        Assert.AreEqual(2, browse.Directories.Count);
+        Assert.IsTrue(browse.Directories.All(directory => directory.Name.StartsWith("@@Music", StringComparison.Ordinal)));
+        Assert.IsFalse(browse.Directories.SelectMany(directory => directory.Files)
+            .Any(file => file.Filename.Contains(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase)));
+
+        var directoryContents = (await options.DirectoryContentsResolver(
+            "requester",
+            endpoint,
+            88,
+            "@@Music/Artist/Album")).ToArray();
+        Assert.AreEqual(1, directoryContents.Length);
+        Assert.AreEqual("@@Music\\Artist\\Album", directoryContents[0].Name);
+
+        Assert.AreEqual(0, await options.PlaceInQueueResolver(
+            "requester",
+            endpoint,
+            "@@Music/Artist/Album/track.mp3"));
+        Assert.IsNull(await options.PlaceInQueueResolver(
+            "requester",
+            endpoint,
+            "@@Music\\Artist\\Album\\missing.mp3"));
+
+        await options.EnqueueDownload(
+            "requester",
+            endpoint,
+            "@@Music/Artist/Album/track.mp3");
+        var upload = mockClient.EnqueuedUploads.Single();
+        Assert.AreEqual("requester", upload.Username);
+        Assert.AreEqual("@@Music\\Artist\\Album\\track.mp3", upload.RemoteFilename);
+        Assert.AreEqual(5, upload.Size);
+    }
+
+    [TestMethod]
+    public async Task Login_AdvertisesLegacyCountsInDirectoryThenFileOrder()
+    {
+        var settings = new EngineSettings
+        {
+            Username = "user",
+            Password = "pass",
+            SharedFolders = 3,
+            SharedFiles = 7,
+        };
+        var mockClient = new MockSoulseekClient(new(), initialState: SoulseekClientStates.None);
+        using var manager = new SoulseekClientManager(settings, mockClient);
+
+        await manager.EnsureConnectedAndLoggedInAsync(settings);
+
+        Assert.AreEqual((3, 7), mockClient.SharedCountUpdates.Single());
+    }
+
+    [TestMethod]
+    public async Task LoginAndSnapshotChange_AdvertiseOnlyAuthoritativeSnapshotCounts()
+    {
+        var settings = new EngineSettings
+        {
+            Username = "user",
+            Password = "pass",
+            SharedFolders = 300,
+            SharedFiles = 700,
+        };
+        var source = new FakeShareSource(new SoulseekShareSourceSnapshot(
+            1,
+            2,
+            [new SoulseekShareSourceFile("@@Music\\track.mp3", 5, ".mp3")]));
+        var mockClient = new MockSoulseekClient(new(), initialState: SoulseekClientStates.None);
+        using var manager = new SoulseekClientManager(settings, mockClient, source);
+
+        await manager.EnsureConnectedAndLoggedInAsync(settings);
+        Assert.AreEqual((2, 1), mockClient.SharedCountUpdates.Single());
+
+        source.SetSnapshot(new SoulseekShareSourceSnapshot(
+            2,
+            4,
+            [
+                new SoulseekShareSourceFile("@@Music\\one.mp3", 5, ".mp3"),
+                new SoulseekShareSourceFile("@@Music\\two.mp3", 5, ".mp3"),
+            ]));
+        await WaitForConditionAsync(() => mockClient.SharedCountUpdates.Count == 2, TimeSpan.FromSeconds(5));
+
+        CollectionAssert.AreEqual(
+            new[] { (2, 1), (4, 2) },
+            mockClient.SharedCountUpdates.ToArray());
+    }
+
+    [TestMethod]
+    public async Task RapidSnapshotChanges_LeaveLatestCountsAdvertised()
+    {
+        var settings = new EngineSettings { Username = "user", Password = "pass" };
+        var source = new FakeShareSource(new SoulseekShareSourceSnapshot(1, 1, []));
+        var mockClient = new MockSoulseekClient(new(), initialState: SoulseekClientStates.None);
+        using var manager = new SoulseekClientManager(settings, mockClient, source);
+        await manager.EnsureConnectedAndLoggedInAsync(settings);
+
+        var firstUpdateStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        mockClient.BeforeSetSharedCountsAsync = async (directories, _) =>
+        {
+            if (directories != 2)
+                return;
+
+            firstUpdateStarted.TrySetResult();
+            await releaseFirstUpdate.Task;
+        };
+
+        source.SetSnapshot(new SoulseekShareSourceSnapshot(2, 2, []));
+        await firstUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        source.SetSnapshot(new SoulseekShareSourceSnapshot(3, 3, []));
+        releaseFirstUpdate.TrySetResult();
+
+        await WaitForConditionAsync(() => mockClient.SharedCountUpdates.Count == 3, TimeSpan.FromSeconds(5));
+        CollectionAssert.AreEqual(
+            new[] { (1, 0), (2, 0), (3, 0) },
+            mockClient.SharedCountUpdates.ToArray());
+    }
+
+    [TestMethod]
     public async Task ChatOperations_MapRoomsMessagesAcknowledgementAndPublicOptIn()
     {
         var mockClient = new MockSoulseekClient(new());
@@ -323,6 +474,42 @@ public class SoulseekClientManagerTests
         finally
         {
             manager.Dispose();
+        }
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!predicate() && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.IsTrue(predicate(), "The expected asynchronous Soulseek state was not reached in time.");
+    }
+
+    private sealed class FakeShareSource(SoulseekShareSourceSnapshot snapshot) : ISoulseekShareSource
+    {
+        private SoulseekShareSourceSnapshot snapshot = snapshot;
+
+        public event EventHandler? SnapshotChanged;
+
+        public SoulseekShareSourceSnapshot GetSnapshot() => snapshot;
+
+        public Task<Stream> OpenReadAsync(
+            string remoteFilename,
+            long offset,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var file = snapshot.Files.Single(candidate => candidate.RemoteFilename == remoteFilename);
+            var stream = new MemoryStream(new byte[file.Size], writable: false);
+            stream.Seek(offset, SeekOrigin.Begin);
+            return Task.FromResult<Stream>(stream);
+        }
+
+        public void SetSnapshot(SoulseekShareSourceSnapshot value)
+        {
+            snapshot = value;
+            SnapshotChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

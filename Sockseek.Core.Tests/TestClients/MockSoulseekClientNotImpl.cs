@@ -22,7 +22,7 @@ namespace Tests.ClientTests
 
         public ServerInfo ServerInfo => throw new NotImplementedException();
 
-        public IReadOnlyCollection<Transfer> Uploads => throw new NotImplementedException();
+        public IReadOnlyCollection<Transfer> Uploads => uploads.ToArray();
 
         public string Username => throw new NotImplementedException();
 
@@ -127,7 +127,18 @@ namespace Tests.ClientTests
 
         public Task<Task<Transfer>> EnqueueUploadAsync(string username, string remoteFilename, long size, Func<long, Task<Stream>> inputStreamFactory, int? token = null, TransferOptions? options = null, CancellationToken? cancellationToken = null)
         {
-            throw new NotImplementedException();
+            cancellationToken?.ThrowIfCancellationRequested();
+            EnqueuedUploads.Enqueue((username, remoteFilename, size));
+            var transfer = new Transfer(
+                TransferDirection.Upload,
+                username,
+                remoteFilename,
+                token ?? 1,
+                TransferStates.Queued,
+                size,
+                startOffset: 0);
+            uploads.Enqueue(transfer);
+            return Task.FromResult(Task.FromResult(transfer));
         }
 
         public Task<IReadOnlyCollection<Soulseek.Directory>> GetDirectoryContentsAsync(string username, string directoryName, int? token = null, CancellationToken? cancellationToken = null)

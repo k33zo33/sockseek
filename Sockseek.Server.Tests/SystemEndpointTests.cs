@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Api;
+using Sockseek.Core.Services;
 using Sockseek.Core.Settings;
 using Sockseek.Server;
 
@@ -146,6 +147,29 @@ public class SystemEndpointTests
         Assert.IsNull(status.SoulseekClient.ListenPort);
         Assert.IsFalse(status.SoulseekClient.ShareCountUpdatesEnabled);
         Assert.IsTrue(status.SoulseekClient.UserDescriptionConfigured);
+    }
+
+    [TestMethod]
+    public void GetStatus_WithShareSource_ReportsOnlyAuthoritativeSnapshotCounts()
+    {
+        var supervisor = new EngineSupervisor(
+            Options.Create(new ServerOptions
+            {
+                Engine = new EngineSettings
+                {
+                    SharedFiles = 700,
+                    SharedFolders = 300,
+                },
+            }),
+            new FakeShareSource(new SoulseekShareSourceSnapshot(
+                1,
+                2,
+                [new SoulseekShareSourceFile("@@Music\\track.mp3", 5, ".mp3")])));
+
+        var status = supervisor.GetStatus();
+
+        Assert.AreEqual(1, status.SoulseekClient.SharedFiles);
+        Assert.AreEqual(2, status.SoulseekClient.SharedFolders);
     }
 
     private static void AssertPlayerCapabilities(PlayerCapabilitiesDto player)
@@ -310,5 +334,22 @@ public class SystemEndpointTests
         {
             listener.Stop();
         }
+    }
+
+    private sealed class FakeShareSource(SoulseekShareSourceSnapshot snapshot) : ISoulseekShareSource
+    {
+        public event EventHandler? SnapshotChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public SoulseekShareSourceSnapshot GetSnapshot() => snapshot;
+
+        public Task<Stream> OpenReadAsync(
+            string remoteFilename,
+            long offset,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

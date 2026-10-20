@@ -98,13 +98,17 @@ public class SoulseekClientManager : IDisposable
         "Soulseek server kicked this client, probably because the same account logged in elsewhere.";
 
     private readonly EngineSettings _initialSettings;
+    private readonly ISoulseekShareSource? _shareSource;
     private ISoulseekClient? _client;
     private readonly SemaphoreSlim _initializationSemaphore = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _shareCountUpdateSemaphore = new SemaphoreSlim(1, 1);
     private TaskCompletionSource _readyTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly object stateLock = new();
     private Exception? _fatalException;
     private CancellationTokenSource? _monitorCts;
     private Task? _monitorTask;
+    private string _currentUsername = string.Empty;
+    private bool _disposed;
 
     public ISoulseekClient? Client => _client;
 
@@ -143,9 +147,15 @@ public class SoulseekClientManager : IDisposable
         return _readyTcs.Task.WaitAsync(cancellationToken);
     }
 
-    public SoulseekClientManager(EngineSettings initialSettings, ISoulseekClient? client = null)
+    public SoulseekClientManager(
+        EngineSettings initialSettings,
+        ISoulseekClient? client = null,
+        ISoulseekShareSource? shareSource = null)
     {
         _initialSettings = initialSettings ?? throw new ArgumentNullException(nameof(initialSettings));
+        _shareSource = shareSource;
+        if (_shareSource is not null)
+            _shareSource.SnapshotChanged += OnShareSnapshotChanged;
         if (client != null)
         {
             _client = client;
@@ -679,14 +689,26 @@ public class SoulseekClientManager : IDisposable
             SockseekLog.Soulseek.Debug("Configuring Soulseek Client connection options.");
             int startingToken = CreateRandomStartingToken();
             SockseekLog.Soulseek.Debug($"Using Soulseek client starting token {startingToken}.");
-            return new SoulseekClient(SockseekSoulseekClientIdentity.MinorVersion, CreateClientOptions(settings, startingToken));
+            return new SoulseekClient(
+                SockseekSoulseekClientIdentity.MinorVersion,
+                CreateClientOptions(
+                    settings,
+                    startingToken,
+                    _shareSource,
+                    () => _currentUsername,
+                    () => _client));
         }
     }
 
     internal static int CreateRandomStartingToken()
         => RandomNumberGenerator.GetInt32(1, int.MaxValue);
 
-    internal static SoulseekClientOptions CreateClientOptions(EngineSettings settings, int startingToken)
+    internal static SoulseekClientOptions CreateClientOptions(
+        EngineSettings settings,
+        int startingToken,
+        ISoulseekShareSource? shareSource = null,
+        Func<string>? localUsername = null,
+        Func<ISoulseekClient?>? client = null)
     {
         var serverConnectionOptions = new ConnectionOptions(
             connectTimeout: settings.ConnectTimeout,
@@ -708,21 +730,51 @@ public class SoulseekClientManager : IDisposable
                 socket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, 15);
             });
 
-        Task<UserInfo> userInfoResolver(string username, System.Net.IPEndPoint ip) => Task.FromResult(new UserInfo(
-            description: settings.UserDescription ?? "",
-            uploadSlots: 1,
-            queueLength: 0,
-            hasFreeUploadSlot: true
-        ));
+        var sharingResponder = shareSource is null
+            ? null
+            : new SoulseekSharingResponder(
+                shareSource,
+                localUsername ?? (() => settings.Username ?? string.Empty),
+                client ?? (() => null));
+
+        Task<UserInfo> userInfoResolver(string username, System.Net.IPEndPoint ip)
+            => sharingResponder is null
+                ? Task.FromResult(new UserInfo(
+                    description: settings.UserDescription ?? "",
+                    uploadSlots: 1,
+                    queueLength: 0,
+                    hasFreeUploadSlot: true))
+                : sharingResponder.ResolveUserInfoAsync(username, ip, settings.UserDescription);
+        Func<string, int, SearchQuery, Task<SearchResponse>>? searchResponseResolver = sharingResponder is null
+            ? null
+            : sharingResponder.ResolveSearchAsync;
+        Func<string, System.Net.IPEndPoint, Task<BrowseResponse>>? browseResponseResolver = sharingResponder is null
+            ? null
+            : sharingResponder.ResolveBrowseAsync;
+        Func<string, System.Net.IPEndPoint, int, string, Task<IEnumerable<Soulseek.Directory>>>? directoryContentsResolver = sharingResponder is null
+            ? null
+            : sharingResponder.ResolveDirectoryContentsAsync;
+        Func<string, System.Net.IPEndPoint, string, Task>? enqueueDownload = sharingResponder is null
+            ? null
+            : sharingResponder.EnqueueDownloadAsync;
+        Func<string, System.Net.IPEndPoint, string, Task<int?>>? placeInQueueResolver = sharingResponder is null
+            ? null
+            : sharingResponder.ResolveQueuePositionAsync;
 
         var clientOptionsBuilder = new SoulseekClientOptions(
             transferConnectionOptions: transferConnectionOptions,
             serverConnectionOptions: serverConnectionOptions,
             listenPort: settings.ListenPort ?? 49998,
             maximumConcurrentSearches: int.MaxValue, // this is limited later in the searcher code
+            maximumConcurrentUploads: 1,
             autoAcknowledgePrivateMessages: false,
             autoAcknowledgePrivilegeNotifications: false,
+            searchResponseResolver: searchResponseResolver,
+            browseResponseResolver: browseResponseResolver,
+            directoryContentsResolver: directoryContentsResolver,
             userInfoResolver: userInfoResolver,
+            enqueueDownload: enqueueDownload,
+            placeInQueueResolver: placeInQueueResolver,
             startingToken: startingToken
         );
 
@@ -734,9 +786,15 @@ public class SoulseekClientManager : IDisposable
                 serverConnectionOptions: serverConnectionOptions,
                 enableListener: false,
                 maximumConcurrentSearches: int.MaxValue,
+                maximumConcurrentUploads: 1,
                 autoAcknowledgePrivateMessages: false,
                 autoAcknowledgePrivilegeNotifications: false,
+                searchResponseResolver: searchResponseResolver,
+                browseResponseResolver: browseResponseResolver,
+                directoryContentsResolver: directoryContentsResolver,
                 userInfoResolver: userInfoResolver,
+                enqueueDownload: enqueueDownload,
+                placeInQueueResolver: placeInQueueResolver,
                 startingToken: startingToken
             );
         }
@@ -761,6 +819,7 @@ public class SoulseekClientManager : IDisposable
         }
 
         string displayUser = settings.UseRandomLogin ? "[Random]" : user;
+        _currentUsername = user;
         SockseekLog.Soulseek.Info($"Logging in as {displayUser}..");
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -769,14 +828,23 @@ public class SoulseekClientManager : IDisposable
         if (!settings.NoModifyShareCount)
         {
             SockseekLog.Soulseek.Debug($"Setting share count for {displayUser}");
-            await client.SetSharedCountsAsync(settings.SharedFiles, settings.SharedFolders, cancellationToken);
+            var snapshot = _shareSource?.GetSnapshot();
+            int directories = snapshot?.DirectoryCount ?? settings.SharedFolders;
+            int files = snapshot?.FileCount ?? settings.SharedFiles;
+            await client.SetSharedCountsAsync(directories, files, cancellationToken);
         }
         SockseekLog.Soulseek.Debug($"Logged in as {displayUser}");
     }
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _monitorCts?.Cancel();
+        if (_shareSource is not null)
+            _shareSource.SnapshotChanged -= OnShareSnapshotChanged;
         if (_client != null)
         {
             _client.KickedFromServer -= OnKickedFromServer;
@@ -789,5 +857,43 @@ public class SoulseekClientManager : IDisposable
         _monitorCts?.Dispose();
         _initializationSemaphore.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private void OnShareSnapshotChanged(object? sender, EventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (_disposed || _initialSettings.NoModifyShareCount || !IsConnectedAndLoggedIn)
+            return;
+
+        _ = RefreshSharedCountsAsync();
+    }
+
+    private async Task RefreshSharedCountsAsync()
+    {
+        try
+        {
+            await _shareCountUpdateSemaphore.WaitAsync();
+            try
+            {
+                if (_disposed)
+                    return;
+
+                var client = _client;
+                var snapshot = _shareSource?.GetSnapshot();
+                if (client is null || snapshot is null || !IsConnectedAndLoggedIn)
+                    return;
+
+                await client.SetSharedCountsAsync(snapshot.DirectoryCount, snapshot.FileCount);
+            }
+            finally
+            {
+                _shareCountUpdateSemaphore.Release();
+            }
+        }
+        catch (Exception exception) when (!_disposed)
+        {
+            SockseekLog.Soulseek.Warn($"Failed to refresh advertised share counts: {exception.GetType().Name}");
+        }
     }
 }

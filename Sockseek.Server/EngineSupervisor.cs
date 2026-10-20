@@ -20,6 +20,7 @@ public sealed class EngineSupervisor
     private readonly EngineSettings engineSettings;
     private readonly DownloadSettings defaultDownloadSettings;
     private readonly ProfileCatalog profileCatalog;
+    private readonly ISoulseekShareSource? shareSource;
     private readonly ServerJobSettingsResolver jobSettingsResolver;
     private readonly Channel<QueuedSubmission> submissionChannel = Channel.CreateUnbounded<QueuedSubmission>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
@@ -39,9 +40,12 @@ public sealed class EngineSupervisor
     public DateTimeOffset StartedAtUtc { get; } = DateTimeOffset.UtcNow;
     public EngineStateStore StateStore { get; }
 
-    public EngineSupervisor(IOptions<ServerOptions> options)
+    public EngineSupervisor(
+        IOptions<ServerOptions> options,
+        ISoulseekShareSource? shareSource = null)
     {
         this.options = options.Value;
+        this.shareSource = shareSource;
 
         engineSettings = SettingsCloner.Clone(this.options.Engine);
         engineSettings.AutoReconnectAfterKickedFromServer = true;
@@ -250,12 +254,13 @@ public sealed class EngineSupervisor
         bool isConnected = state.HasFlag(SoulseekClientStates.Connected);
         bool isLoggedIn = state.HasFlag(SoulseekClientStates.LoggedIn);
 
+        var shareSnapshot = shareSource?.GetSnapshot();
         return new SoulseekClientStatusDto(
             state.ToString(),
             flags,
             isConnected && isLoggedIn,
-            engineSettings.SharedFiles,
-            engineSettings.SharedFolders,
+            shareSnapshot?.FileCount ?? engineSettings.SharedFiles,
+            shareSnapshot?.DirectoryCount ?? engineSettings.SharedFolders,
             engineSettings.ListenPort,
             !engineSettings.NoModifyShareCount,
             !string.IsNullOrWhiteSpace(engineSettings.UserDescription));
@@ -783,7 +788,10 @@ public sealed class EngineSupervisor
 
     private (DownloadEngine Engine, SoulseekClientManager ClientManager) CreateEngine()
     {
-        var clientManager = new SoulseekClientManager(engineSettings, options.ClientFactory?.Invoke(engineSettings));
+        var clientManager = new SoulseekClientManager(
+            engineSettings,
+            options.ClientFactory?.Invoke(engineSettings),
+            shareSource);
         clientManager.PrivilegeNotificationReceived += OnPrivilegeNotificationReceived;
         clientManager.PrivateChatMessageReceived += OnPrivateChatMessageReceived;
         clientManager.RoomChatMessageReceived += OnRoomChatMessageReceived;
