@@ -79,23 +79,36 @@ daemon_pid=''
 xvfb-run -a "$package_dir/Sockseek.Desktop" >"$desktop_log" 2>&1 &
 desktop_pid=$!
 desktop_health=''
+desktop_daemon_pid=''
+desktop_daemon_endpoint=''
 for _ in $(seq 1 30); do
     if ! kill -0 "$desktop_pid" 2>/dev/null; then
         cat "$desktop_log"
         echo 'Packaged Desktop exited during startup.' >&2
         exit 1
     fi
-    if desktop_health=$(curl --fail --silent --show-error http://127.0.0.1:5030/health 2>/dev/null); then
-        break
+
+    desktop_daemon_pid=$(pgrep -f -- "$package_dir/daemon/Sockseek.Server" | head -n 1 || true)
+    if [[ -n "$desktop_daemon_pid" ]]; then
+        desktop_daemon_endpoint=$(
+            ss -ltnpH \
+                | awk -v process_marker="pid=$desktop_daemon_pid," \
+                    '$0 ~ process_marker && $4 ~ /^127[.]0[.]0[.]1:/ { print $4; exit }')
+        if [[ -n "$desktop_daemon_endpoint" ]] \
+            && desktop_health=$(curl --fail --silent --show-error "http://$desktop_daemon_endpoint/health" 2>/dev/null); then
+            break
+        fi
     fi
     sleep 1
 done
 if [[ "$desktop_health" != *'"status":"ok"'* ]]; then
     cat "$desktop_log"
+    ps -ef
+    ss -ltnp
     echo 'Packaged Desktop did not start its local daemon.' >&2
     exit 1
 fi
-echo "Packaged Desktop local daemon health: $desktop_health"
+echo "Packaged Desktop local daemon health ($desktop_daemon_endpoint): $desktop_health"
 kill "$desktop_pid"
 wait "$desktop_pid" 2>/dev/null || true
 desktop_pid=''

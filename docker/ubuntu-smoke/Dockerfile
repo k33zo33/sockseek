@@ -19,6 +19,8 @@ RUN apt-get update \
         libxrandr2 \
         libxrender1 \
         libvlc-dev \
+        iproute2 \
+        procps \
         tar \
         vlc \
         xauth \
