@@ -120,7 +120,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_ubuntu_package_s
 
 The helper records the full checked-out commit and rejects a dirty worktree. It then:
 
-- publishes the self-contained `linux-x64` Desktop and daemon inside the .NET 10 Ubuntu Noble SDK image;
+- publishes the self-contained `linux-x64` Desktop and daemon inside the .NET 10 Ubuntu Noble SDK image, with all container build intermediates isolated under the ignored smoke artifact root;
 - generates the SPDX SBOM, Linux staging layout, closed-beta tester instructions, `tar.gz` archive and SHA256 manifest;
 - builds a pinned Ubuntu 24.04 runtime image with the required Avalonia and LibVLC native dependencies;
 - extracts the exact archive and verifies required legal/security files and executable modes;

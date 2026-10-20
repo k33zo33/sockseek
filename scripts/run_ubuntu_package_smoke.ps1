@@ -82,6 +82,11 @@ $artifactsRelativePath = $artifactsRootFullPath.Substring($repositoryPrefix.Leng
 $containerArtifactsRoot = "/src/$artifactsRelativePath"
 $desktopPublishDir = "$containerArtifactsRoot/publish-desktop-$Runtime"
 $daemonPublishDir = "$containerArtifactsRoot/publish-daemon-$Runtime"
+$desktopBuildArtifacts = "$containerArtifactsRoot/build-desktop"
+$daemonBuildArtifacts = "$containerArtifactsRoot/build-daemon"
+$packagerBuildArtifacts = "$containerArtifactsRoot/build-packager"
+$packagerPublishDir = "$containerArtifactsRoot/publish-packager"
+$packagerDll = "$packagerPublishDir/Sockseek.Packager.dll"
 $stageDir = "$containerArtifactsRoot/stage-$Runtime"
 $sbomPath = "$containerArtifactsRoot/release-sbom.spdx.json"
 $archivePath = "$containerArtifactsRoot/Sockseek-$Runtime.tar.gz"
@@ -101,24 +106,32 @@ Write-Host "Publishing Sockseek.Desktop for $Runtime in Ubuntu SDK container."
 Invoke-CheckedCommand $DockerCli @(
     'run', '--rm', '--mount', $repoMount, '--workdir', '/src', $DotNetSdkImage,
     'dotnet', 'publish', 'Sockseek.Desktop/Sockseek.Desktop.csproj',
-    '-c', $Configuration, '-r', $Runtime, '--self-contained', 'true', '-o', $desktopPublishDir)
+    '-c', $Configuration, '-r', $Runtime, '--self-contained', 'true',
+    '--artifacts-path', $desktopBuildArtifacts, '-o', $desktopPublishDir)
 
 Write-Host "Publishing Sockseek.Server for $Runtime in Ubuntu SDK container."
 Invoke-CheckedCommand $DockerCli @(
     'run', '--rm', '--mount', $repoMount, '--workdir', '/src', $DotNetSdkImage,
     'dotnet', 'publish', 'Sockseek.Server/Sockseek.Server.csproj',
-    '-c', $Configuration, '-r', $Runtime, '--self-contained', 'true', '-o', $daemonPublishDir)
+    '-c', $Configuration, '-r', $Runtime, '--self-contained', 'true',
+    '--artifacts-path', $daemonBuildArtifacts, '-o', $daemonPublishDir)
+
+Write-Host 'Publishing release packager with isolated build artifacts.'
+Invoke-CheckedCommand $DockerCli @(
+    'run', '--rm', '--mount', $repoMount, '--workdir', '/src', $DotNetSdkImage,
+    'dotnet', 'publish', 'Sockseek.Packager/Sockseek.Packager.csproj',
+    '-c', $Configuration, '--artifacts-path', $packagerBuildArtifacts, '-o', $packagerPublishDir)
 
 Write-Host 'Generating SPDX SBOM in Ubuntu SDK container.'
 Invoke-CheckedCommand $DockerCli @(
     'run', '--rm', '--mount', $repoMount, '--workdir', '/src', $DotNetSdkImage,
-    'dotnet', 'run', '--project', 'Sockseek.Packager/Sockseek.Packager.csproj', '-c', $Configuration, '--',
+    'dotnet', $packagerDll,
     'generate-sbom', '/src', $sbomPath, 'Sockseek', $Version, $headCommit, $SourceUrl)
 
 Write-Host 'Staging Linux release layout.'
 Invoke-CheckedCommand $DockerCli @(
     'run', '--rm', '--mount', $repoMount, '--workdir', '/src', $DotNetSdkImage,
-    'dotnet', 'run', '--project', 'Sockseek.Packager/Sockseek.Packager.csproj', '-c', $Configuration, '--',
+    'dotnet', $packagerDll,
     'stage-linux', '/src', $desktopPublishDir, $daemonPublishDir, $stageDir,
     'Sockseek.Desktop', 'Sockseek.Server', $Version, $headCommit, $SourceUrl, $sbomPath)
 
@@ -134,7 +147,7 @@ Invoke-CheckedCommand 'powershell.exe' @(
 Write-Host 'Creating Linux tar.gz and SHA256 manifest.'
 Invoke-CheckedCommand $DockerCli @(
     'run', '--rm', '--mount', $repoMount, '--workdir', '/src', $DotNetSdkImage,
-    'dotnet', 'run', '--project', 'Sockseek.Packager/Sockseek.Packager.csproj', '-c', $Configuration, '--',
+    'dotnet', $packagerDll,
     'archive-linux', $stageDir, $archivePath, $manifestPath, 'Sockseek.Desktop', 'Sockseek.Server')
 
 $manifest = Get-Content -LiteralPath $hostManifestPath -Raw

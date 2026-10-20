@@ -245,9 +245,7 @@ public static class ServerHost
         if (!string.IsNullOrWhiteSpace(options.DatabasePath))
             return Path.GetFullPath(options.DatabasePath);
 
-        string baseDirectory = !string.IsNullOrWhiteSpace(options.ConfigDir)
-            ? options.ConfigDir
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
+        string baseDirectory = ServerDataDirectoryResolver.Resolve(options.ConfigDir);
         return Path.GetFullPath(Path.Combine(baseDirectory, "sockseek.db"));
     }
 
@@ -256,7 +254,7 @@ public static class ServerHost
         string baseDirectory = !string.IsNullOrWhiteSpace(options.ConfigDir)
             ? options.ConfigDir
             : Path.GetDirectoryName(ResolveDatabasePath(options))
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
+                ?? ServerDataDirectoryResolver.Resolve(configuredDirectory: null);
         return Path.GetFullPath(Path.Combine(baseDirectory, "artwork-cache"));
     }
 
@@ -268,7 +266,7 @@ public static class ServerHost
         string baseDirectory = !string.IsNullOrWhiteSpace(options.ConfigDir)
             ? options.ConfigDir
             : Path.GetDirectoryName(ResolveDatabasePath(options))
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
+                ?? ServerDataDirectoryResolver.Resolve(configuredDirectory: null);
         return Path.GetFullPath(Path.Combine(baseDirectory, "secrets"));
     }
 

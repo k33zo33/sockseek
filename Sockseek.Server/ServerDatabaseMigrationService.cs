@@ -46,9 +46,7 @@ public sealed class ServerDatabaseMigrationService(IOptions<ServerOptions> optio
         if (!string.IsNullOrWhiteSpace(options.Value.DatabasePath))
             return Path.GetFullPath(options.Value.DatabasePath);
 
-        string baseDirectory = !string.IsNullOrWhiteSpace(options.Value.ConfigDir)
-            ? options.Value.ConfigDir
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sockseek");
+        string baseDirectory = ServerDataDirectoryResolver.Resolve(options.Value.ConfigDir);
         return Path.GetFullPath(Path.Combine(baseDirectory, "sockseek.db"));
     }
 }
