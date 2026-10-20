@@ -744,6 +744,9 @@ public sealed class DesktopShellWindowViewModel : ObservableObject, IDisposable
             case "soulseek.chat-state.changed" when chat is not null:
                 _ = chat.RefreshAsync();
                 break;
+            case "soulseek.upload-state.changed" when sharing is not null:
+                _ = sharing.RefreshUploadsAsync();
+                break;
         }
     }
 

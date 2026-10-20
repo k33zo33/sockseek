@@ -253,7 +253,8 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.IsTrue(viewModel.IsSharingWorkspaceVisible);
         Assert.IsNotNull(viewModel.Sharing);
         await WaitForConditionAsync(() => viewModel.Sharing.IsLoaded, TimeSpan.FromSeconds(5));
-        Assert.AreEqual(1, handler.RequestCount);
+        await WaitForConditionAsync(() => viewModel.Sharing.IsUploadsLoaded, TimeSpan.FromSeconds(5));
+        Assert.AreEqual(2, handler.RequestCount);
     }
 
     [TestMethod]
@@ -383,6 +384,59 @@ public sealed class DesktopShellWindowViewModelTests
         Assert.AreEqual(2, handler.RequestCount);
         Assert.AreEqual(12, viewModel.Chat.Revision);
         Assert.AreEqual("local-http-only-message", viewModel.Chat.Messages.Single().Message);
+        Assert.IsFalse(eventPayload.ToString().Contains("local-http-only", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task WindowViewModel_UploadInvalidation_RefreshesOnlyAuthoritativeUploadSnapshot()
+    {
+        var connection = new ControlledDesktopEventHubConnection();
+        var supervisor = new DesktopDaemonSupervisor();
+        await using var session = new DesktopShellSession(
+            supervisor: supervisor,
+            connectionFactory: _ => connection);
+        var upload = new SoulseekUploadDto(
+            Guid.NewGuid(),
+            "local-http-only-user",
+            "track.flac",
+            "InProgress",
+            100,
+            25,
+            10,
+            DateTimeOffset.UtcNow,
+            null,
+            false);
+        var handler = new SharingSnapshotHandler(
+            new SoulseekSharingSnapshotDto(1, 0, 0, []),
+            new SoulseekUploadSnapshotDto(12, 1, 0, 0, [upload]));
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopShellWindowViewModel(
+            session,
+            fileOpener: null,
+            apiClientFactory: _ => new SockseekApiClient(http));
+
+        supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"session-token\"}");
+        await session.RecoveryCoordinator.WhenIdleAsync();
+        session.Shell.NavigateTo(ShellSection.Settings);
+        Assert.IsNotNull(viewModel.Sharing);
+        await handler.FirstUploadRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForConditionAsync(() => viewModel.Sharing.IsUploadsLoaded, TimeSpan.FromSeconds(5));
+
+        var eventPayload = new SoulseekUploadStateChangedEventDto(12, "progress-updated");
+        await connection.RaiseServerEventAsync(new ServerEventEnvelopeDto(
+            3,
+            "soulseek.upload-state.changed",
+            DateTimeOffset.UtcNow,
+            "state",
+            true,
+            null,
+            eventPayload));
+        await handler.SecondUploadRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(1, handler.SharingRequestCount);
+        Assert.AreEqual(2, handler.UploadRequestCount);
+        Assert.AreEqual(12, viewModel.Sharing.UploadRevision);
+        Assert.AreEqual("track.flac", viewModel.Sharing.Uploads.Single().Filename);
         Assert.IsFalse(eventPayload.ToString().Contains("local-http-only", StringComparison.Ordinal));
     }
 
@@ -730,9 +784,15 @@ public sealed class DesktopShellWindowViewModelTests
         }
     }
 
-    private sealed class SharingSnapshotHandler(SoulseekSharingSnapshotDto snapshot) : HttpMessageHandler
+    private sealed class SharingSnapshotHandler(
+        SoulseekSharingSnapshotDto snapshot,
+        SoulseekUploadSnapshotDto? uploadSnapshot = null) : HttpMessageHandler
     {
         public int RequestCount { get; private set; }
+        public int SharingRequestCount { get; private set; }
+        public int UploadRequestCount { get; private set; }
+        public TaskCompletionSource FirstUploadRequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource SecondUploadRequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -740,11 +800,26 @@ public sealed class DesktopShellWindowViewModelTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             Assert.AreEqual(HttpMethod.Get, request.Method);
-            Assert.AreEqual("api/v1/soulseek/sharing", request.RequestUri?.PathAndQuery.TrimStart('/'));
+            string path = request.RequestUri?.PathAndQuery.TrimStart('/') ?? string.Empty;
             RequestCount++;
+            object response;
+            if (path == "api/v1/soulseek/sharing")
+            {
+                SharingRequestCount++;
+                response = snapshot;
+            }
+            else
+            {
+                Assert.AreEqual("api/v1/soulseek/uploads", path);
+                UploadRequestCount++;
+                response = uploadSnapshot ?? new SoulseekUploadSnapshotDto(1, 0, 0, 0, []);
+                FirstUploadRequestReceived.TrySetResult();
+                if (UploadRequestCount >= 2)
+                    SecondUploadRequestReceived.TrySetResult();
+            }
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
             {
-                Content = System.Net.Http.Json.JsonContent.Create(snapshot),
+                Content = System.Net.Http.Json.JsonContent.Create(response),
             });
         }
     }

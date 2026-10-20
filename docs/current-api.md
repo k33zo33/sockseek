@@ -74,6 +74,8 @@ state, byte counts, speed and timestamps; local paths, remote endpoints and
 exception details are never included. The global
 `soulseek.upload-state.changed` SignalR event carries only a revision and stable
 reason. Progress invalidations are coalesced to avoid flooding clients.
+The Desktop sharing workspace reloads this authoritative snapshot on invalidation
+and renders the bounded rows in a virtualized upload-activity list.
 
 ## Soulseek chat
 

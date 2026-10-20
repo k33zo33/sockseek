@@ -12,17 +12,29 @@ public sealed class DesktopSoulseekSharingViewModelTests
     public async Task RefreshAsync_MapsSnapshotCountsAndRootStatus()
     {
         var snapshot = Snapshot([Root(enabled: true, included: true, statusCode: "ready")], revision: 7, directories: 3, files: 2);
-        var handler = new QueueHandler(_ => JsonResponse(snapshot));
+        var uploads = UploadSnapshot(
+            [Upload(filename: "track.flac", isTerminal: false)],
+            revision: 9,
+            active: 1,
+            terminal: 2,
+            truncated: 3);
+        var handler = new QueueHandler(_ => JsonResponse(snapshot), _ => JsonResponse(uploads));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
         var viewModel = new DesktopSoulseekSharingViewModel(new SockseekApiClient(http));
 
         Assert.IsTrue(await viewModel.RefreshAsync());
 
-        Assert.AreEqual("api/v1/soulseek/sharing", handler.Requests.Single().Path);
+        CollectionAssert.AreEqual(
+            new[] { "api/v1/soulseek/sharing", "api/v1/soulseek/uploads" },
+            handler.Requests.Select(request => request.Path).ToArray());
         Assert.AreEqual("2 files across 3 folders | revision 7", viewModel.SnapshotSummary);
         Assert.AreEqual("ready | 2 files / 3 folders", viewModel.Roots.Single().StatusSummary);
+        Assert.AreEqual("1 active | 2 recent | 3 omitted | revision 9", viewModel.UploadSummary);
+        Assert.AreEqual("track.flac", viewModel.Uploads.Single().Filename);
+        Assert.AreEqual("25.0 KB / 100.0 KB | 25% | 5.0 KB/s", viewModel.Uploads.Single().ProgressSummary);
         Assert.IsTrue(viewModel.HasRoots);
         Assert.IsFalse(viewModel.IsEmpty);
+        Assert.IsTrue(viewModel.HasUploads);
     }
 
     [TestMethod]
@@ -90,14 +102,18 @@ public sealed class DesktopSoulseekSharingViewModelTests
     [TestMethod]
     public async Task RefreshAsync_DaemonUnavailableShowsRecoveryMessage()
     {
-        var handler = new QueueHandler(_ => throw new HttpRequestException("connection refused"));
+        var handler = new QueueHandler(
+            _ => throw new HttpRequestException("connection refused"),
+            _ => throw new HttpRequestException("connection refused"));
         using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
         var viewModel = new DesktopSoulseekSharingViewModel(new SockseekApiClient(http));
 
         Assert.IsFalse(await viewModel.RefreshAsync());
 
         StringAssert.Contains(viewModel.ErrorMessage, "Wait for it to reconnect");
+        StringAssert.Contains(viewModel.UploadErrorMessage, "Wait for it to reconnect");
         Assert.IsFalse(viewModel.IsBusy);
+        Assert.IsFalse(viewModel.IsUploadBusy);
     }
 
     [TestMethod]
@@ -122,6 +138,16 @@ public sealed class DesktopSoulseekSharingViewModelTests
         StringAssert.Contains(surface, "MaxHeight=\"360\"");
         StringAssert.Contains(surface, "<VirtualizingStackPanel />");
         StringAssert.Contains(surface, "Content=\"Remove\"");
+
+        const string uploadBinding = "<ListBox ItemsSource=\"{Binding Sharing.Uploads}\"";
+        int uploadStart = xaml.IndexOf(uploadBinding, StringComparison.Ordinal);
+        int uploadEnd = xaml.IndexOf("</ListBox>", uploadStart, StringComparison.Ordinal);
+        Assert.IsTrue(uploadStart >= 0);
+        Assert.IsTrue(uploadEnd > uploadStart);
+        string uploadSurface = xaml[uploadStart..uploadEnd];
+        StringAssert.Contains(uploadSurface, "MaxHeight=\"320\"");
+        StringAssert.Contains(uploadSurface, "<VirtualizingStackPanel />");
+        StringAssert.Contains(uploadSurface, "Text=\"{Binding ProgressSummary}\"");
     }
 
     private static SoulseekSharingSnapshotDto Snapshot(
@@ -146,6 +172,27 @@ public sealed class DesktopSoulseekSharingViewModelTests
             now,
             now);
     }
+
+    private static SoulseekUploadSnapshotDto UploadSnapshot(
+        IReadOnlyList<SoulseekUploadDto> uploads,
+        long revision,
+        int active = 0,
+        int terminal = 0,
+        int truncated = 0)
+        => new(revision, active, terminal, truncated, uploads);
+
+    private static SoulseekUploadDto Upload(string filename, bool isTerminal)
+        => new(
+            Guid.NewGuid(),
+            "listener",
+            filename,
+            isTerminal ? "Completed, Succeeded" : "InProgress",
+            100 * 1024,
+            isTerminal ? 100 * 1024 : 25 * 1024,
+            5 * 1024,
+            new DateTimeOffset(2026, 10, 20, 16, 0, 0, TimeSpan.Zero),
+            isTerminal ? new DateTimeOffset(2026, 10, 20, 16, 1, 0, TimeSpan.Zero) : null,
+            isTerminal);
 
     private static HttpResponseMessage JsonResponse<T>(T value, HttpStatusCode statusCode = HttpStatusCode.OK)
         => new(statusCode) { Content = JsonContent.Create(value) };

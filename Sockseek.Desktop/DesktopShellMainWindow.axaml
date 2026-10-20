@@ -396,6 +396,7 @@
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
+
             </StackPanel>
           </Border>
 
@@ -1007,6 +1008,48 @@
                           <Button Content="Remove"
                                   Command="{Binding DataContext.Sharing.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                   CommandParameter="{Binding}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <Border Height="1" Background="{DynamicResource ShellBorderBrush}" Margin="0,4" />
+              <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" Text="Upload activity" FontSize="16" FontWeight="SemiBold" />
+                <Button DockPanel.Dock="Right"
+                        Content="Refresh uploads"
+                        Command="{Binding Sharing.RefreshUploadsCommand}" />
+              </DockPanel>
+              <TextBlock Text="{Binding Sharing.UploadSummary}" Opacity="0.75" />
+              <TextBlock Text="{Binding Sharing.UploadErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <TextBlock Text="No upload activity"
+                         IsVisible="{Binding Sharing.IsUploadsEmpty}"
+                         Opacity="0.65" />
+              <ListBox ItemsSource="{Binding Sharing.Uploads}"
+                       IsVisible="{Binding Sharing.HasUploads}"
+                       MaxHeight="320"
+                       Background="Transparent"
+                       BorderThickness="0"
+                       SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="desktop:DesktopSoulseekUploadViewModel">
+                    <Border BorderBrush="{DynamicResource ShellBorderBrush}" BorderThickness="0,0,0,1" Padding="8,10">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                          <TextBlock Text="{Binding Filename}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding PeerSummary}" Opacity="0.72" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding ProgressSummary}" Opacity="0.72" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="3" HorizontalAlignment="Right">
+                          <TextBlock Text="{Binding StateSummary}" FontWeight="SemiBold" TextAlignment="Right" />
+                          <TextBlock Text="{Binding TimeSummary}" Opacity="0.72" TextAlignment="Right" />
                         </StackPanel>
                       </Grid>
                     </Border>
