@@ -18,6 +18,7 @@ RUN apt-get update \
         libxinerama1 \
         libxrandr2 \
         libxrender1 \
+        libvlc-dev \
         tar \
         vlc \
         xauth \

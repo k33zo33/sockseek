@@ -129,3 +129,5 @@ The helper records the full checked-out commit and rejects a dirty worktree. It 
 - exercises the packaged user-local `install.sh` and `uninstall.sh` while confirming user data is preserved by default.
 
 Artifacts are written under `.tmp\sprint16-ubuntu-package-smoke-<commit>\`. Keep the archive hash, manifest and console transcript with release-candidate evidence. This Ubuntu smoke is distinct from the Alpine Docker/headless path documented in `docs/docker.md`.
+
+The Ubuntu package expects the system LibVLC runtime and unversioned loader alias provided by `vlc` and `libvlc-dev`. The packaged `install.sh` checks this prerequisite and prints the exact `apt` command when it is absent.

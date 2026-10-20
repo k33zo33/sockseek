@@ -220,6 +220,11 @@ public static class ReleaseStager
         bin_dir="${2:-$HOME/.local/bin}"
         source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
+        if ! ldconfig -p 2>/dev/null | grep -q 'libvlc\.so '; then
+            printf 'Missing Ubuntu playback dependency. Install it with: sudo apt install vlc libvlc-dev\n' >&2
+            exit 1
+        fi
+
         mkdir -p "$install_dir" "$bin_dir"
         cp -R "$source_dir"/. "$install_dir"/
         chmod +x "$install_dir/Sockseek.Desktop" "$install_dir/daemon/Sockseek.Server"

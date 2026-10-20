@@ -266,6 +266,9 @@ public sealed class ReleaseStagerTests
             File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.LinuxInstallerFileName)),
             "$HOME/.local/opt/sockseek");
         StringAssert.Contains(
+            File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.LinuxInstallerFileName)),
+            "sudo apt install vlc libvlc-dev");
+        StringAssert.Contains(
             File.ReadAllText(Path.Combine(staging, ReleaseArtifactValidator.LinuxUninstallerFileName)),
             "Sockseek user data preserved");
     }
