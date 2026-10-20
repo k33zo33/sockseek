@@ -23,15 +23,15 @@ External services are playlist or metadata sources only. Spotify, YouTube, Bandc
 | YouTube | OAuth PKCE account connection, `mine=true` playlist listing, playlist item import and sync through metadata APIs. | Token expiry/revocation requires reconnect. No YouTube playback, iframe player, audio extraction, offline cache or downloading. |
 | Bandcamp | Public album/track URL metadata import without credentials. | Parser depends on public page structured metadata; failures are localized to import. No cookies, credentials, playback or downloading from Bandcamp. |
 | MusicBrainz | Metadata lookup/enrichment with rate limiting and cache behavior. | Metadata-only; no MusicBrainz account, ListenBrainz history, playback, download or scrobbling support. |
-| Soulseek | Search, candidate ranking, album folder discovery, download workflows and local/progressive playback of downloaded files. | Public beta is blocked until compliance coverage for wishlist, upload/sharing, chat and privilege recognition is resolved. |
+| Soulseek | Search, candidate ranking, album folder discovery, explicit downloads, persisted wishlist scheduling, explicit sharing/upload visibility, bounded chat and privilege recognition, plus local/progressive playback of downloaded files. | Public beta remains blocked by ADR-0009 until redacted live Soulseek verification passes for the exact candidate and the remaining release gates are complete. |
 
 ## Operational limitations
 
 - Windows release-candidate packaging is internally verified with legal artifacts, SBOM and SHA256 manifest.
 - The Windows installer is currently script-based PowerShell, not a signed MSI/MSIX.
 - Docker is a secondary headless path. The Sprint 15 helper reaches Docker Desktop from the validation session, records Windows Docker Desktop pipe/config diagnostics, preserves the repo working directory inside bounded Docker jobs and passed the full image build, CLI help and daemon `/health` smoke on 2026-10-13 after Docker Desktop WSL storage was moved to `F:\Docker\DockerDesktopWSL`.
-- Linux desktop packaging is not complete; the current native media package path is Windows-focused.
-- The Sprint 15 eight-hour soak gate passed for commit `93a8c63`. Exact packaged Windows commit `6da97fd` also passed the rendered 100k Library, 10k Search and 10k Playlist virtualization traces; Windows 11 and Ubuntu target-OS public-beta package smoke remain open.
+- Ubuntu 24.04 `linux-x64` packaging now produces an AGPL/SBOM/checksum-complete tarball and passed exact-archive daemon, Desktop, install and uninstall smoke on commit `ab3794e`; the host system must provide `vlc` and `libvlc-dev`.
+- The Sprint 15 eight-hour soak gate passed for commit `93a8c63`. Exact packaged Windows commit `6da97fd` also passed the rendered 100k Library, 10k Search and 10k Playlist virtualization traces. Commit `ab3794e` passed an exact Windows package/runtime preflight on Windows 10 Pro, but the required Windows 11 x64 package smoke remains open.
 
 ## Diagnostics for closed beta testers
 

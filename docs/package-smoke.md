@@ -146,3 +146,25 @@ The helper records the full checked-out commit and rejects a dirty worktree. It 
 Artifacts are written under `.tmp\sprint16-ubuntu-package-smoke-<commit>\`. Keep the archive hash, manifest and console transcript with release-candidate evidence. This Ubuntu smoke is distinct from the Alpine Docker/headless path documented in `docs/docker.md`.
 
 The Ubuntu package expects the system LibVLC runtime and unversioned loader alias provided by `vlc` and `libvlc-dev`. The packaged `install.sh` checks this prerequisite and prints the exact `apt` command when it is absent.
+
+## Sprint 16 exact-candidate evidence
+
+Candidate `ab3794edf9994c4f82b311ad0aa283e1535d754a` was exercised on
+2026-10-21:
+
+- Ubuntu 24.04 x64 exact-package smoke passed publish, 132-package SBOM,
+  staging, tar extraction, daemon health, Desktop child-daemon health under
+  Xvfb, install/uninstall and default user-data preservation. The archive is
+  `Sockseek-linux-x64.tar.gz`, SHA256
+  `22824efd0a514c60ae4e4d29cbd5bd376e2e8d193f6d43fd2366fa4a6fb4cf68`.
+- Windows `win-x64` exact-package preflight passed publish, 132-package SBOM,
+  staging, ZIP extraction, direct daemon health/auth/loopback checks and
+  packaged Desktop child-daemon health/auth/loopback checks. The archive is
+  `Sockseek-win-x64.zip`, SHA256
+  `6287af6678423153282350d281a073aa25eb09ccc5c9c1b687a03d66c76eb9ad`.
+- The Windows evidence JSON identifies Microsoft Windows 10 Pro
+  `10.0.19045`, 64-bit. This is not the required Windows 11 x64 acceptance
+  run.
+
+The complete gate result and remaining blockers are recorded in
+`docs/sprint-16-release-candidate-evidence.md`.

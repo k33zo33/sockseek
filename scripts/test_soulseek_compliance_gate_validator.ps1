@@ -81,10 +81,22 @@ try {
         throw 'Expected current Soulseek compliance gate documents to pass validation.'
     }
 
-    $auditWithoutWishlistBlocker = $audit -replace '\| Wishlist \| Not implemented in the desktop/daemon product\. \| High; explicitly listed in Soulseek rules\. \|', '| Wishlist | Implemented. | Low. |'
-    $auditWithoutWishlistBlockerPath = Write-Case 'audit-without-wishlist-blocker.md' $auditWithoutWishlistBlocker
-    if ((Invoke-Validator -AuditPath $auditWithoutWishlistBlockerPath -AdrPath $adrPath -LimitationsPath $limitationsPath -ChecklistPath $checklistPath) -eq 0) {
-        throw 'Expected validation to fail when the wishlist blocker is removed without a superseding decision.'
+    $auditWithoutWishlistImplementation = [regex]::Replace(
+        $audit,
+        '(?im)^\| Wishlist \|.*$',
+        '| Wishlist | Planned only. | Medium; a redacted live-network smoke is still required before public-beta approval. |')
+    $auditWithoutWishlistImplementationPath = Write-Case 'audit-without-wishlist-implementation.md' $auditWithoutWishlistImplementation
+    if ((Invoke-Validator -AuditPath $auditWithoutWishlistImplementationPath -AdrPath $adrPath -LimitationsPath $limitationsPath -ChecklistPath $checklistPath) -eq 0) {
+        throw 'Expected validation to fail when the implemented wishlist coverage is removed.'
+    }
+
+    $auditWithoutWishlistLiveBlocker = [regex]::Replace(
+        $audit,
+        '(?im)^\| Wishlist \|(?<status>.*?)\|.*$',
+        '| Wishlist | ${status}| Low; complete. |')
+    $auditWithoutWishlistLiveBlockerPath = Write-Case 'audit-without-wishlist-live-blocker.md' $auditWithoutWishlistLiveBlocker
+    if ((Invoke-Validator -AuditPath $auditWithoutWishlistLiveBlockerPath -AdrPath $adrPath -LimitationsPath $limitationsPath -ChecklistPath $checklistPath) -eq 0) {
+        throw 'Expected validation to fail when the wishlist live-network blocker is removed without evidence.'
     }
 
     $adrWithoutClosedOnlyDecision = $adr -replace 'Do not publish a public beta with Soulseek network connectivity enabled', 'Publish a public beta with Soulseek network connectivity enabled'
@@ -97,6 +109,12 @@ try {
     $limitationsWithoutProviderNoAudioPath = Write-Case 'limitations-without-provider-no-audio.md' $limitationsWithoutProviderNoAudio
     if ((Invoke-Validator -AuditPath $auditPath -AdrPath $adrPath -LimitationsPath $limitationsWithoutProviderNoAudioPath -ChecklistPath $checklistPath) -eq 0) {
         throw 'Expected validation to fail when beta limitations omit the provider no-audio policy.'
+    }
+
+    $limitationsWithoutLiveBlocker = $limitations -replace 'Public beta remains blocked by ADR-0009 until redacted live Soulseek verification passes', 'Public beta is ready'
+    $limitationsWithoutLiveBlockerPath = Write-Case 'limitations-without-live-blocker.md' $limitationsWithoutLiveBlocker
+    if ((Invoke-Validator -AuditPath $auditPath -AdrPath $adrPath -LimitationsPath $limitationsWithoutLiveBlockerPath -ChecklistPath $checklistPath) -eq 0) {
+        throw 'Expected validation to fail when beta limitations omit the live Soulseek verification blocker.'
     }
 
     $auditWithoutChecklistReference = $audit -replace 'Use `docs/soulseek-public-beta-compliance-checklist\.md` to record feature/compliance tests or manual smoke evidence for every Soulseek feature claim\.', 'Record feature/compliance tests or manual smoke evidence for every Soulseek feature claim.'

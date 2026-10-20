@@ -78,10 +78,11 @@ Assert-Contains $audit 'implements and verifies the missing Soulseek feature cov
 Assert-Contains $audit 'does not connect to the Soulseek network' 'audit non-connecting distribution option'
 Assert-Contains $audit 'explicit compliance/legal decision' 'audit compliance/legal decision option'
 
-Assert-AuditRow -Audit $audit -Area 'Wishlist' -StatusNeedle 'Not implemented' -RiskNeedle 'High'
-Assert-AuditRow -Audit $audit -Area 'Upload / sharing' -StatusNeedle 'Not implemented or verified' -RiskNeedle 'High'
-Assert-AuditRow -Audit $audit -Area 'Chat' -StatusNeedle 'Not implemented' -RiskNeedle 'High'
-Assert-AuditRow -Audit $audit -Area 'Privileges' -StatusNeedle 'Not implemented or verified' -RiskNeedle 'High'
+Assert-AuditRow -Audit $audit -Area 'Wishlist' -StatusNeedle 'Implemented across persisted daemon scheduling' -RiskNeedle 'live-network smoke'
+Assert-AuditRow -Audit $audit -Area 'Upload / sharing' -StatusNeedle 'Explicit persisted roots' -RiskNeedle 'live verification'
+Assert-AuditRow -Audit $audit -Area 'Chat' -StatusNeedle 'bounded RAM-only state' -RiskNeedle 'live-network smoke'
+Assert-AuditRow -Audit $audit -Area 'Privileges' -StatusNeedle 'recognition plus explicit acknowledgement' -RiskNeedle 'live-network smoke'
+Assert-Contains $audit 'Run redacted live verification for wishlist, chat, upload and privilege recognition on the exact release candidate' 'audit exact-candidate live verification requirement'
 
 Assert-Contains $adr '## Status' 'ADR status section'
 Assert-Contains $adr 'Accepted' 'ADR accepted status'
@@ -96,7 +97,7 @@ Assert-Contains $limitations 'Public beta: blocked by ADR-0009' 'limitations pub
 Assert-Contains $limitations 'Closed/internal beta: allowed' 'limitations closed/internal beta allowance'
 Assert-Contains $limitations 'External services are playlist or metadata sources only' 'limitations provider metadata-only policy'
 Assert-Contains $limitations 'Spotify, YouTube, Bandcamp and MusicBrainz are never audio sources' 'limitations provider no-audio policy'
-Assert-Contains $limitations 'Public beta is blocked until compliance coverage for wishlist, upload/sharing, chat and privilege recognition is resolved' 'limitations Soulseek unresolved features'
+Assert-Contains $limitations 'Public beta remains blocked by ADR-0009 until redacted live Soulseek verification passes' 'limitations Soulseek live verification blocker'
 
 Assert-Contains $checklist 'not legal advice' 'checklist legal disclaimer'
 Assert-Contains $checklist 'does not by itself approve a public beta' 'checklist no approval disclaimer'

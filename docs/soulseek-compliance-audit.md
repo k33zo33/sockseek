@@ -7,7 +7,7 @@ Sprint 15 treats Soulseek compliance as a public-release blocker. This document 
 - Soulseek Rules: https://www.slsknet.org/news/node/681
 - Soulseek Terms of Use: https://www.slsknet.org/news/node/682
 
-Reviewed on 2026-10-06.
+Reviewed on 2026-10-21.
 
 ## Relevant requirements
 
