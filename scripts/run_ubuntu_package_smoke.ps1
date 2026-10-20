@@ -78,7 +78,7 @@ if (Test-Path -LiteralPath $artifactsRootFullPath) {
 }
 
 New-Item -ItemType Directory -Force -Path $artifactsRootFullPath | Out-Null
-$artifactsRelativePath = [System.IO.Path]::GetRelativePath($repoRoot, $artifactsRootFullPath).Replace('\', '/')
+$artifactsRelativePath = $artifactsRootFullPath.Substring($repositoryPrefix.Length).Replace('\', '/')
 $containerArtifactsRoot = "/src/$artifactsRelativePath"
 $desktopPublishDir = "$containerArtifactsRoot/publish-desktop-$Runtime"
 $daemonPublishDir = "$containerArtifactsRoot/publish-daemon-$Runtime"
