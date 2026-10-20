@@ -117,6 +117,26 @@ public sealed class DesktopSoulseekSharingViewModelTests
     }
 
     [TestMethod]
+    public async Task RefreshUploadsAsync_WhenInvalidatedDuringActiveRequest_CoalescesOneFollowUpSnapshot()
+    {
+        var handler = new CoalescingUploadHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://127.0.0.1:5030/") };
+        var viewModel = new DesktopSoulseekSharingViewModel(new SockseekApiClient(http));
+
+        Task<bool> firstRefresh = viewModel.RefreshUploadsAsync();
+        await handler.FirstRequestStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsFalse(await viewModel.RefreshUploadsAsync());
+        handler.ReleaseFirstRequest.TrySetResult();
+        Assert.IsTrue(await firstRefresh);
+        await handler.SecondRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(2, handler.RequestCount);
+        await WaitForConditionAsync(() => viewModel.UploadRevision == 2, TimeSpan.FromSeconds(5));
+        Assert.AreEqual("second.flac", viewModel.Uploads.Single().Filename);
+    }
+
+    [TestMethod]
     public void SharingSurface_IsBoundedAndVirtualized()
     {
         string xamlPath = Path.GetFullPath(Path.Combine(
@@ -218,6 +238,45 @@ public sealed class DesktopSoulseekSharingViewModelTests
                 throw new InvalidOperationException("No queued response is available.");
             return responses.Dequeue()(request);
         }
+    }
+
+    private sealed class CoalescingUploadHandler : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+        public TaskCompletionSource FirstRequestStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseFirstRequest { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource SecondRequestReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Assert.AreEqual("api/v1/soulseek/uploads", request.RequestUri?.PathAndQuery.TrimStart('/'));
+            RequestCount++;
+            int requestNumber = RequestCount;
+            if (requestNumber == 1)
+            {
+                FirstRequestStarted.TrySetResult();
+                await ReleaseFirstRequest.Task.WaitAsync(cancellationToken);
+            }
+            else
+            {
+                SecondRequestReceived.TrySetResult();
+            }
+
+            return JsonResponse(UploadSnapshot(
+                [Upload(requestNumber == 1 ? "first.flac" : "second.flac", isTerminal: false)],
+                revision: requestNumber,
+                active: 1));
+        }
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!predicate() && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+        Assert.IsTrue(predicate(), "Expected upload view state was not reached before the timeout.");
     }
 
     private sealed record CapturedRequest(HttpMethod Method, string Path, string Body);

@@ -119,6 +119,37 @@ public class LocalFilesSoulseekClientTests
     }
 
     [TestMethod]
+    public async Task Upload_CancellationRaisesTerminalStateAndClearsActiveTransfer()
+    {
+        var client = new LocalFilesSoulseekClient([]);
+        using var cancellation = new CancellationTokenSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Transfer? terminal = null;
+        client.TransferStateChanged += (_, change) =>
+        {
+            if (change.Transfer.State == TransferStates.InProgress)
+                started.TrySetResult();
+            if (change.Transfer.State.HasFlag(TransferStates.Completed))
+                terminal = change.Transfer;
+        };
+
+        Task<Transfer> completion = await client.EnqueueUploadAsync(
+            "listener",
+            "@@Music\\cancelled.flac",
+            10,
+            _ => Task.FromResult<Stream>(new CancellationAwareStream()),
+            token: 79,
+            cancellationToken: cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsExceptionAsync<TaskCanceledException>(async () => await completion);
+        Assert.IsNotNull(terminal);
+        Assert.IsTrue(terminal.State.HasFlag(TransferStates.Cancelled));
+        Assert.AreEqual(0, client.Uploads.Count);
+    }
+
+    [TestMethod]
     public async Task FromLocalPaths_UsesSoulseekRelativeIdentityAndDownloadsFromLocalSource()
     {
         string root = Path.Combine(Path.GetTempPath(), "Sockseek-local-files-identity-" + Guid.NewGuid());
@@ -177,6 +208,17 @@ public class LocalFilesSoulseekClientTests
                 Directory.Delete(root, true);
             if (File.Exists(outputPath))
                 File.Delete(outputPath);
+        }
+    }
+
+    private sealed class CancellationAwareStream : MemoryStream
+    {
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
         }
     }
 }

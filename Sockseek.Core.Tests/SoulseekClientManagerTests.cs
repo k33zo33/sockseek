@@ -434,6 +434,38 @@ public class SoulseekClientManagerTests
     }
 
     [TestMethod]
+    public async Task UploadEvents_RemainSubscribedExactlyOnceAfterReconnect()
+    {
+        var settings = new EngineSettings
+        {
+            AutoReconnectAfterKickedFromServer = true,
+            UseRandomLogin = true,
+        };
+        var mockClient = new MockSoulseekClient(new());
+        using var manager = new SoulseekClientManager(settings, mockClient);
+        int uploadEventCount = 0;
+        var sessionReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        manager.UploadChanged += (_, _) => Interlocked.Increment(ref uploadEventCount);
+        manager.SessionReady += (_, _) => sessionReady.TrySetResult();
+
+        mockClient.RaiseKickedFromServer();
+        await sessionReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var upload = new Transfer(
+            TransferDirection.Upload,
+            "listener",
+            "@@Music\\reconnected.flac",
+            45,
+            TransferStates.InProgress,
+            100,
+            0,
+            25);
+        mockClient.RaiseTransferStateChanged(TransferStates.Initializing, upload);
+
+        Assert.AreEqual(1, uploadEventCount);
+        Assert.AreEqual(1, mockClient.ConnectCallCount);
+    }
+
+    [TestMethod]
     public void Dispose_DisposesUnderlyingClient()
     {
         var mockClient = new MockSoulseekClient(new());

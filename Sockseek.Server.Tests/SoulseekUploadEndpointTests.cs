@@ -112,7 +112,37 @@ public sealed class SoulseekUploadEndpointTests
                     envelope.Payload is SoulseekUploadStateChangedEventDto changed
                     && changed.Reason == "progress-updated"));
 
+            while (uploadEvents.TryDequeue(out _))
+            {
+            }
+            int connectCountBeforeReconnect = soulseekClient.ConnectCallCount;
+            soulseekClient.RaiseKickedFromServer();
+            await WaitForAsync(
+                () => soulseekClient.ConnectCallCount > connectCountBeforeReconnect,
+                TimeSpan.FromSeconds(5));
+            await WaitForAsync(
+                () => uploadEvents.Any(envelope =>
+                    envelope.Payload is SoulseekUploadStateChangedEventDto changed
+                    && changed.Reason == "session-ready"),
+                TimeSpan.FromSeconds(5));
+
+            var failed = CreateUpload(
+                "listener",
+                "C:\\private\\share\\failed.flac",
+                99,
+                TransferStates.Completed | TransferStates.Errored,
+                bytesTransferred: 30,
+                exception: new IOException("private failure C:\\private\\share\\failed.flac"));
             soulseekClient.SetUploads();
+            soulseekClient.RaiseTransferStateChanged(TransferStates.InProgress, failed);
+            var failedSnapshot = await client.GetSoulseekUploadsAsync();
+            var failedRow = failedSnapshot.Uploads.Single(upload => upload.Filename == "failed.flac");
+            Assert.IsTrue(failedRow.IsTerminal);
+            StringAssert.Contains(failedRow.State, "Errored");
+            string failedJson = JsonSerializer.Serialize(failedSnapshot);
+            Assert.IsFalse(failedJson.Contains("private failure", StringComparison.Ordinal));
+            Assert.IsFalse(failedJson.Contains("C:\\private", StringComparison.OrdinalIgnoreCase));
+
             for (int index = 0; index < SoulseekUploadService.MaximumRetainedTerminalUploads + 5; index++)
             {
                 var terminal = CreateUpload(
