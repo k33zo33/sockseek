@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using Sockseek.Core.Services;
 using Soulseek;
 
@@ -68,6 +69,33 @@ namespace Tests.ClientTests
             => PrivilegeNotificationReceived?.Invoke(
                 this,
                 new PrivilegeNotificationReceivedEventArgs(username, acknowledgementId));
+
+        public void SetUploads(params Transfer[] transfers)
+        {
+            uploads.Clear();
+            foreach (var transfer in transfers)
+                uploads.Enqueue(transfer);
+        }
+
+        public void RaiseTransferProgressUpdated(long previousBytesTransferred, Transfer transfer)
+            => TransferProgressUpdated?.Invoke(
+                this,
+                CreateEventArgs<TransferProgressUpdatedEventArgs>(previousBytesTransferred, transfer));
+
+        public void RaiseTransferStateChanged(TransferStates previousState, Transfer transfer)
+            => TransferStateChanged?.Invoke(
+                this,
+                CreateEventArgs<TransferStateChangedEventArgs>(previousState, transfer));
+
+        private static TEventArgs CreateEventArgs<TEventArgs>(params object[] arguments)
+            where TEventArgs : EventArgs
+            => (TEventArgs)(Activator.CreateInstance(
+                typeof(TEventArgs),
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                args: arguments,
+                culture: null)
+                ?? throw new InvalidOperationException($"Could not create {typeof(TEventArgs).Name}."));
 
         public MockSoulseekClient(
             List<Soulseek.SearchResponse> index,

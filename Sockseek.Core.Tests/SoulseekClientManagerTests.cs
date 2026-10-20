@@ -356,6 +356,84 @@ public class SoulseekClientManagerTests
     }
 
     [TestMethod]
+    public void UploadTransfers_MapSafeSnapshotsAndFilterDownloadEvents()
+    {
+        var mockClient = new MockSoulseekClient(new());
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+        var changes = new List<SoulseekUploadChangedEventArgs>();
+        manager.UploadChanged += (_, change) => changes.Add(change);
+        var startedAt = new DateTime(2026, 10, 20, 10, 0, 0, DateTimeKind.Utc);
+        var upload = new Transfer(
+            TransferDirection.Upload,
+            " listener ",
+            " @@Music\\Album\\track.flac ",
+            42,
+            TransferStates.InProgress,
+            100,
+            0,
+            25,
+            12.5,
+            startedAt,
+            exception: new InvalidOperationException("private local path C:\\secret\\track.flac"));
+        var download = new Transfer(
+            TransferDirection.Download,
+            "peer",
+            "download.flac",
+            43,
+            TransferStates.InProgress,
+            100,
+            0);
+        mockClient.SetUploads(upload, download);
+
+        mockClient.RaiseTransferProgressUpdated(10, upload);
+        mockClient.RaiseTransferStateChanged(TransferStates.Initializing, upload);
+        mockClient.RaiseTransferProgressUpdated(0, download);
+
+        var snapshot = manager.GetUploadTransfers();
+        Assert.AreEqual(1, snapshot.Count);
+        Assert.AreEqual(2, changes.Count);
+        Assert.IsFalse(changes[0].StateChanged);
+        Assert.IsTrue(changes[1].StateChanged);
+        Assert.AreEqual("listener", snapshot[0].Username);
+        Assert.AreEqual("@@Music\\Album\\track.flac", snapshot[0].RemoteFilename);
+        Assert.AreEqual(25, snapshot[0].BytesTransferred);
+        Assert.AreEqual(12.5, snapshot[0].BytesPerSecond);
+        Assert.AreEqual(new DateTimeOffset(startedAt), snapshot[0].StartedAtUtc);
+        Assert.IsFalse(snapshot[0].IsTerminal);
+        Assert.IsFalse(snapshot[0].ToString().Contains("secret", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void UploadTransfers_BoundIncomingValuesAndRecognizeTerminalState()
+    {
+        var mockClient = new MockSoulseekClient(new());
+        using var manager = new SoulseekClientManager(new EngineSettings(), mockClient);
+        SoulseekUploadChangedEventArgs? received = null;
+        manager.UploadChanged += (_, change) => received = change;
+        var completed = new Transfer(
+            TransferDirection.Upload,
+            new string('u', 200),
+            new string('f', 1500),
+            44,
+            TransferStates.Completed | TransferStates.Succeeded,
+            10,
+            0,
+            50,
+            double.PositiveInfinity,
+            endTime: DateTime.SpecifyKind(new DateTime(2026, 10, 20, 11, 0, 0), DateTimeKind.Unspecified));
+
+        mockClient.RaiseTransferStateChanged(TransferStates.InProgress, completed);
+
+        Assert.IsNotNull(received);
+        Assert.AreEqual(SoulseekClientManager.MaximumChatIdentityLength, received.Upload.Username.Length);
+        Assert.AreEqual(SoulseekClientManager.MaximumUploadFilenameLength, received.Upload.RemoteFilename.Length);
+        Assert.AreEqual(10, received.Upload.BytesTransferred);
+        Assert.AreEqual(0, received.Upload.BytesPerSecond);
+        Assert.IsTrue(received.Upload.IsTerminal);
+        Assert.AreEqual(TimeSpan.Zero, received.Upload.EndedAtUtc!.Value.Offset);
+    }
+
+    [TestMethod]
     public void Dispose_DisposesUnderlyingClient()
     {
         var mockClient = new MockSoulseekClient(new());

@@ -89,11 +89,32 @@ public sealed class SoulseekPublicChatMessageEventArgs : EventArgs
     public string Message { get; }
 }
 
+public sealed record SoulseekUploadTransferSnapshot(
+    string Username,
+    string RemoteFilename,
+    int Token,
+    string State,
+    long Size,
+    long BytesTransferred,
+    double BytesPerSecond,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? EndedAtUtc,
+    bool IsTerminal);
+
+public sealed class SoulseekUploadChangedEventArgs(
+    SoulseekUploadTransferSnapshot upload,
+    bool stateChanged) : EventArgs
+{
+    public SoulseekUploadTransferSnapshot Upload { get; } = upload;
+    public bool StateChanged { get; } = stateChanged;
+}
+
 public class SoulseekClientManager : IDisposable
 {
     internal const int MaximumChatIdentityLength = 128;
     internal const int MaximumChatMessageLength = 4096;
     internal const int MaximumChatCollectionSize = 1000;
+    internal const int MaximumUploadFilenameLength = 1024;
     private const string KickedFromServerMessage =
         "Soulseek server kicked this client, probably because the same account logged in elsewhere.";
 
@@ -116,6 +137,7 @@ public class SoulseekClientManager : IDisposable
     public event EventHandler<SoulseekPrivateChatMessageEventArgs>? PrivateChatMessageReceived;
     public event EventHandler<SoulseekRoomChatMessageEventArgs>? RoomChatMessageReceived;
     public event EventHandler<SoulseekPublicChatMessageEventArgs>? PublicChatMessageReceived;
+    public event EventHandler<SoulseekUploadChangedEventArgs>? UploadChanged;
     public event EventHandler? SessionReady;
 
     public SoulseekClientStates State => _client?.State ?? SoulseekClientStates.None;
@@ -173,6 +195,79 @@ public class SoulseekClientManager : IDisposable
         client.PrivateMessageReceived += OnPrivateMessageReceived;
         client.RoomMessageReceived += OnRoomMessageReceived;
         client.PublicChatMessageReceived += OnPublicChatMessageReceived;
+        client.TransferProgressUpdated += OnTransferProgressUpdated;
+        client.TransferStateChanged += OnTransferStateChanged;
+    }
+
+    public IReadOnlyList<SoulseekUploadTransferSnapshot> GetUploadTransfers()
+        => _client?.Uploads
+            .Select(TryCreateUploadSnapshot)
+            .Where(upload => upload is not null)
+            .Select(upload => upload!)
+            .ToArray()
+            ?? [];
+
+    private void OnTransferProgressUpdated(object? sender, TransferProgressUpdatedEventArgs args)
+        => PublishUploadChanged(args.Transfer, stateChanged: false);
+
+    private void OnTransferStateChanged(object? sender, TransferStateChangedEventArgs args)
+        => PublishUploadChanged(args.Transfer, stateChanged: true);
+
+    private void PublishUploadChanged(Transfer transfer, bool stateChanged)
+    {
+        var snapshot = TryCreateUploadSnapshot(transfer);
+        if (snapshot is not null)
+            UploadChanged?.Invoke(this, new SoulseekUploadChangedEventArgs(snapshot, stateChanged));
+    }
+
+    private static SoulseekUploadTransferSnapshot? TryCreateUploadSnapshot(Transfer transfer)
+    {
+        if (transfer.Direction != TransferDirection.Upload
+            || !TryNormalizeIncoming(transfer.Username, MaximumChatIdentityLength, out var username)
+            || !TryNormalizeIncoming(transfer.Filename, MaximumUploadFilenameLength, out var remoteFilename))
+        {
+            return null;
+        }
+
+        long size = Math.Max(0, transfer.Size);
+        long bytesTransferred = Math.Clamp(transfer.BytesTransferred, 0, size);
+        double bytesPerSecond = double.IsFinite(transfer.AverageSpeed)
+            ? Math.Max(0, transfer.AverageSpeed)
+            : 0;
+
+        return new SoulseekUploadTransferSnapshot(
+            username,
+            remoteFilename,
+            transfer.Token,
+            transfer.State.ToString(),
+            size,
+            bytesTransferred,
+            bytesPerSecond,
+            ToUtcOffset(transfer.StartTime),
+            ToUtcOffset(transfer.EndTime),
+            IsTerminal(transfer.State));
+    }
+
+    private static bool IsTerminal(TransferStates state)
+        => state.HasFlag(TransferStates.Completed)
+            || state.HasFlag(TransferStates.Cancelled)
+            || state.HasFlag(TransferStates.TimedOut)
+            || state.HasFlag(TransferStates.Errored)
+            || state.HasFlag(TransferStates.Rejected)
+            || state.HasFlag(TransferStates.Aborted);
+
+    private static DateTimeOffset? ToUtcOffset(DateTime? value)
+    {
+        if (value is not { } timestamp)
+            return null;
+
+        DateTime utc = timestamp.Kind switch
+        {
+            DateTimeKind.Utc => timestamp,
+            DateTimeKind.Local => timestamp.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(timestamp, DateTimeKind.Utc),
+        };
+        return new DateTimeOffset(utc);
     }
 
     private void OnPrivilegeNotificationReceived(object? sender, PrivilegeNotificationReceivedEventArgs args)
@@ -852,6 +947,8 @@ public class SoulseekClientManager : IDisposable
             _client.PrivateMessageReceived -= OnPrivateMessageReceived;
             _client.RoomMessageReceived -= OnRoomMessageReceived;
             _client.PublicChatMessageReceived -= OnPublicChatMessageReceived;
+            _client.TransferProgressUpdated -= OnTransferProgressUpdated;
+            _client.TransferStateChanged -= OnTransferStateChanged;
         }
         _client?.Dispose();
         _monitorCts?.Dispose();
