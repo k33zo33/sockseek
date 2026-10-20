@@ -18,6 +18,7 @@ Koristi se SQLite s EF Core migracijama. Baza je lokalna i pripada jednom korisn
 | CanonicalTrack | Id, Title, DurationMs, Isrc nullable, MusicBrainzRecordingId nullable, NormalizedArtist, NormalizedTitle. |
 | TrackSource | Id, CanonicalTrackId, Provider, ExternalId, ExternalUrl, RawMetadataJson; unique Provider+ExternalId. |
 | LocalMediaFile | Id, CanonicalTrackId nullable, Path, Size, LastWriteUtc, DurationMs, Codec, Bitrate, SampleRate, BitDepth, Availability; unique normalized Path. |
+| SoulseekShareRoot | Id, Path, VirtualName, Enabled, CreatedAtUtc, UpdatedAtUtc; unique Path and case-insensitive unique VirtualName. This is an explicit opt-in and is not inferred from library roots. |
 | ResolutionAttempt | Id, PlaylistItemId, CandidateTrackId nullable, EngineJobId nullable, Method, Score, Decision, CreatedAtUtc. |
 | DownloadRecord | Id, WorkflowId, EngineJobId, PlaylistItemId nullable, Status, OutputPath, CandidateJson, ErrorCode, timestamps. |
 | PlaybackQueue | Id, Name, CurrentIndex, RepeatMode, ShuffleSeed, UpdatedAtUtc. |

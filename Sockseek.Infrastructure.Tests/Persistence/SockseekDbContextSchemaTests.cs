@@ -33,6 +33,7 @@ public class SockseekDbContextSchemaTests
                 "TrackSources",
                 "LocalMediaFiles",
                 "LibraryRoots",
+                "SoulseekShareRoots",
                 "SoulseekWishlistEntries",
                 "ResolutionAttempts",
                 "DownloadWorkflows",
@@ -49,6 +50,8 @@ public class SockseekDbContextSchemaTests
         CollectionAssert.Contains(indexColumns["TrackSources"], "Provider,ExternalId");
         CollectionAssert.Contains(indexColumns["LocalMediaFiles"], "Path");
         CollectionAssert.Contains(indexColumns["LibraryRoots"], "Path");
+        CollectionAssert.Contains(indexColumns["SoulseekShareRoots"], "Path");
+        CollectionAssert.Contains(indexColumns["SoulseekShareRoots"], "VirtualName");
         CollectionAssert.Contains(indexColumns["ProviderSyncStates"], "Provider,AccountId,ResourceId");
         CollectionAssert.Contains(indexColumns["DownloadWorkflows"], "WorkflowId");
 

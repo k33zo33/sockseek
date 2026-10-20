@@ -15,6 +15,12 @@ See also the release-focused [threat model](threat-model.md).
   text, usernames and private-message protocol ids are not persisted or logged.
 - Chat SignalR invalidation contains only a revision and stable reason. Message text
   and usernames are returned only by the authenticated loopback HTTP snapshot.
+- Soulseek share roots are separate explicit opt-ins and are never inferred from
+  library or download roots. The immutable share snapshot includes only supported,
+  completed audio files below readable enabled roots and skips reparse points.
+- Remote share paths are normalized virtual paths and never interpreted as local
+  paths. Opening a shared file revalidates canonical containment, every directory
+  segment, reparse attributes and snapshot size before returning a read stream.
 
 ## 15. Sigurnost, privatnost i operativna pravila
 

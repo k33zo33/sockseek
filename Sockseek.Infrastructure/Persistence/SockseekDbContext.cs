@@ -39,6 +39,7 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
     public DbSet<TrackSourceEntity> TrackSources => Set<TrackSourceEntity>();
     public DbSet<LocalMediaFileEntity> LocalMediaFiles => Set<LocalMediaFileEntity>();
     public DbSet<LibraryRootEntity> LibraryRoots => Set<LibraryRootEntity>();
+    public DbSet<SoulseekShareRootEntity> SoulseekShareRoots => Set<SoulseekShareRootEntity>();
     public DbSet<SoulseekWishlistEntryEntity> SoulseekWishlistEntries => Set<SoulseekWishlistEntryEntity>();
     public DbSet<ResolutionAttemptEntity> ResolutionAttempts => Set<ResolutionAttemptEntity>();
     public DbSet<DownloadWorkflowEntity> DownloadWorkflows => Set<DownloadWorkflowEntity>();
@@ -152,6 +153,19 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Path).IsRequired();
             entity.HasIndex(x => x.Path).IsUnique();
+        });
+
+        modelBuilder.Entity<SoulseekShareRootEntity>(entity =>
+        {
+            entity.ToTable("SoulseekShareRoots");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Path).IsRequired();
+            entity.Property(x => x.VirtualName)
+                .IsRequired()
+                .HasMaxLength(SoulseekShareRootStore.MaximumVirtualNameLength)
+                .UseCollation("NOCASE");
+            entity.HasIndex(x => x.Path).IsUnique();
+            entity.HasIndex(x => x.VirtualName).IsUnique();
         });
 
         modelBuilder.Entity<SoulseekWishlistEntryEntity>(entity =>
