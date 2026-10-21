@@ -14,6 +14,11 @@ on:
       - '.editorconfig'
       - '**/global.json'
       - '**/nuget.config'
+      - 'scripts/**.ps1'
+      - 'docs/soulseek-public-beta-compliance-checklist.md'
+      - 'docs/soulseek-compliance-audit.md'
+      - 'docs/beta-limitations.md'
+      - 'docs/adr/0009-closed-beta-until-soulseek-compliance.md'
       - '.github/workflows/**.yml'
 
   push:
@@ -27,6 +32,11 @@ on:
       - '.editorconfig'
       - '**/global.json'
       - '**/nuget.config'
+      - 'scripts/**.ps1'
+      - 'docs/soulseek-public-beta-compliance-checklist.md'
+      - 'docs/soulseek-compliance-audit.md'
+      - 'docs/beta-limitations.md'
+      - 'docs/adr/0009-closed-beta-until-soulseek-compliance.md'
       - '.github/workflows/**.yml'
 
 jobs:
@@ -58,6 +68,12 @@ jobs:
 
     - name: Test Project
       run: dotnet test --no-build --configuration Release --verbosity normal
+
+    - name: Validate Soulseek release evidence helpers
+      shell: pwsh
+      run: |
+        ./scripts/test_soulseek_live_checklist.ps1
+        ./scripts/validate_soulseek_compliance_gate.ps1
 
   format-check:
     if: false  # disabled: dotnet format has platform-sensitive indentation behavior

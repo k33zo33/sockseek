@@ -37,6 +37,35 @@ Every row must be marked `Pass`, `Fail` or `Not applicable by accepted ADR`, wit
 
 ## Manual smoke protocol
 
+Create an artifact-bound evidence directory before starting the manual run. The
+helper reads the package's embedded `release-metadata.json`, records its SHA256 and
+the detected host, and creates a checklist that contains only a generated redacted
+session label unless one is supplied explicitly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\new_soulseek_live_checklist.ps1 `
+  -ArtifactPath .tmp\sprint16-windows-package-smoke-422a001\Sockseek-win-x64.zip `
+  -Reviewer 'release-reviewer' `
+  -ExpectedCommit 422a001f5e6275cb312c7c42d954b8e58a0c6d2a `
+  -RequiredHost Windows11X64
+```
+
+Use `-RequiredHost Ubuntu2404X64` for an Ubuntu 24.04 x64 run. Never pass a
+Soulseek username or password to the helper. Complete the generated `checklist.md`
+with UTC timestamps and redacted evidence, then validate it against the same
+unchanged package:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_soulseek_live_checklist.ps1 `
+  -ArtifactPath <exact-package-path> `
+  -RunDirectory <generated-run-directory>
+```
+
+The validator rejects pending or failed rows, missing evidence, mismatched package
+hashes/commits, an invalid required-host classification and common credential or
+Authorization-header forms. It cannot prove that screenshots or prose are true;
+the named reviewer remains responsible for the live observations and redaction.
+
 1. Start from a clean user data directory or a documented upgrade path.
 2. Confirm the daemon binds to loopback and protected `/api/v1` endpoints require the local session token.
 3. Connect to Soulseek with a test account and do not record or paste the account password.
@@ -44,6 +73,7 @@ Every row must be marked `Pass`, `Fail` or `Not applicable by accepted ADR`, wit
 5. Export diagnostics through the app flow when available, inspect the export, and redact any private data before attaching it to an issue.
 6. Review the exact public beta release notes, About/License surface and package notices for legal-use language, source availability and third-party notices.
 7. Run the automated gates listed in `docs/beta-go-no-go.md` on the same commit or explain why a newer commit supersedes the run.
+8. Run `scripts/validate_soulseek_live_checklist.ps1` against the unchanged package and retain `run-metadata.json`, `checklist.md` and referenced redacted evidence together.
 
 ## Stop conditions
 
