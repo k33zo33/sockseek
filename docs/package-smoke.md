@@ -151,19 +151,23 @@ The Ubuntu package expects the system LibVLC runtime and unversioned loader alia
 
 ## Sprint 16 exact-candidate evidence
 
-Candidate `ab3794edf9994c4f82b311ad0aa283e1535d754a` was exercised on
+Candidate `9a131874be6274dfdd5f42d97241fa950af6e1e8` was exercised on
 2026-10-21:
 
 - Ubuntu 24.04 x64 exact-package smoke passed publish, 132-package SBOM,
-  staging, tar extraction, daemon health, Desktop child-daemon health under
-  Xvfb, install/uninstall and default user-data preservation. The archive is
+  staging, tar extraction, daemon health, authenticated encrypted Soulseek
+  account configure/status/disconnect, Unix `0700`/`0600` secret permissions,
+  Desktop child-daemon health under Xvfb, install/uninstall and default user-data
+  preservation. The archive is
   `Sockseek-linux-x64.tar.gz`, SHA256
-  `22824efd0a514c60ae4e4d29cbd5bd376e2e8d193f6d43fd2366fa4a6fb4cf68`.
+  `eb87b176ed32643bf7d915bf504aa7d8cfcaf3566d3c669a5ae78aa803810bcd`.
 - Windows `win-x64` exact-package preflight passed publish, 132-package SBOM,
   staging, ZIP extraction, direct daemon health/auth/loopback checks and
-  packaged Desktop child-daemon health/auth/loopback checks. The archive is
+  packaged Desktop child-daemon health/auth/loopback checks. The direct daemon
+  also passed DPAPI-backed Soulseek account configure/status/disconnect with
+  response/plaintext checks and secret cleanup. The archive is
   `Sockseek-win-x64.zip`, SHA256
-  `6287af6678423153282350d281a073aa25eb09ccc5c9c1b687a03d66c76eb9ad`.
+  `d2c62e8e73a3f56cab3381c662d482b06efd57257229b478108d751639d4a450`.
 - The Windows evidence JSON identifies Microsoft Windows 10 Pro
   `10.0.19045`, 64-bit. This is not the required Windows 11 x64 acceptance
   run.
