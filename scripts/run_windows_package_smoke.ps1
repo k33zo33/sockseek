@@ -121,7 +121,7 @@ function Assert-ProtectedApiRejectsAnonymousRequest {
     }
 }
 
-function Assert-SoulseekAccountLifecycle {
+function Configure-SoulseekAccountForRestartSmoke {
     param(
         [Parameter(Mandatory = $true)]
         [string]$BaseUrl,
@@ -137,6 +137,7 @@ function Assert-SoulseekAccountLifecycle {
     $password = New-RandomHex -ByteCount 24
     $headers = @{ Authorization = "Bearer $SessionToken" }
     $configured = $false
+    $completed = $false
 
     try {
         $requestBody = @{ username = $username; password = $password } | ConvertTo-Json -Compress
@@ -168,31 +169,11 @@ function Assert-SoulseekAccountLifecycle {
             throw 'Packaged Soulseek secret payload contains the plaintext password.'
         }
 
-        $account = Invoke-RestMethod `
-            -Method Get `
-            -Uri "$BaseUrl/api/v1/soulseek/account" `
-            -Headers $headers `
-            -TimeoutSec 30
-        if (-not $account.isConfigured -or $account.username -ne $username) {
-            throw 'Packaged Soulseek account status did not preserve the configured account.'
-        }
-
-        $account = Invoke-RestMethod `
-            -Method Delete `
-            -Uri "$BaseUrl/api/v1/soulseek/account" `
-            -Headers $headers `
-            -TimeoutSec 30
-        $configured = $false
-        if ($account.isConfigured -or $account.credentialStatus -ne 'not_configured') {
-            throw 'Packaged Soulseek account disconnect did not clear account status.'
-        }
-
-        if (@(Get-ChildItem -LiteralPath $SecretStoreDir -File -Filter '*.secret' -Force).Count -ne 0) {
-            throw 'Packaged Soulseek account disconnect did not remove the secret payload.'
-        }
+        $completed = $true
+        return $username
     }
     finally {
-        if ($configured) {
+        if ($configured -and -not $completed) {
             try {
                 Invoke-RestMethod `
                     -Method Delete `
@@ -208,8 +189,47 @@ function Assert-SoulseekAccountLifecycle {
         $password = $null
         $requestBody = $null
     }
+}
 
-    Write-Host 'Exact packaged daemon passed the secret-backed Soulseek account lifecycle smoke.'
+function Assert-RestoredSoulseekAccountAndDisconnect {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUrl,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SessionToken,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Username,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SecretStoreDir
+    )
+
+    $headers = @{ Authorization = "Bearer $SessionToken" }
+    $account = Invoke-RestMethod `
+        -Method Get `
+        -Uri "$BaseUrl/api/v1/soulseek/account" `
+        -Headers $headers `
+        -TimeoutSec 30
+    if (-not $account.isConfigured `
+        -or $account.username -ne $Username `
+        -or $account.credentialStatus -ne 'configured') {
+        throw 'Packaged Soulseek account was not restored from the secret store after daemon restart.'
+    }
+
+    $account = Invoke-RestMethod `
+        -Method Delete `
+        -Uri "$BaseUrl/api/v1/soulseek/account" `
+        -Headers $headers `
+        -TimeoutSec 30
+    if ($account.isConfigured -or $account.credentialStatus -ne 'not_configured') {
+        throw 'Packaged Soulseek account disconnect did not clear account status.'
+    }
+
+    if (@(Get-ChildItem -LiteralPath $SecretStoreDir -File -Filter '*.secret' -Force).Count -ne 0) {
+        throw 'Packaged Soulseek account disconnect did not remove the secret payload.'
+    }
 }
 
 function Assert-ProcessListensOnlyOnLoopback {
@@ -523,10 +543,32 @@ try {
     Wait-ForHealth -BaseUrl $directDaemonUrl -Process $daemonProcess
     Assert-ProcessListensOnlyOnLoopback -ProcessId $daemonProcess.Id
     Assert-ProtectedApiRejectsAnonymousRequest -BaseUrl $directDaemonUrl
-    Assert-SoulseekAccountLifecycle `
+    $smokeAccountUsername = Configure-SoulseekAccountForRestartSmoke `
         -BaseUrl $directDaemonUrl `
         -SessionToken $smokeSessionToken `
         -SecretStoreDir (Join-Path $daemonDataDir 'secrets')
+    Stop-SmokeProcess -Process $daemonProcess
+    $daemonProcess = $null
+
+    $daemonRestartStdout = Join-Path $artifactsRootFullPath 'daemon-restart.stdout.log'
+    $daemonRestartStderr = Join-Path $artifactsRootFullPath 'daemon-restart.stderr.log'
+    $daemonProcess = Start-Process -FilePath $extractedDaemonPath `
+        -ArgumentList "--urls $directDaemonUrl" `
+        -WorkingDirectory (Split-Path -Parent $extractedDaemonPath) `
+        -RedirectStandardOutput $daemonRestartStdout `
+        -RedirectStandardError $daemonRestartStderr `
+        -WindowStyle Hidden `
+        -PassThru
+
+    Wait-ForHealth -BaseUrl $directDaemonUrl -Process $daemonProcess
+    Assert-ProcessListensOnlyOnLoopback -ProcessId $daemonProcess.Id
+    Assert-ProtectedApiRejectsAnonymousRequest -BaseUrl $directDaemonUrl
+    Assert-RestoredSoulseekAccountAndDisconnect `
+        -BaseUrl $directDaemonUrl `
+        -SessionToken $smokeSessionToken `
+        -Username $smokeAccountUsername `
+        -SecretStoreDir (Join-Path $daemonDataDir 'secrets')
+    Write-Host 'Exact packaged daemon restored and removed the secret-backed Soulseek account after restart.'
     Write-Host "Exact packaged daemon is healthy and keeps /api/v1 protected at $directDaemonUrl."
     Stop-SmokeProcess -Process $daemonProcess
     $daemonProcess = $null
@@ -585,6 +627,7 @@ $evidence = [ordered]@{
         daemonHealth = $true
         daemonProtectedApiRejectsAnonymous = $true
         daemonSoulseekAccountLifecycle = $true
+        daemonSoulseekAccountRestartRestore = $true
         daemonSoulseekSecretRemovedAfterDisconnect = $true
         desktopStartedPackagedDaemon = $true
         desktopDaemonHealth = $true

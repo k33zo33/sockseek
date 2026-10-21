@@ -59,27 +59,32 @@ daemon_data_dir="$work_dir/daemon-data"
 secret_dir="$daemon_data_dir/secrets"
 mkdir -p "$daemon_data_dir"
 
-SockseekServer__ConfigDir="$daemon_data_dir" \
-SockseekServer__SessionToken="$session_token" \
-    "$package_dir/daemon/Sockseek.Server" >"$daemon_log" 2>&1 &
-daemon_pid=$!
-health=''
-for _ in $(seq 1 30); do
-    if ! kill -0 "$daemon_pid" 2>/dev/null; then
+start_daemon() {
+    SockseekServer__ConfigDir="$daemon_data_dir" \
+    SockseekServer__SessionToken="$session_token" \
+        "$package_dir/daemon/Sockseek.Server" >>"$daemon_log" 2>&1 &
+    daemon_pid=$!
+    health=''
+    for _ in $(seq 1 30); do
+        if ! kill -0 "$daemon_pid" 2>/dev/null; then
+            cat "$daemon_log"
+            echo 'Packaged daemon exited before health became ready.' >&2
+            exit 1
+        fi
+        if health=$(curl --fail --silent --show-error http://127.0.0.1:5030/health 2>/dev/null); then
+            break
+        fi
+        sleep 1
+    done
+    if [[ "$health" != *'"status":"ok"'* ]]; then
         cat "$daemon_log"
-        echo 'Packaged daemon exited before health became ready.' >&2
+        echo 'Packaged daemon did not return a healthy response.' >&2
         exit 1
     fi
-    if health=$(curl --fail --silent --show-error http://127.0.0.1:5030/health 2>/dev/null); then
-        break
-    fi
-    sleep 1
-done
-if [[ "$health" != *'"status":"ok"'* ]]; then
-    cat "$daemon_log"
-    echo 'Packaged daemon did not return a healthy response.' >&2
-    exit 1
-fi
+}
+
+: >"$daemon_log"
+start_daemon
 echo "Packaged daemon health: $health"
 
 anonymous_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
@@ -119,13 +124,20 @@ if grep --binary-files=text --fixed-strings --quiet -- "$account_password" "${se
     echo 'Packaged Soulseek secret payload contains the plaintext password.' >&2
     exit 1
 fi
+account_password=''
+
+kill "$daemon_pid"
+wait "$daemon_pid" 2>/dev/null || true
+daemon_pid=''
+start_daemon
 
 account_response=$(curl --fail --silent --show-error \
     --header "Authorization: Bearer $session_token" \
     http://127.0.0.1:5030/api/v1/soulseek/account)
 if [[ "$account_response" != *"\"username\":\"$account_username\""* ]] \
-    || [[ "$account_response" != *'"isConfigured":true'* ]]; then
-    echo 'Packaged Soulseek account status did not preserve the configured account.' >&2
+    || [[ "$account_response" != *'"isConfigured":true'* ]] \
+    || [[ "$account_response" != *'"credentialStatus":"configured"'* ]]; then
+    echo 'Packaged Soulseek account was not restored from the secret store after daemon restart.' >&2
     exit 1
 fi
 
@@ -139,9 +151,8 @@ if [[ "$account_response" != *'"isConfigured":false'* ]] \
     echo 'Packaged Soulseek account disconnect did not remove local account state.' >&2
     exit 1
 fi
-account_password=''
 account_response=''
-echo 'Packaged daemon passed the secret-backed Soulseek account lifecycle and Unix permission smoke.'
+echo 'Packaged daemon passed secret-backed account restart restore, cleanup, and Unix permission smoke.'
 
 kill "$daemon_pid"
 wait "$daemon_pid" 2>/dev/null || true

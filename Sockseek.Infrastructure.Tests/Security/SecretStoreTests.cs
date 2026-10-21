@@ -91,7 +91,11 @@ public sealed class SecretStoreTests
         var files = Directory.GetFiles(temp.Path, "*.secret");
         byte[] secretBytes = await File.ReadAllBytesAsync(files.Single());
         byte[] keyBytes = await File.ReadAllBytesAsync(Path.Combine(temp.Path, "master.key"));
-        var entry = await store.ReadAsync(reference);
+        var reopenedStore = new LocalEncryptedFileSecretStore(temp.Path);
+        var entry = await reopenedStore.ReadAsync(reference);
+        UnixFileMode? secretFileMode = OperatingSystem.IsWindows()
+            ? null
+            : File.GetUnixFileMode(files.Single());
         var deleted = await store.DeleteAsync(reference);
 
         StringAssert.StartsWith(reference, "secret://local-encrypted/");
@@ -107,6 +111,9 @@ public sealed class SecretStoreTests
             Assert.AreEqual(
                 UnixFileMode.UserRead | UnixFileMode.UserWrite,
                 File.GetUnixFileMode(Path.Combine(temp.Path, "master.key")));
+            Assert.AreEqual(
+                UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                secretFileMode!.Value);
             Assert.AreEqual(
                 UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
                 File.GetUnixFileMode(temp.Path));
