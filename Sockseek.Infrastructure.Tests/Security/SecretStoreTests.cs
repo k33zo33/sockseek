@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Application.Security;
 using Sockseek.Infrastructure.Security;
@@ -72,6 +73,83 @@ public sealed class SecretStoreTests
         Assert.IsTrue(deleted);
         Assert.IsFalse(deletedAgain);
         Assert.AreEqual(0, Directory.GetFiles(temp.Path, "*.secret").Length);
+    }
+
+    [TestMethod]
+    public async Task LocalEncryptedFileSecretStore_SaveReadDelete_DoesNotPersistPlaintextSecret()
+    {
+        using var temp = TemporaryDirectory.Create();
+        var store = new LocalEncryptedFileSecretStore(temp.Path);
+        var request = new SecretStoreSaveRequest(
+            "soulseek",
+            new Dictionary<string, string>
+            {
+                ["password"] = "plain-soulseek-password",
+            });
+
+        var reference = await store.SaveAsync(request);
+        var files = Directory.GetFiles(temp.Path, "*.secret");
+        byte[] secretBytes = await File.ReadAllBytesAsync(files.Single());
+        byte[] keyBytes = await File.ReadAllBytesAsync(Path.Combine(temp.Path, "master.key"));
+        var entry = await store.ReadAsync(reference);
+        var deleted = await store.DeleteAsync(reference);
+
+        StringAssert.StartsWith(reference, "secret://local-encrypted/");
+        Assert.IsFalse(Encoding.UTF8.GetString(secretBytes).Contains("plain-soulseek-password", StringComparison.Ordinal));
+        Assert.AreEqual(32, keyBytes.Length);
+        CollectionAssert.AreNotEqual(keyBytes, secretBytes);
+        Assert.IsNotNull(entry);
+        Assert.AreEqual("plain-soulseek-password", entry.Secrets["password"]);
+        Assert.IsTrue(deleted);
+        Assert.IsFalse(File.Exists(files.Single()));
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.AreEqual(
+                UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                File.GetUnixFileMode(Path.Combine(temp.Path, "master.key")));
+            Assert.AreEqual(
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+                File.GetUnixFileMode(temp.Path));
+        }
+    }
+
+    [TestMethod]
+    public async Task LocalEncryptedFileSecretStore_TamperedPayload_FailsAuthentication()
+    {
+        using var temp = TemporaryDirectory.Create();
+        var store = new LocalEncryptedFileSecretStore(temp.Path);
+        string reference = await store.SaveAsync(new SecretStoreSaveRequest(
+            "soulseek",
+            new Dictionary<string, string> { ["password"] = "secret" }));
+        string path = Directory.GetFiles(temp.Path, "*.secret").Single();
+        byte[] payload = await File.ReadAllBytesAsync(path);
+        var envelope = JsonNode.Parse(payload)!.AsObject();
+        byte[] ciphertext = Convert.FromBase64String(envelope["Ciphertext"]!.GetValue<string>());
+        ciphertext[0] ^= 0x01;
+        envelope["Ciphertext"] = Convert.ToBase64String(ciphertext);
+        await File.WriteAllTextAsync(path, envelope.ToJsonString());
+
+        try
+        {
+            await store.ReadAsync(reference);
+            Assert.Fail("Tampered secret payload should fail authentication.");
+        }
+        catch (InvalidDataException)
+        {
+        }
+    }
+
+    [TestMethod]
+    public void PlatformSecretStoreFactory_Create_SelectsSupportedPersistentStore()
+    {
+        using var temp = TemporaryDirectory.Create();
+
+        var store = PlatformSecretStoreFactory.Create(temp.Path);
+
+        if (OperatingSystem.IsWindows() && WindowsDpapiSecretStore.IsAvailable())
+            Assert.IsInstanceOfType<WindowsDpapiSecretStore>(store);
+        else
+            Assert.IsInstanceOfType<LocalEncryptedFileSecretStore>(store);
     }
 
     private sealed class TemporaryDirectory : IDisposable

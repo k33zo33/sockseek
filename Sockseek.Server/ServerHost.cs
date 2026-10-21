@@ -100,7 +100,7 @@ public static class ServerHost
         {
             var serverOptions = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
             return serverOptions.SecretStoreFactory?.Invoke()
-                ?? new WindowsDpapiSecretStore(ResolveSecretStoreDirectory(serverOptions));
+                ?? PlatformSecretStoreFactory.Create(ResolveSecretStoreDirectory(serverOptions));
         });
         builder.Services.AddSingleton(sp => CreateBandcampProvider(sp));
         builder.Services.AddSingleton<IPlaylistSourceProvider>(sp => sp.GetRequiredService<BandcampPlaylistSourceProvider>());
