@@ -900,10 +900,34 @@
                   IsVisible="{Binding IsAccountsVisible}">
             <StackPanel Spacing="12">
               <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Text="Provider accounts" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock DockPanel.Dock="Left" Text="Accounts" FontSize="20" FontWeight="SemiBold" />
                 <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding Accounts.RefreshCommand}" />
               </DockPanel>
               <TextBlock Text="{Binding Accounts.ErrorMessage}" Foreground="IndianRed" TextWrapping="Wrap" />
+              <WrapPanel Orientation="Horizontal">
+                <StackPanel Width="220" Margin="0,0,8,8" Spacing="4">
+                  <TextBlock Text="Soulseek account" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Accounts.SoulseekStatusSummary}" TextWrapping="Wrap" Opacity="0.75" />
+                </StackPanel>
+                <TextBox Width="180"
+                         Margin="0,0,8,8"
+                         Watermark="Username"
+                         Text="{Binding Accounts.SoulseekUsername, Mode=TwoWay}" />
+                <TextBox Margin="0,0,8,8"
+                         Width="180"
+                         Watermark="Password"
+                         PasswordChar="*"
+                         Text="{Binding Accounts.SoulseekPassword, Mode=TwoWay}" />
+                <StackPanel Margin="0,0,0,8" Orientation="Horizontal" Spacing="8">
+                  <Button Content="Save"
+                          Command="{Binding Accounts.SaveSoulseekAccountCommand}"
+                          IsEnabled="{Binding Accounts.CanSaveSoulseekAccount}" />
+                  <Button Content="Disconnect"
+                          Command="{Binding Accounts.DisconnectSoulseekAccountCommand}"
+                          IsEnabled="{Binding Accounts.CanDisconnectSoulseekAccount}" />
+                </StackPanel>
+              </WrapPanel>
+              <Border Height="1" Background="{DynamicResource ShellCardAltBrush}" />
               <ItemsControl ItemsSource="{Binding Accounts.ProviderCards}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="desktop:ProviderConnectionCardViewModel">

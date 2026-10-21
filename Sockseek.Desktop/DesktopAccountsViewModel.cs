@@ -8,6 +8,9 @@ public sealed class DesktopAccountsViewModel : ObservableObject
     private readonly SockseekApiClient apiClient;
     private IReadOnlyList<ProviderConnectionCardViewModel> providerCards = [];
     private IReadOnlyList<DesktopExternalAccountViewModel> accounts = [];
+    private SoulseekAccountDto? soulseekAccount;
+    private string soulseekUsername = string.Empty;
+    private string soulseekPassword = string.Empty;
     private bool isBusy;
     private string? errorMessage;
 
@@ -15,12 +18,72 @@ public sealed class DesktopAccountsViewModel : ObservableObject
     {
         this.apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         RefreshCommand = new DesktopAsyncCommand(() => RefreshAsync());
+        SaveSoulseekAccountCommand = new DesktopAsyncCommand(() => SaveSoulseekAccountAsync());
+        DisconnectSoulseekAccountCommand = new DesktopAsyncCommand(() => DisconnectSoulseekAccountAsync());
         DisconnectCommand = new DesktopAsyncParameterCommand<Guid>(accountId => DisconnectAsync(accountId));
     }
 
     public ICommand RefreshCommand { get; }
 
+    public ICommand SaveSoulseekAccountCommand { get; }
+
+    public ICommand DisconnectSoulseekAccountCommand { get; }
+
     public ICommand DisconnectCommand { get; }
+
+    public SoulseekAccountDto? SoulseekAccount
+    {
+        get => soulseekAccount;
+        private set
+        {
+            if (!SetProperty(ref soulseekAccount, value))
+                return;
+
+            OnPropertyChanged(nameof(SoulseekStatusSummary));
+            OnPropertyChanged(nameof(CanDisconnectSoulseekAccount));
+        }
+    }
+
+    public string SoulseekUsername
+    {
+        get => soulseekUsername;
+        set
+        {
+            if (SetProperty(ref soulseekUsername, value ?? string.Empty))
+                OnPropertyChanged(nameof(CanSaveSoulseekAccount));
+        }
+    }
+
+    public string SoulseekPassword
+    {
+        get => soulseekPassword;
+        set
+        {
+            if (SetProperty(ref soulseekPassword, value ?? string.Empty))
+                OnPropertyChanged(nameof(CanSaveSoulseekAccount));
+        }
+    }
+
+    public bool CanSaveSoulseekAccount
+        => !IsBusy
+            && !string.IsNullOrWhiteSpace(SoulseekUsername)
+            && SoulseekPassword.Length > 0;
+
+    public bool CanDisconnectSoulseekAccount
+        => !IsBusy
+            && SoulseekAccount is { } account
+            && (account.IsConfigured || account.CredentialStatus == "secret_unavailable");
+
+    public string SoulseekStatusSummary
+        => SoulseekAccount switch
+        {
+            { IsConnected: true, Username: { Length: > 0 } username } => $"Connected as {username}",
+            { IsConfigured: true, Username: { Length: > 0 } username } account =>
+                $"Configured as {username} - {account.ConnectionState}",
+            { CredentialStatus: "secret_unavailable", Username: { Length: > 0 } username } =>
+                $"{username} needs credentials again",
+            _ => "Not configured",
+        };
 
     public IReadOnlyList<ProviderConnectionCardViewModel> ProviderCards
     {
@@ -37,7 +100,14 @@ public sealed class DesktopAccountsViewModel : ObservableObject
     public bool IsBusy
     {
         get => isBusy;
-        private set => SetProperty(ref isBusy, value);
+        private set
+        {
+            if (!SetProperty(ref isBusy, value))
+                return;
+
+            OnPropertyChanged(nameof(CanSaveSoulseekAccount));
+            OnPropertyChanged(nameof(CanDisconnectSoulseekAccount));
+        }
     }
 
     public string? ErrorMessage
@@ -49,6 +119,7 @@ public sealed class DesktopAccountsViewModel : ObservableObject
     public async Task<bool> RefreshAsync(CancellationToken cancellationToken = default)
         => await ExecuteAsync(async () =>
         {
+            ApplySoulseekAccount(await apiClient.GetSoulseekAccountAsync(cancellationToken));
             var providers = await apiClient.GetProvidersAsync(cancellationToken);
             ProviderCards = providers
                 .Select(ProviderConnectionCardViewModel.FromCapability)
@@ -58,6 +129,42 @@ public sealed class DesktopAccountsViewModel : ObservableObject
             await LoadAccountsAsync(cancellationToken);
             return true;
         });
+
+    public async Task<SoulseekAccountDto?> SaveSoulseekAccountAsync(CancellationToken cancellationToken = default)
+    {
+        SoulseekAccountDto? configured = null;
+        var succeeded = await ExecuteAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(SoulseekUsername) || SoulseekPassword.Length == 0)
+            {
+                ErrorMessage = "Enter a Soulseek username and password.";
+                return false;
+            }
+
+            configured = await apiClient.ConfigureSoulseekAccountAsync(
+                new ConfigureSoulseekAccountRequestDto(SoulseekUsername, SoulseekPassword),
+                cancellationToken);
+            ApplySoulseekAccount(configured);
+            SoulseekPassword = string.Empty;
+            return true;
+        });
+
+        return succeeded ? configured : null;
+    }
+
+    public async Task<SoulseekAccountDto?> DisconnectSoulseekAccountAsync(CancellationToken cancellationToken = default)
+    {
+        SoulseekAccountDto? disconnected = null;
+        var succeeded = await ExecuteAsync(async () =>
+        {
+            disconnected = await apiClient.DisconnectSoulseekAccountAsync(cancellationToken);
+            ApplySoulseekAccount(disconnected);
+            SoulseekPassword = string.Empty;
+            return true;
+        });
+
+        return succeeded ? disconnected : null;
+    }
 
     public async Task<ExternalAccountDto?> DisconnectAsync(Guid accountId, CancellationToken cancellationToken = default)
     {
@@ -86,6 +193,12 @@ public sealed class DesktopAccountsViewModel : ObservableObject
             .OrderBy(account => account.ProviderId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(account => account.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private void ApplySoulseekAccount(SoulseekAccountDto account)
+    {
+        SoulseekAccount = account;
+        SoulseekUsername = account.Username ?? string.Empty;
     }
 
     private async Task<bool> ExecuteAsync(Func<Task<bool>> action)

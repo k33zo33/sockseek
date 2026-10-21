@@ -182,7 +182,7 @@ public class ShellNavigationViewModelTests
     [DataRow(ShellSection.Playlists, "Imported playlists and resolution progress will appear here.", "Imported playlists have not been staged yet.", "Import and sync overview")]
     [DataRow(ShellSection.Library, "Local library browsing and scans will appear here.", "Library roots still need indexing.", "Roots and scan status")]
     [DataRow(ShellSection.Downloads, "Active and completed download workflows will appear here.", "No download workflows are running right now.", "Queue and transfer health")]
-    [DataRow(ShellSection.Accounts, "Provider connections and authorization status will appear here.", "No provider or Soulseek account is connected yet.", "Connection cards")]
+    [DataRow(ShellSection.Accounts, "Manage local Soulseek credentials and provider connections.", "No external provider account is connected.", "Connection cards")]
     [DataRow(ShellSection.Chat, "Private, room, and public Soulseek conversations.", "No chat messages are loaded.", "Rooms")]
     [DataRow(ShellSection.Settings, "Theme, daemon, Soulseek sharing, and local application details.", "Local settings and application details.", "Appearance and shortcuts")]
     public void NavigateTo_AllPrimarySections_ExposesExpectedPlaceholderPage(ShellSection section, string expectedDescription, string expectedEmptyStateTitle, string expectedFirstHighlightTitle)
