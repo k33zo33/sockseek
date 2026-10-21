@@ -34,6 +34,24 @@ function Invoke-CheckedCommand {
     }
 }
 
+function New-RandomHex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, 1024)]
+        [int]$ByteCount
+    )
+
+    $bytes = New-Object byte[] $ByteCount
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $generator.GetBytes($bytes)
+        return [BitConverter]::ToString($bytes).Replace('-', '')
+    }
+    finally {
+        $generator.Dispose()
+    }
+}
+
 function Get-AvailableLoopbackPort {
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
     try {
@@ -116,7 +134,7 @@ function Assert-SoulseekAccountLifecycle {
     )
 
     $username = "package-smoke-$([Guid]::NewGuid().ToString('N').Substring(0, 12))"
-    $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+    $password = New-RandomHex -ByteCount 24
     $headers = @{ Authorization = "Bearer $SessionToken" }
     $configured = $false
 
@@ -488,7 +506,7 @@ $desktopDaemonUrl = $null
 
 try {
     [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $daemonDataDir, 'Process')
-    $smokeSessionToken = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    $smokeSessionToken = New-RandomHex -ByteCount 32
     [Environment]::SetEnvironmentVariable('SockseekServer__SessionToken', $smokeSessionToken, 'Process')
     $port = Get-AvailableLoopbackPort
     $directDaemonUrl = "http://127.0.0.1:$port"
