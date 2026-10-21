@@ -151,7 +151,7 @@ The Ubuntu package expects the system LibVLC runtime and unversioned loader alia
 
 ## Sprint 16 exact-candidate evidence
 
-Candidate `422a001f5e6275cb312c7c42d954b8e58a0c6d2a` was exercised on
+Candidate `c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f` was exercised on
 2026-10-21:
 
 - Ubuntu 24.04 x64 exact-package smoke passed publish, 132-package SBOM,
@@ -160,17 +160,21 @@ Candidate `422a001f5e6275cb312c7c42d954b8e58a0c6d2a` was exercised on
   Desktop child-daemon health under Xvfb, install/uninstall and default user-data
   preservation. The archive is
   `Sockseek-linux-x64.tar.gz`, SHA256
-  `6474ed5b7b4be3370d315a001f823cbab7af0af50179cabceb49e6840ec3b287`.
+  `ee7072fba179799c2911b49bb75860b6d82406426a53945e6c1a8198a25670fd`.
 - Windows `win-x64` exact-package preflight passed publish, 132-package SBOM,
   staging, ZIP extraction, direct daemon health/auth/loopback checks and
   packaged Desktop child-daemon health/auth/loopback checks. The direct daemon
   also passed DPAPI-backed Soulseek account configure, daemon restart/restore
   and disconnect with response/plaintext checks and secret cleanup. The archive is
   `Sockseek-win-x64.zip`, SHA256
-  `b7a5349c424202058bfeff140b34261de37830c2565c7af189074e180d445973`.
+  `2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde`.
 - The Windows evidence JSON identifies Microsoft Windows 10 Pro
   `10.0.19045`, 64-bit. This is not the required Windows 11 x64 acceptance
   run.
+- The exact candidate also passed `scripts/run_docker_smoke.ps1`: compose
+  validation, image build, packaged CLI help, daemon loopback `/health` and
+  bounded container cleanup all returned exit code 0. Diagnostics are retained
+  under `.tmp\sprint16-docker-smoke-c7b4cc5.md`.
 
 The complete gate result and remaining blockers are recorded in
 `docs/sprint-16-release-candidate-evidence.md`.
