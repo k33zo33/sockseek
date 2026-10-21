@@ -23,6 +23,7 @@ is not superseded by this document.
 | `scripts/run_provider_audio_guard.ps1` | Pass; 467 production files and 314 provider-boundary files scanned. |
 | `dotnet list Sockseek.sln package --vulnerable --include-transitive` | Pass; no project reported a known vulnerable package from the configured sources. |
 | Release/compliance validators | Pass; beta go/no-go, Soulseek compliance, diagnostics-feedback, closed-beta instructions and Docker-diagnostics validators all preserve the current public-beta block and redaction requirements. |
+| Docker/headless smoke | Pass after evidence-only commit `4c90ef8`: isolated Docker Desktop Linux-engine access, compose validation, current image build, packaged CLI help, daemon `/health` and bounded cleanup. The only repository diff from candidate `422a001` was the candidate evidence documentation itself. |
 
 ## Package evidence
 
