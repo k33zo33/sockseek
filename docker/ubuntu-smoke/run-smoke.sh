@@ -52,7 +52,16 @@ export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_RUNTIME_DIR="$work_dir/runtime"
 chmod 0700 "$XDG_RUNTIME_DIR"
 
-"$package_dir/daemon/Sockseek.Server" >"$daemon_log" 2>&1 &
+session_token=$(tr -d '-' </proc/sys/kernel/random/uuid)
+account_username="package-smoke-${session_token:0:12}"
+account_password="$(tr -d '-' </proc/sys/kernel/random/uuid)$(tr -d '-' </proc/sys/kernel/random/uuid)"
+daemon_data_dir="$work_dir/daemon-data"
+secret_dir="$daemon_data_dir/secrets"
+mkdir -p "$daemon_data_dir"
+
+SockseekServer__ConfigDir="$daemon_data_dir" \
+SockseekServer__SessionToken="$session_token" \
+    "$package_dir/daemon/Sockseek.Server" >"$daemon_log" 2>&1 &
 daemon_pid=$!
 health=''
 for _ in $(seq 1 30); do
@@ -72,6 +81,68 @@ if [[ "$health" != *'"status":"ok"'* ]]; then
     exit 1
 fi
 echo "Packaged daemon health: $health"
+
+anonymous_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+    http://127.0.0.1:5030/api/v1/system/info)
+if [[ "$anonymous_status" != '401' ]]; then
+    echo "Protected API returned HTTP $anonymous_status without a session token." >&2
+    exit 1
+fi
+
+account_response=$(
+    printf '{"username":"%s","password":"%s"}' "$account_username" "$account_password" \
+        | curl --fail --silent --show-error \
+            --request PUT \
+            --header "Authorization: Bearer $session_token" \
+            --header 'Content-Type: application/json' \
+            --data-binary @- \
+            http://127.0.0.1:5030/api/v1/soulseek/account
+)
+if [[ "$account_response" != *"\"username\":\"$account_username\""* ]] \
+    || [[ "$account_response" != *'"isConfigured":true'* ]] \
+    || [[ "$account_response" != *'"credentialStatus":"configured"'* ]] \
+    || [[ "$account_response" == *"$account_password"* ]] \
+    || [[ "$account_response" == *'secretReference'* ]]; then
+    echo 'Packaged Soulseek account configure response was invalid or exposed secret data.' >&2
+    exit 1
+fi
+
+test "$(stat -c '%a' "$secret_dir")" = '700'
+test "$(stat -c '%a' "$secret_dir/master.key")" = '600'
+mapfile -t secret_files < <(find "$secret_dir" -maxdepth 1 -type f -name '*.secret')
+if [[ "${#secret_files[@]}" -ne 1 ]]; then
+    echo "Expected one encrypted Soulseek secret payload, found ${#secret_files[@]}." >&2
+    exit 1
+fi
+test "$(stat -c '%a' "${secret_files[0]}")" = '600'
+if grep --binary-files=text --fixed-strings --quiet -- "$account_password" "${secret_files[0]}"; then
+    echo 'Packaged Soulseek secret payload contains the plaintext password.' >&2
+    exit 1
+fi
+
+account_response=$(curl --fail --silent --show-error \
+    --header "Authorization: Bearer $session_token" \
+    http://127.0.0.1:5030/api/v1/soulseek/account)
+if [[ "$account_response" != *"\"username\":\"$account_username\""* ]] \
+    || [[ "$account_response" != *'"isConfigured":true'* ]]; then
+    echo 'Packaged Soulseek account status did not preserve the configured account.' >&2
+    exit 1
+fi
+
+account_response=$(curl --fail --silent --show-error \
+    --request DELETE \
+    --header "Authorization: Bearer $session_token" \
+    http://127.0.0.1:5030/api/v1/soulseek/account)
+if [[ "$account_response" != *'"isConfigured":false'* ]] \
+    || [[ "$account_response" != *'"credentialStatus":"not_configured"'* ]] \
+    || find "$secret_dir" -maxdepth 1 -type f -name '*.secret' -print -quit | grep --quiet .; then
+    echo 'Packaged Soulseek account disconnect did not remove local account state.' >&2
+    exit 1
+fi
+account_password=''
+account_response=''
+echo 'Packaged daemon passed the secret-backed Soulseek account lifecycle and Unix permission smoke.'
+
 kill "$daemon_pid"
 wait "$daemon_pid" 2>/dev/null || true
 daemon_pid=''

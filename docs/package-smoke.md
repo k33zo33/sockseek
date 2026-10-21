@@ -12,6 +12,7 @@ steps shown below, then extracts the exact ZIP and verifies:
 
 - the packaged daemon returns a healthy loopback `/health` response;
 - the protected `/api/v1/system/info` endpoint rejects an anonymous request;
+- the packaged daemon completes authenticated Soulseek account configure/status/disconnect without returning plaintext or leaving a secret payload behind;
 - the daemon has no non-loopback TCP listener;
 - the packaged Desktop starts its packaged child daemon from the extracted archive;
 - the Desktop child daemon is healthy, protected and loopback-only; and
@@ -140,6 +141,7 @@ The helper records the full checked-out commit and rejects a dirty worktree. It 
 - builds a pinned Ubuntu 24.04 runtime image with the required Avalonia and LibVLC native dependencies;
 - extracts the exact archive and verifies required legal/security files and executable modes;
 - starts the packaged daemon and requires a healthy loopback `/health` response;
+- verifies anonymous API rejection plus the packaged encrypted Soulseek account lifecycle, including `0700` secret-directory and `0600` key/payload modes and cleanup after disconnect;
 - starts the packaged Desktop under Xvfb and requires its packaged local daemon to become healthy; and
 - exercises the packaged user-local `install.sh` and `uninstall.sh` while confirming user data is preserved by default.
 

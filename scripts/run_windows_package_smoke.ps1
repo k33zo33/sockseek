@@ -103,6 +103,97 @@ function Assert-ProtectedApiRejectsAnonymousRequest {
     }
 }
 
+function Assert-SoulseekAccountLifecycle {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseUrl,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SessionToken,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SecretStoreDir
+    )
+
+    $username = "package-smoke-$([Guid]::NewGuid().ToString('N').Substring(0, 12))"
+    $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+    $headers = @{ Authorization = "Bearer $SessionToken" }
+    $configured = $false
+
+    try {
+        $requestBody = @{ username = $username; password = $password } | ConvertTo-Json -Compress
+        $account = Invoke-RestMethod `
+            -Method Put `
+            -Uri "$BaseUrl/api/v1/soulseek/account" `
+            -Headers $headers `
+            -ContentType 'application/json' `
+            -Body $requestBody `
+            -TimeoutSec 30
+        $configured = $true
+
+        $serializedAccount = $account | ConvertTo-Json -Compress
+        if (-not $account.isConfigured `
+            -or $account.username -ne $username `
+            -or $account.credentialStatus -ne 'configured' `
+            -or $serializedAccount.Contains($password, [StringComparison]::Ordinal) `
+            -or $serializedAccount.Contains('secretReference', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Packaged Soulseek account configure response was invalid or exposed secret data.'
+        }
+
+        $secretFiles = @(Get-ChildItem -LiteralPath $SecretStoreDir -File -Filter '*.secret' -Force)
+        if ($secretFiles.Count -ne 1) {
+            throw "Packaged Soulseek account expected one encrypted secret payload, found $($secretFiles.Count)."
+        }
+
+        $secretPayload = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($secretFiles[0].FullName))
+        if ($secretPayload.Contains($password, [StringComparison]::Ordinal)) {
+            throw 'Packaged Soulseek secret payload contains the plaintext password.'
+        }
+
+        $account = Invoke-RestMethod `
+            -Method Get `
+            -Uri "$BaseUrl/api/v1/soulseek/account" `
+            -Headers $headers `
+            -TimeoutSec 30
+        if (-not $account.isConfigured -or $account.username -ne $username) {
+            throw 'Packaged Soulseek account status did not preserve the configured account.'
+        }
+
+        $account = Invoke-RestMethod `
+            -Method Delete `
+            -Uri "$BaseUrl/api/v1/soulseek/account" `
+            -Headers $headers `
+            -TimeoutSec 30
+        $configured = $false
+        if ($account.isConfigured -or $account.credentialStatus -ne 'not_configured') {
+            throw 'Packaged Soulseek account disconnect did not clear account status.'
+        }
+
+        if (@(Get-ChildItem -LiteralPath $SecretStoreDir -File -Filter '*.secret' -Force).Count -ne 0) {
+            throw 'Packaged Soulseek account disconnect did not remove the secret payload.'
+        }
+    }
+    finally {
+        if ($configured) {
+            try {
+                Invoke-RestMethod `
+                    -Method Delete `
+                    -Uri "$BaseUrl/api/v1/soulseek/account" `
+                    -Headers $headers `
+                    -TimeoutSec 10 | Out-Null
+            }
+            catch {
+                Write-Warning 'Packaged Soulseek account cleanup request failed.'
+            }
+        }
+
+        $password = $null
+        $requestBody = $null
+    }
+
+    Write-Host 'Exact packaged daemon passed the secret-backed Soulseek account lifecycle smoke.'
+}
+
 function Assert-ProcessListensOnlyOnLoopback {
     param(
         [Parameter(Mandatory = $true)]
@@ -387,6 +478,7 @@ foreach ($requiredExecutable in @($extractedDesktopPath, $extractedDaemonPath)) 
 
 New-Item -ItemType Directory -Force -Path $daemonDataDir, $desktopDataDir | Out-Null
 $originalServerConfigDir = [Environment]::GetEnvironmentVariable('SockseekServer__ConfigDir', 'Process')
+$originalServerSessionToken = [Environment]::GetEnvironmentVariable('SockseekServer__SessionToken', 'Process')
 $originalDesktopConfigDir = [Environment]::GetEnvironmentVariable('SOCKSEEK_DESKTOP_CONFIG_DIR', 'Process')
 $daemonProcess = $null
 $desktopProcess = $null
@@ -396,6 +488,8 @@ $desktopDaemonUrl = $null
 
 try {
     [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $daemonDataDir, 'Process')
+    $smokeSessionToken = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    [Environment]::SetEnvironmentVariable('SockseekServer__SessionToken', $smokeSessionToken, 'Process')
     $port = Get-AvailableLoopbackPort
     $directDaemonUrl = "http://127.0.0.1:$port"
     $daemonStdout = Join-Path $artifactsRootFullPath 'daemon.stdout.log'
@@ -411,11 +505,16 @@ try {
     Wait-ForHealth -BaseUrl $directDaemonUrl -Process $daemonProcess
     Assert-ProcessListensOnlyOnLoopback -ProcessId $daemonProcess.Id
     Assert-ProtectedApiRejectsAnonymousRequest -BaseUrl $directDaemonUrl
+    Assert-SoulseekAccountLifecycle `
+        -BaseUrl $directDaemonUrl `
+        -SessionToken $smokeSessionToken `
+        -SecretStoreDir (Join-Path $daemonDataDir 'secrets')
     Write-Host "Exact packaged daemon is healthy and keeps /api/v1 protected at $directDaemonUrl."
     Stop-SmokeProcess -Process $daemonProcess
     $daemonProcess = $null
 
     [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $null, 'Process')
+    [Environment]::SetEnvironmentVariable('SockseekServer__SessionToken', $null, 'Process')
     [Environment]::SetEnvironmentVariable('SOCKSEEK_DESKTOP_CONFIG_DIR', $desktopDataDir, 'Process')
     $desktopStdout = Join-Path $artifactsRootFullPath 'desktop.stdout.log'
     $desktopStderr = Join-Path $artifactsRootFullPath 'desktop.stderr.log'
@@ -443,6 +542,7 @@ finally {
     Stop-SmokeProcess -Process $desktopProcess
     Stop-SmokeProcess -Process $daemonProcess
     [Environment]::SetEnvironmentVariable('SockseekServer__ConfigDir', $originalServerConfigDir, 'Process')
+    [Environment]::SetEnvironmentVariable('SockseekServer__SessionToken', $originalServerSessionToken, 'Process')
     [Environment]::SetEnvironmentVariable('SOCKSEEK_DESKTOP_CONFIG_DIR', $originalDesktopConfigDir, 'Process')
 }
 
@@ -466,6 +566,8 @@ $evidence = [ordered]@{
         archiveExtracted = $true
         daemonHealth = $true
         daemonProtectedApiRejectsAnonymous = $true
+        daemonSoulseekAccountLifecycle = $true
+        daemonSoulseekSecretRemovedAfterDisconnect = $true
         desktopStartedPackagedDaemon = $true
         desktopDaemonHealth = $true
         desktopDaemonProtectedApiRejectsAnonymous = $true
