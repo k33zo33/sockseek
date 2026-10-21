@@ -17,6 +17,7 @@ on:
       - 'scripts/**.ps1'
       - 'docs/soulseek-public-beta-compliance-checklist.md'
       - 'docs/soulseek-compliance-audit.md'
+      - 'docs/beta-go-no-go.md'
       - 'docs/beta-limitations.md'
       - 'docs/adr/0009-closed-beta-until-soulseek-compliance.md'
       - '.github/workflows/**.yml'
@@ -35,6 +36,7 @@ on:
       - 'scripts/**.ps1'
       - 'docs/soulseek-public-beta-compliance-checklist.md'
       - 'docs/soulseek-compliance-audit.md'
+      - 'docs/beta-go-no-go.md'
       - 'docs/beta-limitations.md'
       - 'docs/adr/0009-closed-beta-until-soulseek-compliance.md'
       - '.github/workflows/**.yml'
@@ -79,6 +81,9 @@ jobs:
       run: |
         ./scripts/test_soulseek_live_checklist.ps1
         ./scripts/validate_soulseek_compliance_gate.ps1
+        ./scripts/test_soulseek_compliance_gate_validator.ps1
+        ./scripts/validate_beta_go_no_go.ps1
+        ./scripts/test_beta_go_no_go_validator.ps1
 
   format-check:
     if: false  # disabled: dotnet format has platform-sensitive indentation behavior

@@ -5,9 +5,14 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $validator = Join-Path $PSScriptRoot 'validate_soulseek_compliance_gate.ps1'
+$powerShellHost = (Get-Process -Id $PID).Path
 
 if (-not (Test-Path -LiteralPath $validator)) {
     throw "Validator script was not found: $validator"
+}
+
+if ([string]::IsNullOrWhiteSpace($powerShellHost) -or -not (Test-Path -LiteralPath $powerShellHost)) {
+    throw 'Could not resolve the current PowerShell host executable.'
 }
 
 $sourceAudit = Join-Path $repoRoot 'docs/soulseek-compliance-audit.md'
@@ -44,7 +49,7 @@ function Invoke-Validator {
         "`"$ChecklistPath`""
     ) -join ' '
 
-    $process = Start-Process -FilePath 'powershell' `
+    $process = Start-Process -FilePath $powerShellHost `
         -ArgumentList $arguments `
         -Wait `
         -PassThru `

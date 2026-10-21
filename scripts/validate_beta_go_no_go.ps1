@@ -78,12 +78,13 @@ function Assert-TableRowContains {
 $decisionPattern = '(?im)^\|\s*Public beta\s*\|\s*NO-GO\s*\|\s*(?<reason>.*?)\s*\|$'
 $decisionMatch = [regex]::Match($document, $decisionPattern)
 if (-not $decisionMatch.Success) {
-    throw "Public beta decision must remain NO-GO until Sprint 15 blockers are resolved and this gate is intentionally updated."
+    throw "Public beta decision must remain NO-GO until Sprint 16 blockers are resolved and this gate is intentionally updated."
 }
 
 $publicBetaReason = $decisionMatch.Groups['reason'].Value
 Assert-Contains $publicBetaReason 'ADR-0009' 'public beta Soulseek compliance blocker'
-Assert-Contains $publicBetaReason 'target-OS packaging evidence' 'public beta target OS packaging blocker'
+Assert-Contains $publicBetaReason 'live Soulseek checklist' 'public beta live-network evidence blocker'
+Assert-Contains $publicBetaReason 'Windows 11 x64' 'public beta target OS packaging blocker'
 
 Assert-TableRowStatus $document 'Soulseek compliance decision' 'Public beta blocked'
 Assert-TableRowStatus $document 'Rendered UI virtualization trace' 'Passed for Windows RC'
@@ -91,7 +92,8 @@ Assert-TableRowStatus $document 'Docker/headless smoke' 'Passed'
 Assert-TableRowStatus $document 'Release limitations' 'Passed'
 Assert-TableRowStatus $document 'Security and crash reporting' 'Passed'
 Assert-TableRowStatus $document 'Provider-audio scope guard' 'Passed'
-Assert-TableRowStatus $document 'Windows package smoke' 'Passed for Windows RC'
+Assert-TableRowStatus $document 'Windows package smoke' 'Passed as Windows 10 preflight'
+Assert-TableRowStatus $document 'Ubuntu package smoke' 'Passed'
 
 Assert-TableRowContains $document 'Soulseek compliance decision' 'scripts/validate_soulseek_compliance_gate.ps1' 'Soulseek compliance gate validator evidence'
 Assert-TableRowContains $document 'Soulseek compliance decision' 'scripts/test_soulseek_compliance_gate_validator.ps1' 'Soulseek compliance gate validator smoke evidence'
@@ -129,8 +131,16 @@ Assert-TableRowContains $document 'Windows package smoke' 'THIRD-PARTY-NOTICES' 
 Assert-TableRowContains $document 'Windows package smoke' 'docs/beta-limitations.md' 'Windows package beta limitations manifest evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'release-metadata.json' 'Windows package release metadata evidence'
 Assert-TableRowContains $document 'Windows package smoke' '132-package SBOM' 'Windows package SBOM evidence'
-Assert-TableRowContains $document 'Windows package smoke' 'commit `6da97fd`' 'Windows package exact commit evidence'
-Assert-TableRowContains $document 'Windows package smoke' 'd6f016a5bf2013d4b12b101d283e02e14431b10ac767e65c273ffcf11cb0df45' 'Windows package archive SHA256 evidence'
+Assert-TableRowContains $document 'Windows package smoke' 'c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f' 'Windows package exact commit evidence'
+Assert-TableRowContains $document 'Windows package smoke' '2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde' 'Windows package archive SHA256 evidence'
+Assert-TableRowContains $document 'Windows package smoke' 'Windows 10 Pro' 'Windows package host evidence'
+Assert-TableRowContains $document 'Windows package smoke' 'does not satisfy the required Windows 11 x64 gate' 'Windows 11 non-substitution evidence'
+Assert-TableRowContains $document 'Ubuntu package smoke' 'c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f' 'Ubuntu package exact commit evidence'
+Assert-TableRowContains $document 'Ubuntu package smoke' 'ee7072fba179799c2911b49bb75860b6d82406426a53945e6c1a8198a25670fd' 'Ubuntu package archive SHA256 evidence'
+Assert-TableRowContains $document 'Ubuntu package smoke' 'Ubuntu 24.04 x64' 'Ubuntu package host evidence'
+Assert-TableRowContains $document 'Ubuntu package smoke' 'AES-GCM secret-backed account' 'Ubuntu package secret-store evidence'
+Assert-TableRowContains $document 'Full solution validation' '1,584/1,584 tests' 'current full-suite evidence'
+Assert-TableRowContains $document 'Full solution validation' '39661044471' 'current GitHub Actions evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'isolated-`DOCKER_CONFIG`' 'Docker isolated config diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'docker-users` membership' 'Docker Windows group diagnostic evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'config path readability' 'Docker Windows config ACL diagnostic evidence'
@@ -143,15 +153,17 @@ Assert-TableRowContains $document 'Docker/headless smoke' 'repo working-director
 Assert-TableRowContains $document 'Docker/headless smoke' 'full Alpine `vlc` runtime package' 'Docker VLC runtime evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'trimming disabled' 'Docker trimming-disabled publish evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'without trim-analysis warning output' 'Docker trim warning reduction evidence'
-Assert-TableRowContains $document 'Docker/headless smoke' 'scripts/run_docker_smoke.ps1` passed end to end' 'Docker full smoke pass evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Desktop `4.94.0`' 'Docker Desktop version evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'Docker Server `29.8.2`' 'Docker Server version evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'F:\Docker\DockerDesktopWSL' 'Docker F drive data-root evidence'
 Assert-TableRowContains $document 'Docker/headless smoke' 'daemon container `/health` returning `{"status":"ok"}`' 'Docker daemon health evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' 'exact candidate `c7b4cc5`' 'Docker exact-candidate evidence'
+Assert-TableRowContains $document 'Docker/headless smoke' '.tmp/sprint16-docker-smoke-c7b4cc5.md' 'Docker diagnostics artifact location'
 
 $requiredBeforePublicBeta = Get-Section $document 'Required before public beta'
-Assert-Contains $requiredBeforePublicBeta 'Resolve ADR-0009' 'required public beta Soulseek compliance item'
-Assert-Contains $requiredBeforePublicBeta 'target OS package smoke' 'required target OS package smoke item'
+Assert-Contains $requiredBeforePublicBeta 'live Soulseek checklist' 'required public beta live-network item'
+Assert-Contains $requiredBeforePublicBeta 'Windows 11 x64' 'required target OS package smoke item'
+Assert-Contains $requiredBeforePublicBeta 'superseding ADR-0009' 'required superseding ADR item'
 Assert-Contains $requiredBeforePublicBeta 'release notes' 'required release notes item'
 Assert-Contains $requiredBeforePublicBeta 'source availability' 'required source availability item'
 

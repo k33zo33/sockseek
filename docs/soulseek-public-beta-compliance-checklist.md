@@ -44,9 +44,9 @@ session label unless one is supplied explicitly:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\new_soulseek_live_checklist.ps1 `
-  -ArtifactPath .tmp\sprint16-windows-package-smoke-422a001\Sockseek-win-x64.zip `
+  -ArtifactPath .tmp\sprint16-windows-package-smoke-c7b4cc5\Sockseek-win-x64.zip `
   -Reviewer 'release-reviewer' `
-  -ExpectedCommit 422a001f5e6275cb312c7c42d954b8e58a0c6d2a `
+  -ExpectedCommit c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f `
   -RequiredHost Windows11X64
 ```
 

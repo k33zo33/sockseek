@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $validator = Join-Path $PSScriptRoot 'validate_beta_go_no_go.ps1'
+$powerShellHost = (Get-Process -Id $PID).Path
 $sourcePath = if ([System.IO.Path]::IsPathRooted($GoNoGoPath)) {
     $GoNoGoPath
 } else {
@@ -19,6 +20,10 @@ if (-not (Test-Path -LiteralPath $validator)) {
 
 if (-not (Test-Path -LiteralPath $sourcePath)) {
     throw "Beta go/no-go document was not found: $sourcePath"
+}
+
+if ([string]::IsNullOrWhiteSpace($powerShellHost) -or -not (Test-Path -LiteralPath $powerShellHost)) {
+    throw 'Could not resolve the current PowerShell host executable.'
 }
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sockseek-beta-go-no-go-validator-" + [System.Guid]::NewGuid().ToString('N'))
@@ -41,7 +46,7 @@ function Invoke-Validator {
         "`"$Path`""
     ) -join ' '
 
-    $process = Start-Process -FilePath 'powershell' `
+    $process = Start-Process -FilePath $powerShellHost `
         -ArgumentList $arguments `
         -Wait `
         -PassThru `
@@ -77,6 +82,18 @@ try {
         throw 'Expected validation to fail when public beta is marked GO.'
     }
 
+    $withoutLiveBlocker = $baseline -replace 'dedicated-account live Soulseek checklist', 'remaining network checks'
+    $withoutLiveBlockerPath = Write-Case 'without-live-blocker.md' $withoutLiveBlocker
+    if ((Invoke-Validator $withoutLiveBlockerPath) -eq 0) {
+        throw 'Expected validation to fail when the public-beta decision omits the live Soulseek blocker.'
+    }
+
+    $withoutWindowsElevenBlocker = $baseline -replace 'exact Windows 11 x64 package smoke', 'remaining package checks'
+    $withoutWindowsElevenBlockerPath = Write-Case 'without-windows-11-blocker.md' $withoutWindowsElevenBlocker
+    if ((Invoke-Validator $withoutWindowsElevenBlockerPath) -eq 0) {
+        throw 'Expected validation to fail when the public-beta decision omits the Windows 11 blocker.'
+    }
+
     $dockerRegressed = $baseline -replace '\|\s*Docker/headless smoke\s*\|(.*?)\|\s*Passed\s*\|', '| Docker/headless smoke |$1| Environment-blocked |'
     $dockerRegressedPath = Write-Case 'docker-regressed.md' $dockerRegressed
     if ((Invoke-Validator $dockerRegressedPath) -eq 0) {
@@ -96,7 +113,7 @@ try {
         throw 'Expected validation to fail when Docker/headless smoke omits trimming-disabled evidence.'
     }
 
-    $dockerWithoutWindowsAccessDiagnostics = $baseline -replace 'the process `docker-users` membership, ', ''
+    $dockerWithoutWindowsAccessDiagnostics = $baseline -replace 'process `docker-users` membership, ', ''
     $dockerWithoutWindowsAccessDiagnostics = $dockerWithoutWindowsAccessDiagnostics -replace 'Docker CLI config path readability, ', ''
     $dockerWithoutWindowsAccessDiagnosticsPath = Write-Case 'docker-without-windows-access-diagnostics.md' $dockerWithoutWindowsAccessDiagnostics
     if ((Invoke-Validator $dockerWithoutWindowsAccessDiagnosticsPath) -eq 0) {
@@ -177,10 +194,22 @@ try {
         throw 'Expected validation to fail when Windows package smoke omits closed beta tester instructions evidence.'
     }
 
-    $packageWithoutArchiveHash = $baseline -replace 'd6f016a5bf2013d4b12b101d283e02e14431b10ac767e65c273ffcf11cb0df45', 'archive hash omitted'
+    $packageWithoutArchiveHash = $baseline -replace '2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde', 'archive hash omitted'
     $packageWithoutArchiveHashPath = Write-Case 'package-without-archive-hash.md' $packageWithoutArchiveHash
     if ((Invoke-Validator $packageWithoutArchiveHashPath) -eq 0) {
         throw 'Expected validation to fail when Windows package smoke omits the exact archive hash.'
+    }
+
+    $ubuntuWithoutArchiveHash = $baseline -replace 'ee7072fba179799c2911b49bb75860b6d82406426a53945e6c1a8198a25670fd', 'archive hash omitted'
+    $ubuntuWithoutArchiveHashPath = Write-Case 'ubuntu-without-archive-hash.md' $ubuntuWithoutArchiveHash
+    if ((Invoke-Validator $ubuntuWithoutArchiveHashPath) -eq 0) {
+        throw 'Expected validation to fail when Ubuntu package smoke omits the exact archive hash.'
+    }
+
+    $windowsElevenSubstituted = $baseline -replace 'does not satisfy the required Windows 11 x64 gate', 'is accepted as Windows 11 evidence'
+    $windowsElevenSubstitutedPath = Write-Case 'windows-11-substituted.md' $windowsElevenSubstituted
+    if ((Invoke-Validator $windowsElevenSubstitutedPath) -eq 0) {
+        throw 'Expected validation to fail when Windows 10 is substituted for Windows 11 evidence.'
     }
 
     Write-Host 'Beta go/no-go validator smoke passed.'
