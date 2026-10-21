@@ -156,9 +156,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(rootSettings.Extraction.Input!, rootSettings.Extraction.InputType.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 cts.Token);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(cts.Token);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, cts.Token);
 
             Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
             Assert.AreEqual(2, pickerCalls, "Both list album jobs should reach the interactive picker");
@@ -220,9 +218,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(listPath, InputType.List.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 cts.Token);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(cts.Token);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, cts.Token);
 
             Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
             Assert.AreEqual(1, pickerCalls, "Shift+S should suppress later new album prompts in the same interactive workflow.");
@@ -320,9 +316,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(listPath, InputType.List.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 cts.Token);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(cts.Token);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, cts.Token);
 
             Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
             CollectionAssert.AreEqual(
@@ -404,9 +398,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(rootSettings.Extraction.Input!, rootSettings.Extraction.InputType.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 cts.Token);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(cts.Token);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, cts.Token);
 
             Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
 
@@ -501,9 +493,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(rootSettings.Extraction.Input!, rootSettings.Extraction.InputType.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 cts.Token);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(cts.Token);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, cts.Token);
 
             Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
             Assert.AreEqual(1, pickerCalls, "A cancelled chosen album should NOT reopen the picker.");
@@ -594,9 +584,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(rootSettings.Extraction.Input!, rootSettings.Extraction.InputType.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 CancellationToken.None);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, CancellationToken.None)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(CancellationToken.None);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, CancellationToken.None);
 
             Assert.AreEqual(2, pickerCalls, "A failed chosen album should reopen the picker with remaining candidates.");
             Assert.IsFalse(parentAlbumFailedBeforeRetry, "A failed manual candidate should return the parent album to selection, not publish a terminal failed AlbumJob state.");
@@ -687,9 +675,7 @@ public class CliEndToEndTests
             var submission = await coordinator.StartAsync(
                 new SubmitExtractJobRequestDto(csvPath, InputType.None.ToString(), Options: new SubmissionOptionsDto(workflowId)),
                 cts.Token);
-            _ = coordinator.RunUntilCompleteAsync(submission.WorkflowId, cts.Token)
-                .ContinueWith(_ => app.CompleteEnqueue(), TaskScheduler.Default);
-            await app.RunAsync(cts.Token);
+            await RunInteractiveWorkflowAsync(app, coordinator, submission.WorkflowId, cts.Token);
 
             Assert.IsFalse(cts.IsCancellationRequested, "RunAsync timed out");
             Assert.AreEqual(2, pickerCalls, "Only the two found albums should reach the interactive picker.");
@@ -723,6 +709,29 @@ public class CliEndToEndTests
             if (Directory.Exists(musicRoot)) Directory.Delete(musicRoot, true);
             if (Directory.Exists(outputDir)) Directory.Delete(outputDir, true);
         }
+    }
+
+    private static async Task RunInteractiveWorkflowAsync(
+        DownloadEngine app,
+        InteractiveCliCoordinator coordinator,
+        Guid workflowId,
+        CancellationToken cancellationToken)
+    {
+        async Task ObserveCoordinatorAsync()
+        {
+            try
+            {
+                await coordinator.RunUntilCompleteAsync(workflowId, cancellationToken);
+            }
+            finally
+            {
+                app.CompleteEnqueue();
+            }
+        }
+
+        var coordinatorTask = ObserveCoordinatorAsync();
+        var engineTask = app.RunAsync(cancellationToken);
+        await Task.WhenAll(coordinatorTask, engineTask);
     }
 
     private static (DownloadEngine App, DownloadSettings RootSettings) CreateInteractiveListEngine(
