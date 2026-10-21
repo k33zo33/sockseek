@@ -153,8 +153,8 @@ function Assert-SoulseekAccountLifecycle {
         if (-not $account.isConfigured `
             -or $account.username -ne $username `
             -or $account.credentialStatus -ne 'configured' `
-            -or $serializedAccount.Contains($password, [StringComparison]::Ordinal) `
-            -or $serializedAccount.Contains('secretReference', [StringComparison]::OrdinalIgnoreCase)) {
+            -or $serializedAccount.IndexOf($password, [StringComparison]::Ordinal) -ge 0 `
+            -or $serializedAccount.IndexOf('secretReference', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
             throw 'Packaged Soulseek account configure response was invalid or exposed secret data.'
         }
 
@@ -164,7 +164,7 @@ function Assert-SoulseekAccountLifecycle {
         }
 
         $secretPayload = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($secretFiles[0].FullName))
-        if ($secretPayload.Contains($password, [StringComparison]::Ordinal)) {
+        if ($secretPayload.IndexOf($password, [StringComparison]::Ordinal) -ge 0) {
             throw 'Packaged Soulseek secret payload contains the plaintext password.'
         }
 
