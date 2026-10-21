@@ -586,6 +586,15 @@ public sealed record LocalMediaFileRelinkResultDto(
     Guid? CanonicalTrackId,
     string Path);
 
+/// <summary>Secret-free local Soulseek account and current connection status.</summary>
+public sealed record SoulseekAccountDto(
+    string? Username,
+    bool IsConfigured,
+    bool IsConnected,
+    string ConnectionState,
+    string CredentialStatus,
+    DateTimeOffset? UpdatedAtUtc);
+
 /// <summary>Persisted local schedule and latest state for a Soulseek wishlist search.</summary>
 public sealed record SoulseekWishlistEntryDto(
     Guid Id,

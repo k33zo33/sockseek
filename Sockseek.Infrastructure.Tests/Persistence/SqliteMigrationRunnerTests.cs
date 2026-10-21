@@ -42,6 +42,7 @@ public class SqliteMigrationRunnerTests
                 {
                     "20261018091320_AddSoulseekWishlist",
                     "20261020064459_AddSoulseekShareRoots",
+                    "20261021062631_AddSoulseekAccountCredentials",
                 },
                 result.AppliedMigrations.ToArray());
             Assert.IsNotNull(result.BackupPath);
@@ -51,6 +52,7 @@ public class SqliteMigrationRunnerTests
             await migratedConnection.OpenAsync();
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekWishlistEntries");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekShareRoots");
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekAccounts");
 
             using var markerCommand = migratedConnection.CreateCommand();
             markerCommand.CommandText = "SELECT JsonValue FROM AppSettings WHERE Key = 'upgrade-marker';";
@@ -85,7 +87,7 @@ public class SqliteMigrationRunnerTests
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory);
 
-            Assert.AreEqual(9, result.AppliedMigrations.Count);
+            Assert.AreEqual(10, result.AppliedMigrations.Count);
             Assert.IsNotNull(result.BackupPath);
             Assert.IsTrue(File.Exists(result.BackupPath));
 
@@ -100,6 +102,7 @@ public class SqliteMigrationRunnerTests
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "LibraryRoots");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekWishlistEntries");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekShareRoots");
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekAccounts");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "LegacyMarker");
         }
         finally
@@ -163,13 +166,14 @@ public class SqliteMigrationRunnerTests
             var runner = new SqliteMigrationRunner(() => CreateContext(databasePath));
             var result = await runner.MigrateAsync(databasePath, backupDirectory).WaitAsync(TimeSpan.FromSeconds(15));
 
-            Assert.AreEqual(9, result.AppliedMigrations.Count);
+            Assert.AreEqual(10, result.AppliedMigrations.Count);
             Assert.IsNotNull(result.BackupPath);
             await using var migratedConnection = new SqliteConnection($"Data Source={databasePath}");
             await migratedConnection.OpenAsync();
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "ExternalAccounts");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekWishlistEntries");
             CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekShareRoots");
+            CollectionAssert.Contains(await TableNamesAsync(migratedConnection), "SoulseekAccounts");
             Assert.AreEqual(0L, await MigrationLockCountAsync(migratedConnection));
         }
         finally

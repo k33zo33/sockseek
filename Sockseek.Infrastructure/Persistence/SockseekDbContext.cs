@@ -40,6 +40,7 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
     public DbSet<LocalMediaFileEntity> LocalMediaFiles => Set<LocalMediaFileEntity>();
     public DbSet<LibraryRootEntity> LibraryRoots => Set<LibraryRootEntity>();
     public DbSet<SoulseekShareRootEntity> SoulseekShareRoots => Set<SoulseekShareRootEntity>();
+    public DbSet<SoulseekAccountEntity> SoulseekAccounts => Set<SoulseekAccountEntity>();
     public DbSet<SoulseekWishlistEntryEntity> SoulseekWishlistEntries => Set<SoulseekWishlistEntryEntity>();
     public DbSet<ResolutionAttemptEntity> ResolutionAttempts => Set<ResolutionAttemptEntity>();
     public DbSet<DownloadWorkflowEntity> DownloadWorkflows => Set<DownloadWorkflowEntity>();
@@ -166,6 +167,19 @@ public sealed class SockseekDbContext(DbContextOptions<SockseekDbContext> option
                 .UseCollation("NOCASE");
             entity.HasIndex(x => x.Path).IsUnique();
             entity.HasIndex(x => x.VirtualName).IsUnique();
+        });
+
+        modelBuilder.Entity<SoulseekAccountEntity>(entity =>
+        {
+            entity.ToTable("SoulseekAccounts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.Username)
+                .IsRequired()
+                .HasMaxLength(SoulseekAccountStore.MaximumUsernameLength);
+            entity.Property(x => x.SecretReference)
+                .IsRequired()
+                .HasMaxLength(SoulseekAccountStore.MaximumSecretReferenceLength);
         });
 
         modelBuilder.Entity<SoulseekWishlistEntryEntity>(entity =>

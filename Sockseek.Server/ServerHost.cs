@@ -130,6 +130,8 @@ public static class ServerHost
         builder.Services.AddScoped<CanonicalTrackStore>();
         builder.Services.AddScoped<LocalPlaybackSourceResolver>();
         builder.Services.AddScoped<ISoulseekWishlistStore, SoulseekWishlistStore>();
+        builder.Services.AddScoped<SoulseekAccountStore>();
+        builder.Services.AddScoped<SoulseekAccountService>();
         builder.Services.AddSingleton<IPlaybackSourceResolver, ScopedPlaybackSourceResolver>();
         builder.Services.AddSingleton<IMediaEngine, LibVlcMediaEngine>();
         builder.Services.AddSingleton<PlaybackCoordinator>();
@@ -1581,6 +1583,70 @@ public static class ServerHost
             .WithSummary("Sets local player mute state.")
             .Produces<PlayerStateDto>()
             .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapGet("/api/v1/soulseek/account", async (
+            SoulseekAccountService account,
+            CancellationToken ct) =>
+            Results.Ok(await account.GetAsync(ct)))
+            .WithTags("Soulseek")
+            .WithSummary("Returns secret-free local Soulseek account and connection status.")
+            .Produces<SoulseekAccountDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapPut("/api/v1/soulseek/account", async (
+            ConfigureSoulseekAccountRequestDto request,
+            HttpContext context,
+            SoulseekAccountService account,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await account.ConfigureAsync(request, ct));
+            }
+            catch (SoulseekAccountBusyException ex)
+            {
+                return Results.Json(
+                    new AppErrorDto("soulseek_account_busy", ex.Message, GetCorrelationId(context)),
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Json(
+                    new AppErrorDto("invalid_soulseek_account", ex.Message, GetCorrelationId(context)),
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Stores a local Soulseek password in the platform secret store and activates the account.")
+            .Produces<SoulseekAccountDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status400BadRequest)
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
+            .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
+
+        app.MapDelete("/api/v1/soulseek/account", async (
+            HttpContext context,
+            SoulseekAccountService account,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await account.DisconnectAsync(ct));
+            }
+            catch (SoulseekAccountBusyException ex)
+            {
+                return Results.Json(
+                    new AppErrorDto("soulseek_account_busy", ex.Message, GetCorrelationId(context)),
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+        })
+            .WithTags("Soulseek")
+            .WithSummary("Disconnects the local Soulseek account and removes its stored secret.")
+            .Produces<SoulseekAccountDto>()
+            .Produces<AppErrorDto>(StatusCodes.Status401Unauthorized)
+            .Produces<AppErrorDto>(StatusCodes.Status409Conflict)
             .Produces<AppErrorDto>(StatusCodes.Status500InternalServerError);
 
         app.MapGet("/api/v1/soulseek/wishlist", async (SoulseekWishlistScheduler wishlist, CancellationToken ct) =>

@@ -13,6 +13,108 @@ namespace Tests.Server;
 public class EngineSupervisorTests
 {
     [TestMethod]
+    public async Task ChangeSoulseekCredentialsAsync_QueuedJobRejectsChangeWithoutMutatingRuntime()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Sockseek-account-busy-test-" + Guid.NewGuid());
+        string output = Path.Combine(root, "output");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(output);
+        try
+        {
+            var supervisor = CreateSupervisor(root, output);
+            await supervisor.SubmitSearchJobAsync(
+                new SubmitSearchJobRequestDto("queued query"),
+                CancellationToken.None);
+
+            await Assert.ThrowsExceptionAsync<SoulseekAccountBusyException>(() =>
+                supervisor.ChangeSoulseekCredentialsAsync(
+                    "new-user",
+                    "new-password",
+                    persistChange: null,
+                    CancellationToken.None));
+
+            var runtime = supervisor.GetSoulseekAccountRuntimeSnapshot();
+            Assert.IsNull(runtime.Username);
+            Assert.IsTrue(runtime.IsConfigured, "Mock-files mode should remain configured.");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ChangeSoulseekCredentialsAsync_ActiveJobRejectsChangeWithoutCancellingJob()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Sockseek-account-active-test-" + Guid.NewGuid());
+        string output = Path.Combine(root, "output");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(output);
+        using var cancellation = new CancellationTokenSource();
+        Task runTask = Task.CompletedTask;
+        try
+        {
+            var downloadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var client = new MockSoulseekClient(
+            [
+                SearchResponse("download-user", @"Music\Artist\Album\01. Artist - Active Track.mp3"),
+            ])
+            {
+                BeforeDownloadStartsAsync = async (_, _, ct) =>
+                {
+                    downloadStarted.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                },
+            };
+            var supervisor = CreateSupervisor(
+                root,
+                output,
+                configureEngine: settings =>
+                {
+                    settings.MockFilesDir = null;
+                    settings.Username = "original-user";
+                    settings.Password = "original-password";
+                },
+                clientFactory: _ => client);
+            runTask = supervisor.RunAsync(cancellation.Token);
+            var search = await supervisor.SubmitTrackSearchJobAsync(
+                new SubmitTrackSearchJobRequestDto(
+                    new SongQueryDto("Artist", "Active Track", "Album", "", -1, false)),
+                CancellationToken.None);
+            await WaitForJobStateAsync(supervisor, search.JobId, ExpectedJobStatus.Succeeded);
+            var files = supervisor.GetFileResults(search.JobId);
+            Assert.IsNotNull(files);
+            var downloads = await supervisor.StartFileDownloadsAsync(
+                search.JobId,
+                new StartFileDownloadsRequestDto([files.Items.Single().Ref]),
+                CancellationToken.None);
+            Assert.IsNotNull(downloads);
+            var download = downloads.Single();
+            await downloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await Assert.ThrowsExceptionAsync<SoulseekAccountBusyException>(() =>
+                supervisor.ChangeSoulseekCredentialsAsync(
+                    "new-user",
+                    "new-password",
+                    persistChange: null,
+                    CancellationToken.None));
+
+            Assert.AreEqual("original-user", supervisor.GetSoulseekAccountRuntimeSnapshot().Username);
+            var summary = supervisor.StateStore.GetJobSummary(download.JobId);
+            Assert.IsNotNull(summary);
+            Assert.AreEqual(ServerJobCancellationSource.None, summary.CancellationSource);
+            Assert.IsTrue(supervisor.CancelJob(download.JobId));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await runTask;
+            DeleteDirectoryWithRetries(root);
+        }
+    }
+
+    [TestMethod]
     public async Task SubmitSearchJobAsync_RejectsOversizedQueryWithoutCreatingWorkflow()
     {
         var musicRoot = Path.Combine(Path.GetTempPath(), "Sockseek-server-test-" + Guid.NewGuid());
@@ -1327,6 +1429,27 @@ public class EngineSupervisorTests
             .Where(summary => summary.ParentJobId != null)
             .OrderBy(summary => summary.DisplayId)
             .ToList();
+
+    private static void DeleteDirectoryWithRetries(string path)
+    {
+        if (!Directory.Exists(path))
+            return;
+
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException
+                && attempt < 19)
+            {
+                Thread.Sleep(100);
+            }
+        }
+    }
 
     private static SearchJob SearchChildByQuery(EngineSupervisor supervisor, IReadOnlyList<JobSummaryDto> children, string queryText)
     {

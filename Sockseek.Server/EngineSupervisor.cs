@@ -25,9 +25,14 @@ public sealed class EngineSupervisor
     private readonly Channel<QueuedSubmission> submissionChannel = Channel.CreateUnbounded<QueuedSubmission>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private readonly Lock engineGate = new();
+    private readonly SemaphoreSlim engineOperationGate = new(1, 1);
 
     private DownloadEngine? currentEngine;
     private SoulseekClientManager? currentClientManager;
+    private CancellationTokenSource? currentEngineCancellation;
+    private TaskCompletionSource? pendingEngineRestart;
+    private long engineConfigurationRevision;
+    private int pendingSubmissionCount;
     private int restartCount;
 
     public event Action<DownloadEngine>? EngineCreated;
@@ -64,8 +69,13 @@ public sealed class EngineSupervisor
     {
         while (!ct.IsCancellationRequested)
         {
+            long configurationRevision = Interlocked.Read(ref engineConfigurationRevision);
+            using var engineCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            lock (engineGate)
+                currentEngineCancellation = engineCancellation;
+
             var (engine, clientManager) = CreateEngine();
-            var runTask = engine.RunAsync(ct);
+            var runTask = engine.RunAsync(engineCancellation.Token);
 
             try
             {
@@ -77,24 +87,39 @@ public sealed class EngineSupervisor
                     if (completedTask == runTask)
                     {
                         await runTask;
-                        return;
+                        break;
                     }
 
                     if (!await waitToReadTask)
                         continue;
 
-                    while (submissionChannel.Reader.TryRead(out var submission))
+                    await engineOperationGate.WaitAsync(ct);
+                    try
                     {
-                        if (submission.IsResume)
-                            engine.Resume(submission.Job);
-                        else
-                            engine.Enqueue(submission.Job, submission.Settings!);
+                        while (submissionChannel.Reader.TryRead(out var submission))
+                        {
+                            Interlocked.Decrement(ref pendingSubmissionCount);
+                            if (submission.IsResume)
+                                engine.Resume(submission.Job);
+                            else
+                                engine.Enqueue(submission.Job, submission.Settings!);
+                        }
+                    }
+                    finally
+                    {
+                        engineOperationGate.Release();
                     }
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+                CompletePendingEngineRestart(cancelled: true);
                 return;
+            }
+            catch (OperationCanceledException) when (
+                !ct.IsCancellationRequested
+                && configurationRevision != Interlocked.Read(ref engineConfigurationRevision))
+            {
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
@@ -114,6 +139,8 @@ public sealed class EngineSupervisor
                         currentEngine = null;
                     if (ReferenceEquals(currentClientManager, clientManager))
                         currentClientManager = null;
+                    if (ReferenceEquals(currentEngineCancellation, engineCancellation))
+                        currentEngineCancellation = null;
                 }
                 clientManager.PrivilegeNotificationReceived -= OnPrivilegeNotificationReceived;
                 clientManager.PrivateChatMessageReceived -= OnPrivateChatMessageReceived;
@@ -124,7 +151,12 @@ public sealed class EngineSupervisor
                 await engine.DisposeAsync();
                 clientManager.Dispose();
             }
+
+            if (configurationRevision == Interlocked.Read(ref engineConfigurationRevision))
+                return;
         }
+
+        CompletePendingEngineRestart(cancelled: true);
     }
 
     public ServerInfoDto GetInfo()
@@ -186,6 +218,78 @@ public sealed class EngineSupervisor
             stats.TotalWorkflowCount,
             stats.ActiveWorkflowCount,
             restartCount);
+    }
+
+    public SoulseekAccountRuntimeSnapshot GetSoulseekAccountRuntimeSnapshot()
+    {
+        lock (engineGate)
+        {
+            var state = currentEngine?.ClientState ?? SoulseekClientStates.None;
+            bool configured = engineSettings.UseRandomLogin
+                || !string.IsNullOrWhiteSpace(engineSettings.MockFilesDir)
+                || (!string.IsNullOrWhiteSpace(engineSettings.Username)
+                    && !string.IsNullOrWhiteSpace(engineSettings.Password));
+            return new SoulseekAccountRuntimeSnapshot(
+                string.IsNullOrWhiteSpace(engineSettings.Username) ? null : engineSettings.Username,
+                configured,
+                state.HasFlag(SoulseekClientStates.Connected)
+                    && state.HasFlag(SoulseekClientStates.LoggedIn),
+                state.ToString());
+        }
+    }
+
+    public async Task ChangeSoulseekCredentialsAsync(
+        string? username,
+        string? password,
+        Func<CancellationToken, Task>? persistChange,
+        CancellationToken cancellationToken = default)
+    {
+        bool clearing = string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(password);
+        if (!clearing && (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password)))
+            throw new ArgumentException("Soulseek username and password must both be provided.");
+
+        await engineOperationGate.WaitAsync(cancellationToken);
+        try
+        {
+            var statistics = StateStore.GetStatistics();
+            if (statistics.ActiveJobCount > 0 || Volatile.Read(ref pendingSubmissionCount) > 0)
+            {
+                throw new SoulseekAccountBusyException(
+                    "Soulseek account settings cannot change while jobs are active or waiting to start.");
+            }
+
+            if (persistChange is not null)
+                await persistChange(cancellationToken);
+
+            CancellationTokenSource? engineToRestart;
+            Task? restartTask;
+            lock (engineGate)
+            {
+                engineSettings.Username = clearing ? null : username!.Trim();
+                engineSettings.Password = clearing ? null : password;
+                engineSettings.UseRandomLogin = false;
+                Interlocked.Increment(ref engineConfigurationRevision);
+
+                engineToRestart = currentEngineCancellation;
+                if (engineToRestart is null)
+                {
+                    restartTask = null;
+                }
+                else
+                {
+                    pendingEngineRestart = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    restartTask = pendingEngineRestart.Task;
+                }
+            }
+
+            engineToRestart?.Cancel();
+            if (restartTask is not null)
+                await restartTask.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            engineOperationGate.Release();
+        }
     }
 
     public IReadOnlyList<ProfileSummaryDto> GetProfiles()
@@ -343,7 +447,7 @@ public sealed class EngineSupervisor
             throw new ArgumentException("This server is not configured for Soulseek login. Configure username/password, enable random login, or use a non-login submission.");
 
         job.EnsureDisplayId();
-        await submissionChannel.Writer.WriteAsync(new QueuedSubmission(job, settings), ct);
+        await QueueSubmissionAsync(new QueuedSubmission(job, settings), ct);
 
         return StateStore.GetJobSummary(job.Id) ?? BuildSubmittedJobSummary(job);
     }
@@ -600,7 +704,7 @@ public sealed class EngineSupervisor
         retrieveJob.WorkflowId = sourceJob.WorkflowId;
         StateStore.SetSourceJob(retrieveJob.Id, sourceJobId);
         retrieveJob.EnsureDisplayId();
-        await submissionChannel.Writer.WriteAsync(new QueuedSubmission(retrieveJob, sourceJob.Config), ct);
+        await QueueSubmissionAsync(new QueuedSubmission(retrieveJob, sourceJob.Config), ct);
         return StateStore.GetJobSummary(retrieveJob.Id) ?? BuildSubmittedJobSummary(retrieveJob, sourceJobId);
     }
 
@@ -631,7 +735,7 @@ public sealed class EngineSupervisor
             manualSong.ResetToPending();
 
             manualSong.EnsureDisplayId();
-            await submissionChannel.Writer.WriteAsync(QueuedSubmission.Resume(manualSong), ct);
+            await QueueSubmissionAsync(QueuedSubmission.Resume(manualSong), ct);
             return new List<JobSummaryDto> { StateStore.GetJobSummary(manualSong.Id) ?? BuildSubmittedJobSummary(manualSong, sourceJobId) };
         }
 
@@ -815,6 +919,7 @@ public sealed class EngineSupervisor
             currentEngine = engine;
             currentClientManager = clientManager;
         }
+        CompletePendingEngineRestart(cancelled: false);
         EngineCreated?.Invoke(engine);
         return (engine, clientManager);
     }
@@ -1123,8 +1228,45 @@ public sealed class EngineSupervisor
         if (isolateOptions)
             jobSettingsResolver.SetJobOptions(followUpJob.Id, options);
         followUpJob.EnsureDisplayId();
-        await submissionChannel.Writer.WriteAsync(new QueuedSubmission(followUpJob, settings), ct);
+        await QueueSubmissionAsync(new QueuedSubmission(followUpJob, settings), ct);
         return StateStore.GetJobSummary(followUpJob.Id) ?? BuildSubmittedJobSummary(followUpJob, sourceJobId);
+    }
+
+    private async Task QueueSubmissionAsync(QueuedSubmission submission, CancellationToken cancellationToken)
+    {
+        await engineOperationGate.WaitAsync(cancellationToken);
+        try
+        {
+            Interlocked.Increment(ref pendingSubmissionCount);
+            try
+            {
+                await submissionChannel.Writer.WriteAsync(submission, cancellationToken);
+            }
+            catch
+            {
+                Interlocked.Decrement(ref pendingSubmissionCount);
+                throw;
+            }
+        }
+        finally
+        {
+            engineOperationGate.Release();
+        }
+    }
+
+    private void CompletePendingEngineRestart(bool cancelled)
+    {
+        TaskCompletionSource? completion;
+        lock (engineGate)
+        {
+            completion = pendingEngineRestart;
+            pendingEngineRestart = null;
+        }
+
+        if (cancelled)
+            completion?.TrySetCanceled();
+        else
+            completion?.TrySetResult();
     }
 
     private static bool ShouldPropagateSourceMutationToFollowUp(Job sourceJob)
@@ -1135,3 +1277,11 @@ public sealed class EngineSupervisor
         public static QueuedSubmission Resume(Job job) => new(job, null, true);
     }
 }
+
+public sealed record SoulseekAccountRuntimeSnapshot(
+    string? Username,
+    bool IsConfigured,
+    bool IsConnected,
+    string ConnectionState);
+
+public sealed class SoulseekAccountBusyException(string message) : InvalidOperationException(message);

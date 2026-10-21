@@ -496,6 +496,33 @@ public sealed class SockseekApiClient
             request,
             ct);
 
+    public async Task<SoulseekAccountDto> GetSoulseekAccountAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/v1/soulseek/account", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekAccountDto>(response, ct);
+    }
+
+    public async Task<SoulseekAccountDto> ConfigureSoulseekAccountAsync(
+        ConfigureSoulseekAccountRequestDto request,
+        CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync(
+            "api/v1/soulseek/account",
+            request,
+            jsonOptions,
+            ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekAccountDto>(response, ct);
+    }
+
+    public async Task<SoulseekAccountDto> DisconnectSoulseekAccountAsync(CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync("api/v1/soulseek/account", ct);
+        await EnsureSuccessAsync(response, ct);
+        return await ReadRequiredAsync<SoulseekAccountDto>(response, ct);
+    }
+
     public async Task<IReadOnlyList<SoulseekWishlistEntryDto>> GetSoulseekWishlistAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/v1/soulseek/wishlist", ct);

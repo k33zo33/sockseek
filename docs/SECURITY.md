@@ -4,6 +4,16 @@ See also the release-focused [threat model](threat-model.md).
 
 ## Sprint 16 additions
 
+- Packaged Soulseek account passwords are accepted only by the authenticated
+  loopback account endpoint and persisted through `ISecretStore`. SQLite and API
+  responses contain only the username, opaque secret reference and status metadata.
+- Windows uses user-bound DPAPI for persistent secrets. Other supported desktop
+  platforms use AES-GCM with an application-local random key; the key directory is
+  mode `0700` and key/encrypted payload files are mode `0600` on Unix. Neither key
+  material nor plaintext secret payloads enter logs, SQLite or diagnostics.
+- Account changes are rejected while engine jobs are active or queued. An accepted
+  change restarts only the idle engine, preventing an account switch from silently
+  cancelling a transfer.
 - The wishlist scheduler never writes query text or exception messages to logs.
 - SQLite keeps only the locally entered query, bounded schedule/status, engine ids,
   result count and a stable error code. Raw Soulseek results are not duplicated in

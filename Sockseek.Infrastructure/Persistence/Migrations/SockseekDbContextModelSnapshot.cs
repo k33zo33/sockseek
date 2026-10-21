@@ -589,6 +589,36 @@ namespace Sockseek.Infrastructure.Persistence.Migrations
                     b.ToTable("SchemaInfo", (string)null);
                 });
 
+            modelBuilder.Entity("Sockseek.Infrastructure.Persistence.Entities.SoulseekAccountEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecretReference")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SoulseekAccounts", (string)null);
+                });
+
             modelBuilder.Entity("Sockseek.Infrastructure.Persistence.Entities.SoulseekShareRootEntity", b =>
                 {
                     b.Property<Guid>("Id")

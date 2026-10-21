@@ -297,6 +297,11 @@ public sealed record SaveLibraryRootRequestDto(
 public sealed record RelinkLocalMediaFileRequestDto(
     string Path);
 
+/// <summary>Configures the local Soulseek account. The password is accepted only for secret-store persistence.</summary>
+public sealed record ConfigureSoulseekAccountRequestDto(
+    string Username,
+    string Password);
+
 /// <summary>Creates or updates a bounded, local Soulseek wishlist search.</summary>
 public sealed record SaveSoulseekWishlistEntryRequestDto(
     string Query,

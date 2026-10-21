@@ -9,6 +9,23 @@
 
 The daemon exposes an HTTP API for durable state plus a SignalR hub for live invalidation/progress events.
 
+## Soulseek account
+
+The authenticated versioned API exposes secret-free local Soulseek account status
+and explicit credential lifecycle commands:
+
+- `GET /api/v1/soulseek/account`
+- `PUT /api/v1/soulseek/account`
+- `DELETE /api/v1/soulseek/account`
+
+`PUT` accepts a username and password over the loopback session-token-protected
+connection. The password is written directly to `ISecretStore`; SQLite stores only
+the username, opaque secret reference and timestamps. Responses expose no password
+or secret reference. Changing or disconnecting an account is rejected while jobs
+are active or queued, then restarts only the idle engine so chat/reconnect recovery
+can reattach to the new Soulseek session. Explicit legacy CLI credentials keep
+precedence when that daemon starts.
+
 ## Soulseek wishlist
 
 The authenticated versioned API exposes local persisted wishlist searches:
