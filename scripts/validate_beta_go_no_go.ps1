@@ -135,6 +135,7 @@ Assert-TableRowContains $document 'Windows package smoke' 'c7b4cc5ba18cc3ce4f9c2
 Assert-TableRowContains $document 'Windows package smoke' '2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde' 'Windows package archive SHA256 evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'Windows 10 Pro' 'Windows package host evidence'
 Assert-TableRowContains $document 'Windows package smoke' 'does not satisfy the required Windows 11 x64 gate' 'Windows 11 non-substitution evidence'
+Assert-TableRowContains $document 'Windows package smoke' 'scripts/validate_windows_package_smoke_evidence.ps1' 'Windows package evidence validator'
 Assert-TableRowContains $document 'Ubuntu package smoke' 'c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f' 'Ubuntu package exact commit evidence'
 Assert-TableRowContains $document 'Ubuntu package smoke' 'ee7072fba179799c2911b49bb75860b6d82406426a53945e6c1a8198a25670fd' 'Ubuntu package archive SHA256 evidence'
 Assert-TableRowContains $document 'Ubuntu package smoke' 'Ubuntu 24.04 x64' 'Ubuntu package host evidence'

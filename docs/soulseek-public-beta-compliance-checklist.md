@@ -1,6 +1,6 @@
 # Soulseek public beta compliance checklist
 
-Sprint 15 keeps public beta distribution blocked until Soulseek compliance risk is resolved by ADR-0009 or a later accepted decision. This checklist is an engineering and product verification aid, not legal advice, and it does not by itself approve a public beta.
+Sprint 16 keeps public beta distribution blocked until Soulseek compliance risk is resolved by ADR-0009 or a later accepted decision. This checklist is an engineering and product verification aid, not legal advice, and it does not by itself approve a public beta.
 
 Use this checklist only before proposing a public beta artifact with Soulseek network connectivity enabled, or before proposing a superseding decision that disables Soulseek connectivity for public distribution.
 
@@ -72,8 +72,9 @@ the named reviewer remains responsible for the live observations and redaction.
 4. Exercise the feature coverage checklist above with exact timestamps and screenshots where useful.
 5. Export diagnostics through the app flow when available, inspect the export, and redact any private data before attaching it to an issue.
 6. Review the exact public beta release notes, About/License surface and package notices for legal-use language, source availability and third-party notices.
-7. Run the automated gates listed in `docs/beta-go-no-go.md` on the same commit or explain why a newer commit supersedes the run.
-8. Run `scripts/validate_soulseek_live_checklist.ps1` against the unchanged package and retain `run-metadata.json`, `checklist.md` and referenced redacted evidence together.
+7. Validate the Windows ZIP and package-smoke JSON together with `scripts/validate_windows_package_smoke_evidence.ps1 -RequiredHost Windows11X64`.
+8. Run the automated gates listed in `docs/beta-go-no-go.md` on the same commit or explain why a newer commit supersedes the run.
+9. Run `scripts/validate_soulseek_live_checklist.ps1` against the unchanged package and retain `run-metadata.json`, `checklist.md` and referenced redacted evidence together.
 
 ## Stop conditions
 

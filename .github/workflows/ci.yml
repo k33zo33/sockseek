@@ -76,7 +76,7 @@ jobs:
     - name: Test Project
       run: dotnet test --no-build --configuration Release --verbosity normal
 
-    - name: Validate Soulseek release evidence helpers
+    - name: Validate release evidence helpers
       shell: pwsh
       run: |
         ./scripts/test_soulseek_live_checklist.ps1
@@ -84,6 +84,7 @@ jobs:
         ./scripts/test_soulseek_compliance_gate_validator.ps1
         ./scripts/validate_beta_go_no_go.ps1
         ./scripts/test_beta_go_no_go_validator.ps1
+        ./scripts/test_windows_package_smoke_evidence_validator.ps1
 
   format-check:
     if: false  # disabled: dotnet format has platform-sensitive indentation behavior

@@ -134,6 +134,12 @@ try {
         throw 'Expected validation to fail when the checklist omits the ADR-0009 public beta stop condition.'
     }
 
+    $checklistWithoutWindowsEvidenceValidator = $checklist -replace 'scripts/validate_windows_package_smoke_evidence\.ps1', 'Windows evidence validator omitted'
+    $checklistWithoutWindowsEvidenceValidatorPath = Write-Case 'checklist-without-windows-evidence-validator.md' $checklistWithoutWindowsEvidenceValidator
+    if ((Invoke-Validator -AuditPath $auditPath -AdrPath $adrPath -LimitationsPath $limitationsPath -ChecklistPath $checklistWithoutWindowsEvidenceValidatorPath) -eq 0) {
+        throw 'Expected validation to fail when the checklist omits the Windows package evidence validator.'
+    }
+
     Write-Host 'Soulseek compliance gate validator smoke passed.'
 }
 finally {

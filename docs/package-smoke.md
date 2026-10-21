@@ -24,6 +24,18 @@ Keep that file, the console output and generated SHA256 manifest with the
 release-candidate evidence. Host metadata is evidence, not a target-OS substitute:
 a run on Windows 10 does not satisfy the Windows 11 gate.
 
+Validate the retained ZIP and evidence together. The public-beta gate must use
+`-RequiredHost Windows11X64`; this rejects Windows 10 evidence, a mismatched
+artifact hash or commit, and any missing runtime check:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_windows_package_smoke_evidence.ps1 `
+  -ArtifactPath .tmp\sprint16-windows-package-smoke-c7b4cc5\Sockseek-win-x64.zip `
+  -EvidencePath .tmp\sprint16-windows-package-smoke-c7b4cc5\package-smoke-evidence.json `
+  -ExpectedCommit c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f `
+  -RequiredHost Windows11X64
+```
+
 Run the fast tester-instructions smoke when changing beta limitation, diagnostics, security or tester-instruction text:
 
 ```powershell

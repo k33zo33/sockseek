@@ -194,6 +194,12 @@ try {
         throw 'Expected validation to fail when Windows package smoke omits closed beta tester instructions evidence.'
     }
 
+    $packageWithoutEvidenceValidator = $baseline -replace 'scripts/validate_windows_package_smoke_evidence\.ps1', 'Windows package validator omitted'
+    $packageWithoutEvidenceValidatorPath = Write-Case 'package-without-evidence-validator.md' $packageWithoutEvidenceValidator
+    if ((Invoke-Validator $packageWithoutEvidenceValidatorPath) -eq 0) {
+        throw 'Expected validation to fail when Windows package smoke omits the evidence validator.'
+    }
+
     $packageWithoutArchiveHash = $baseline -replace '2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde', 'archive hash omitted'
     $packageWithoutArchiveHashPath = Write-Case 'package-without-archive-hash.md' $packageWithoutArchiveHash
     if ((Invoke-Validator $packageWithoutArchiveHashPath) -eq 0) {

@@ -116,6 +116,7 @@ Assert-Contains $checklist 'Legal-use messaging' 'checklist legal-use messaging 
 Assert-Contains $checklist 'Provider audio invariant' 'checklist provider audio invariant row'
 Assert-Contains $checklist 'scripts\new_soulseek_live_checklist.ps1' 'artifact-bound live checklist generator'
 Assert-Contains $checklist 'scripts\validate_soulseek_live_checklist.ps1' 'artifact-bound live checklist validator'
+Assert-Contains $checklist 'scripts/validate_windows_package_smoke_evidence.ps1' 'artifact-bound Windows package evidence validator'
 Assert-Contains $checklist 'unchanged package' 'live checklist exact-package validation requirement'
 Assert-Contains $checklist 'Do not publish a public beta while ADR-0009 remains the active decision' 'checklist ADR-0009 stop condition'
 Assert-Contains $checklist 'wishlist, upload/sharing, chat or privilege recognition is missing or unverified' 'checklist missing feature stop condition'
