@@ -104,7 +104,9 @@ public sealed class OAuthLoopbackCallbackListener : IAsyncDisposable
 
     private bool TryCreateRequestUri(string requestTarget, out Uri requestUri)
     {
-        if (Uri.TryCreate(requestTarget, UriKind.Absolute, out var absolute))
+        if (Uri.TryCreate(requestTarget, UriKind.Absolute, out var absolute)
+            && (StringComparer.OrdinalIgnoreCase.Equals(absolute.Scheme, Uri.UriSchemeHttp)
+                || StringComparer.OrdinalIgnoreCase.Equals(absolute.Scheme, Uri.UriSchemeHttps)))
         {
             requestUri = absolute;
             return StringComparer.OrdinalIgnoreCase.Equals(RedirectUri.Scheme, absolute.Scheme)
@@ -112,7 +114,9 @@ public sealed class OAuthLoopbackCallbackListener : IAsyncDisposable
                 && RedirectUri.Port == absolute.Port;
         }
 
-        if (Uri.TryCreate(RedirectUri, requestTarget, out requestUri!))
+        if (requestTarget.StartsWith('/')
+            && !requestTarget.StartsWith("//", StringComparison.Ordinal)
+            && Uri.TryCreate(RedirectUri, requestTarget, out requestUri!))
             return true;
 
         requestUri = null!;

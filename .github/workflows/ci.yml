@@ -66,6 +66,11 @@ jobs:
     - name: Build Project
       run: dotnet build --no-restore --configuration Release
 
+    - name: Install LibVLC test runtime
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes libvlc-dev vlc
+
     - name: Test Project
       run: dotnet test --no-build --configuration Release --verbosity normal
 

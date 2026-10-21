@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sockseek.Application.Providers;
 using Sockseek.Integrations.Abstractions;
@@ -13,14 +15,12 @@ public sealed class OAuthLoopbackCallbackListenerTests
     {
         await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.Spotify);
         using var cancellation = CreateTestCancellation();
-        using var client = new HttpClient();
         var callbackUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code&state=expected-state");
 
         var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
-        var response = await client.GetAsync(callbackUri, cancellation.Token);
+        var statusCode = await SendLoopbackRequestAsync(callbackUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.OK, statusCode.StatusCode, statusCode.Body);
         var callback = await pendingCallback;
-
-        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.AreEqual(ProviderIds.Spotify, callback.ProviderId);
         Assert.AreEqual(listener.RedirectUri, callback.RedirectUri);
         Assert.AreEqual("expected-state", callback.State);
@@ -33,14 +33,12 @@ public sealed class OAuthLoopbackCallbackListenerTests
     {
         await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.YouTube);
         using var cancellation = CreateTestCancellation();
-        using var client = new HttpClient();
         var callbackUri = CreateCallbackUri(listener.RedirectUri, "error=access_denied&state=expected-state");
 
         var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
-        var response = await client.GetAsync(callbackUri, cancellation.Token);
+        var statusCode = await SendLoopbackRequestAsync(callbackUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.OK, statusCode.StatusCode, statusCode.Body);
         var callback = await pendingCallback;
-
-        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.AreEqual("expected-state", callback.State);
         Assert.IsNull(callback.Code);
         Assert.AreEqual("access_denied", callback.Error);
@@ -51,7 +49,6 @@ public sealed class OAuthLoopbackCallbackListenerTests
     {
         await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.Spotify);
         using var cancellation = CreateTestCancellation();
-        using var client = new HttpClient();
         var wrongPathUri = new UriBuilder(listener.RedirectUri)
         {
             Path = "/wrong-path",
@@ -60,12 +57,11 @@ public sealed class OAuthLoopbackCallbackListenerTests
         var validCallbackUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code&state=expected-state");
 
         var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
-        var wrongPathResponse = await client.GetAsync(wrongPathUri, cancellation.Token);
-        var validResponse = await client.GetAsync(validCallbackUri, cancellation.Token);
+        var wrongPathStatus = await SendLoopbackRequestAsync(wrongPathUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.NotFound, wrongPathStatus.StatusCode, wrongPathStatus.Body);
+        var validStatus = await SendLoopbackRequestAsync(validCallbackUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.OK, validStatus.StatusCode, validStatus.Body);
         var callback = await pendingCallback;
-
-        Assert.AreEqual(HttpStatusCode.NotFound, wrongPathResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.OK, validResponse.StatusCode);
         Assert.AreEqual("expected-state", callback.State);
         Assert.AreEqual("authorization-code", callback.Code);
     }
@@ -75,17 +71,15 @@ public sealed class OAuthLoopbackCallbackListenerTests
     {
         await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.Spotify);
         using var cancellation = CreateTestCancellation();
-        using var client = new HttpClient();
         var missingStateUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code");
         var validCallbackUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code&state=expected-state");
 
         var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
-        var missingStateResponse = await client.GetAsync(missingStateUri, cancellation.Token);
-        var validResponse = await client.GetAsync(validCallbackUri, cancellation.Token);
+        var missingStateStatus = await SendLoopbackRequestAsync(missingStateUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.BadRequest, missingStateStatus.StatusCode, missingStateStatus.Body);
+        var validStatus = await SendLoopbackRequestAsync(validCallbackUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.OK, validStatus.StatusCode, validStatus.Body);
         var callback = await pendingCallback;
-
-        Assert.AreEqual(HttpStatusCode.BadRequest, missingStateResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.OK, validResponse.StatusCode);
         Assert.AreEqual("expected-state", callback.State);
     }
 
@@ -94,16 +88,38 @@ public sealed class OAuthLoopbackCallbackListenerTests
     {
         await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.Spotify);
         using var cancellation = CreateTestCancellation();
-        using var client = new HttpClient();
         var callbackUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code&state=expected-state");
 
         var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
-        var postResponse = await client.PostAsync(callbackUri, null, cancellation.Token);
-        var validResponse = await client.GetAsync(callbackUri, cancellation.Token);
+        var postStatus = await SendLoopbackRequestAsync(callbackUri, "POST", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.MethodNotAllowed, postStatus.StatusCode, postStatus.Body);
+        var validStatus = await SendLoopbackRequestAsync(callbackUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.OK, validStatus.StatusCode, validStatus.Body);
+        var callback = await pendingCallback;
+        Assert.AreEqual("expected-state", callback.State);
+        Assert.AreEqual("authorization-code", callback.Code);
+    }
+
+    [DataTestMethod]
+    [DataRow("//evil.example/oauth/callback?code=authorization-code&state=expected-state")]
+    [DataRow("file:///oauth/callback?code=authorization-code&state=expected-state")]
+    public async Task WaitForCallbackAsync_RejectsNonHttpOrSchemeRelativeTargets(string requestTarget)
+    {
+        await using var listener = OAuthLoopbackCallbackListener.Start(ProviderIds.Spotify);
+        using var cancellation = CreateTestCancellation();
+        var validCallbackUri = CreateCallbackUri(listener.RedirectUri, "code=authorization-code&state=expected-state");
+
+        var pendingCallback = listener.WaitForCallbackAsync(cancellation.Token);
+        var rejected = await SendLoopbackRequestAsync(
+            listener.RedirectUri,
+            "GET",
+            cancellation.Token,
+            requestTarget);
+        Assert.AreEqual(HttpStatusCode.BadRequest, rejected.StatusCode, rejected.Body);
+        var accepted = await SendLoopbackRequestAsync(validCallbackUri, "GET", cancellation.Token);
+        Assert.AreEqual(HttpStatusCode.OK, accepted.StatusCode, accepted.Body);
         var callback = await pendingCallback;
 
-        Assert.AreEqual(HttpStatusCode.MethodNotAllowed, postResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.OK, validResponse.StatusCode);
         Assert.AreEqual("expected-state", callback.State);
         Assert.AreEqual("authorization-code", callback.Code);
     }
@@ -113,6 +129,33 @@ public sealed class OAuthLoopbackCallbackListenerTests
         {
             Query = query,
         }.Uri;
+
+    private static async Task<(HttpStatusCode StatusCode, string Body)> SendLoopbackRequestAsync(
+        Uri callbackUri,
+        string method,
+        CancellationToken cancellationToken,
+        string? requestTarget = null)
+    {
+        // A raw loopback request avoids inherited proxy behavior on hosted runners.
+        using var client = new TcpClient(AddressFamily.InterNetwork);
+        await client.ConnectAsync(IPAddress.Loopback, callbackUri.Port, cancellationToken);
+        await using var stream = client.GetStream();
+        var request = Encoding.ASCII.GetBytes(
+            $"{method} {requestTarget ?? callbackUri.PathAndQuery} HTTP/1.1\r\n" +
+            $"Host: {callbackUri.Host}:{callbackUri.Port}\r\n" +
+            "Connection: close\r\n\r\n");
+        await stream.WriteAsync(request, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+
+        using var reader = new StreamReader(stream, Encoding.ASCII);
+        var statusLine = await reader.ReadLineAsync(cancellationToken);
+        var body = await reader.ReadToEndAsync(cancellationToken);
+        var parts = statusLine?.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        if (parts is null || parts.Length < 2 || !int.TryParse(parts[1], out var statusCode))
+            throw new InvalidOperationException($"Invalid HTTP status line: {statusLine ?? "<empty>"}");
+
+        return ((HttpStatusCode)statusCode, body);
+    }
 
     private static CancellationTokenSource CreateTestCancellation()
         => new(TimeSpan.FromSeconds(10));

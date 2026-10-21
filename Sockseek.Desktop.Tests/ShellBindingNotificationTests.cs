@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -46,8 +47,8 @@ public sealed class ShellBindingNotificationTests
             supervisor: supervisor,
             connectionFactory: handshake => new FakeDesktopEventHubConnection(handshake));
         var viewModel = new DesktopShellWindowViewModel(session);
-        var changedProperties = new List<string?>();
-        viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+        var changedProperties = new ConcurrentQueue<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Enqueue(eventArgs.PropertyName);
 
         session.Shell.NavigateTo(ShellSection.Settings);
         session.Shell.SetTheme(DesktopThemePreference.Dark);
@@ -55,38 +56,40 @@ public sealed class ShellBindingNotificationTests
         supervisor.TryAcceptHandshakePayload("{\"BaseUrl\":\"http://127.0.0.1:5030\",\"SessionToken\":\"window-shell-token\"}");
         session.Shell.SetBackendState(BackendConnectionState.Disconnected);
 
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentSection));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPage));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageTitle));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageTitleResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageDescription));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageDescriptionResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageIconToken));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageBadgeLabel));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateTitle));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateTitleResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescription));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescriptionResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentPageHighlights));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsHomeSectionActive));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.WindowTitle));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentTheme));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.StatusBanner));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerTitle));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerTitleResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerMessage));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerMessageResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.IsBackendBannerVisible));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerSurfaceToken));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerIconToken));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerIconAccessibilityLabel));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendBannerIconAccessibilityLabelResourceKey));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.BackendState));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CurrentHandshake));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HasCurrentHandshake));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.CanStartDaemon));
-        CollectionAssert.Contains(changedProperties, nameof(DesktopShellWindowViewModel.HomeSummaryFacts));
+        var notifications = changedProperties.ToArray();
+
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentSection));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPage));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageTitle));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageTitleResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageDescription));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageDescriptionResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageIconToken));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageBadgeLabel));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateTitle));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateTitleResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescription));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageEmptyStateDescriptionResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentPageHighlights));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.IsHomeSectionActive));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.WindowTitle));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentTheme));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.IsCommandPaletteOpen));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.StatusBanner));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerTitle));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerTitleResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerMessage));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerMessageResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.IsBackendBannerVisible));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerSurfaceToken));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerIconToken));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerIconAccessibilityLabel));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendBannerIconAccessibilityLabelResourceKey));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.BackendState));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CurrentHandshake));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.HasCurrentHandshake));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.CanStartDaemon));
+        CollectionAssert.Contains(notifications, nameof(DesktopShellWindowViewModel.HomeSummaryFacts));
     }
 
     [TestMethod]
