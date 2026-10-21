@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Date | 2026-10-21 (Europe/Zagreb) |
-| Commit | `9a131874be6274dfdd5f42d97241fa950af6e1e8` |
+| Commit | `422a001f5e6275cb312c7c42d954b8e58a0c6d2a` |
 | Version | `3.0.5` |
 | Network mode | Soulseek enabled |
 | Decision | `NO-GO` for public beta |
@@ -28,8 +28,8 @@ is not superseded by this document.
 
 | Target | Evidence | Result |
 | --- | --- | --- |
-| Ubuntu 24.04 x64 | `Sockseek-linux-x64.tar.gz`; SHA256 `eb87b176ed32643bf7d915bf504aa7d8cfcaf3566d3c669a5ae78aa803810bcd`. Exact archive passed daemon `/health`, anonymous protected-API rejection, authenticated Soulseek account configure/status/disconnect, response and encrypted-payload plaintext checks, `0700` secret-directory and `0600` key/payload checks, secret cleanup, packaged Desktop child-daemon health under Xvfb, install/uninstall and data preservation. | Pass |
-| Windows 10 Pro x64 preflight | `Sockseek-win-x64.zip`; SHA256 `d2c62e8e73a3f56cab3381c662d482b06efd57257229b478108d751639d4a450`. Evidence JSON records Windows `10.0.19045`, build `19045`, 64-bit. Exact ZIP passed direct daemon and Desktop child-daemon health, anonymous protected-API rejection, loopback-only listener checks and the DPAPI-backed Soulseek account configure/status/disconnect lifecycle without response/plaintext leakage or a retained secret payload. | Pass as preflight only |
+| Ubuntu 24.04 x64 | `Sockseek-linux-x64.tar.gz`; SHA256 `6474ed5b7b4be3370d315a001f823cbab7af0af50179cabceb49e6840ec3b287`. Exact archive passed daemon `/health`, anonymous protected-API rejection, authenticated Soulseek account configure, daemon restart/restore and disconnect, response and encrypted-payload plaintext checks, `0700` secret-directory and `0600` key/payload checks, secret cleanup, packaged Desktop child-daemon health under Xvfb, install/uninstall and data preservation. | Pass |
+| Windows 10 Pro x64 preflight | `Sockseek-win-x64.zip`; SHA256 `b7a5349c424202058bfeff140b34261de37830c2565c7af189074e180d445973`. Evidence JSON records Windows `10.0.19045`, build `19045`, 64-bit. Exact ZIP passed direct daemon and Desktop child-daemon health, anonymous protected-API rejection, loopback-only listener checks and the DPAPI-backed Soulseek account configure, daemon restart/restore and disconnect lifecycle without response/plaintext leakage or a retained secret payload. | Pass as preflight only |
 | Windows 11 x64 | No run is recorded on a Windows 11 host for this candidate. Windows 10 evidence is not substituted. | Missing |
 
 The exact Linux package excludes `VideoLAN.LibVLC.Windows`; the Ubuntu runtime
