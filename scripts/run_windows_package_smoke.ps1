@@ -13,6 +13,9 @@ param(
 
     [string]$DotNetCli = 'dotnet',
 
+    [ValidateSet('Any', 'Windows11X64')]
+    [string]$RequiredHost = 'Any',
+
     [switch]$Force
 )
 
@@ -327,6 +330,32 @@ function Wait-ForDesktopDaemon {
     throw 'Timed out waiting for the packaged Desktop child daemon on loopback.'
 }
 
+function Get-WindowsHostClassification {
+    param($HostEvidence)
+
+    $buildNumber = 0
+    $hasBuildNumber = [int]::TryParse([string]$HostEvidence.BuildNumber, [ref]$buildNumber)
+    $isX64 = [string]$HostEvidence.OSArchitecture -match '(?i)(64-bit|x64|amd64)'
+    if ([string]$HostEvidence.Caption -match '(?i)Windows 11' `
+        -and $isX64 `
+        -and $hasBuildNumber `
+        -and $buildNumber -ge 22000) {
+        return 'Windows11X64'
+    }
+
+    if ([string]$HostEvidence.Caption -match '(?i)Windows 10' -and $isX64 -and $hasBuildNumber) {
+        return 'Windows10X64'
+    }
+
+    return 'Other'
+}
+
+$os = Get-CimInstance Win32_OperatingSystem
+$hostClassification = Get-WindowsHostClassification -HostEvidence $os
+if ($RequiredHost -ne 'Any' -and $hostClassification -ne $RequiredHost) {
+    throw "Windows package smoke requires host $RequiredHost, but this host is ${hostClassification}: $($os.Caption) $($os.Version) build $($os.BuildNumber) $($os.OSArchitecture)."
+}
+
 $headCommit = (& git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($headCommit)) {
     throw 'Unable to resolve the current Git commit.'
@@ -607,7 +636,6 @@ finally {
 }
 
 $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-$os = Get-CimInstance Win32_OperatingSystem
 $evidence = [ordered]@{
     schemaVersion = 1
     recordedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
@@ -636,6 +664,13 @@ $evidence = [ordered]@{
     }
 }
 $evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $evidencePath -Encoding UTF8
+
+$validator = Join-Path $PSScriptRoot 'validate_windows_package_smoke_evidence.ps1'
+& $validator `
+    -ArtifactPath $archivePath `
+    -EvidencePath $evidencePath `
+    -RequiredHost $RequiredHost `
+    -ExpectedCommit $headCommit
 
 Write-Host "Windows package smoke completed successfully."
 Write-Host "Commit: $headCommit"

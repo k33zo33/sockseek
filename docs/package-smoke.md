@@ -6,6 +6,15 @@ Use the Sprint 16 helper before publishing a Windows release candidate. It requi
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_windows_package_smoke.ps1 -Force
 ```
 
+For the required public-beta target run, make the helper reject a non-Windows 11
+x64 host before it publishes anything:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_windows_package_smoke.ps1 `
+  -RequiredHost Windows11X64 `
+  -Force
+```
+
 The helper records the full checked-out commit and rejects a dirty worktree or a
 different requested commit. It runs the same publish, SBOM, staging and archive
 steps shown below, then extracts the exact ZIP and verifies:
@@ -18,7 +27,7 @@ steps shown below, then extracts the exact ZIP and verifies:
 - the Desktop child daemon is healthy, protected and loopback-only; and
 - cleanup is limited to the exact smoke process IDs and isolated smoke data directories.
 
-The helper writes `package-smoke-evidence.json` with the full commit, archive hash,
+The helper writes and validates `package-smoke-evidence.json` with the full commit, archive hash,
 runtime, host Windows caption/version/build/architecture and passed runtime checks.
 Keep that file, the console output and generated SHA256 manifest with the
 release-candidate evidence. Host metadata is evidence, not a target-OS substitute:
