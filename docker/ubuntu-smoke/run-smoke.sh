@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-archive=${1:?Usage: run-sockseek-package-smoke <package.tar.gz>}
+archive=${1:?Usage: run-sockseek-package-smoke <package.tar.gz> [evidence.json]}
+evidence_path=${2:-}
 work_dir=$(mktemp -d)
 package_dir="$work_dir/package"
 daemon_log="$work_dir/daemon.log"
@@ -21,6 +22,26 @@ cleanup() {
     rm -rf "$work_dir"
 }
 trap cleanup EXIT
+
+assert_process_listens_only_on_loopback() {
+    local process_id=$1
+    local listeners
+    listeners=$(ss -ltnpH | awk -v process_marker="pid=$process_id," '$0 ~ process_marker { print $4 }')
+    if [[ -z "$listeners" ]]; then
+        echo "Process $process_id has no TCP listener to validate." >&2
+        exit 1
+    fi
+
+    while IFS= read -r endpoint; do
+        case "$endpoint" in
+            127.*|\[::1\]:*) ;;
+            *)
+                echo "Process $process_id exposed a non-loopback TCP listener: $endpoint" >&2
+                exit 1
+                ;;
+        esac
+    done <<<"$listeners"
+}
 
 mkdir -p "$package_dir" "$work_dir/home" "$work_dir/runtime"
 tar -xzf "$archive" -C "$package_dir"
@@ -86,6 +107,7 @@ start_daemon() {
 : >"$daemon_log"
 start_daemon
 echo "Packaged daemon health: $health"
+assert_process_listens_only_on_loopback "$daemon_pid"
 
 anonymous_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
     http://127.0.0.1:5030/api/v1/system/info)
@@ -130,6 +152,7 @@ kill "$daemon_pid"
 wait "$daemon_pid" 2>/dev/null || true
 daemon_pid=''
 start_daemon
+assert_process_listens_only_on_loopback "$daemon_pid"
 
 account_response=$(curl --fail --silent --show-error \
     --header "Authorization: Bearer $session_token" \
@@ -190,6 +213,13 @@ if [[ "$desktop_health" != *'"status":"ok"'* ]]; then
     echo 'Packaged Desktop did not start its local daemon.' >&2
     exit 1
 fi
+assert_process_listens_only_on_loopback "$desktop_daemon_pid"
+desktop_anonymous_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+    "http://$desktop_daemon_endpoint/api/v1/system/info")
+if [[ "$desktop_anonymous_status" != '401' ]]; then
+    echo "Desktop child daemon protected API returned HTTP $desktop_anonymous_status without a session token." >&2
+    exit 1
+fi
 echo "Packaged Desktop local daemon health ($desktop_daemon_endpoint): $desktop_health"
 kill "$desktop_pid"
 wait "$desktop_pid" 2>/dev/null || true
@@ -203,5 +233,36 @@ test -L "$work_dir/bin/sockseek-desktop"
 test ! -e "$work_dir/install"
 test ! -e "$work_dir/bin/sockseek-desktop"
 test -d "$work_dir/data"
+
+if [[ -n "$evidence_path" ]]; then
+    # Values come from the pinned runtime image and uname, not package or user input.
+    . /etc/os-release
+    architecture=$(uname -m)
+    printf '%s\n' \
+        '{' \
+        '  "schemaVersion": 1,' \
+        "  \"distributionId\": \"$ID\"," \
+        "  \"distributionVersion\": \"$VERSION_ID\"," \
+        "  \"architecture\": \"$architecture\"," \
+        '  "checks": {' \
+        '    "archiveExtracted": true,' \
+        '    "requiredPayloadPresent": true,' \
+        '    "executableModes": true,' \
+        '    "daemonHealth": true,' \
+        '    "daemonProtectedApiRejectsAnonymous": true,' \
+        '    "daemonSoulseekAccountLifecycle": true,' \
+        '    "daemonSoulseekAccountRestartRestore": true,' \
+        '    "daemonSoulseekSecretRemovedAfterDisconnect": true,' \
+        '    "secretPermissions": true,' \
+        '    "secretEncryptedAtRest": true,' \
+        '    "desktopStartedPackagedDaemon": true,' \
+        '    "desktopDaemonHealth": true,' \
+        '    "desktopDaemonProtectedApiRejectsAnonymous": true,' \
+        '    "loopbackOnly": true,' \
+        '    "installUninstall": true,' \
+        '    "userDataPreserved": true' \
+        '  }' \
+        '}' >"$evidence_path"
+fi
 
 echo 'Ubuntu 24.04 exact package smoke passed.'

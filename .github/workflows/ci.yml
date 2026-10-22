@@ -85,6 +85,7 @@ jobs:
         ./scripts/validate_beta_go_no_go.ps1
         ./scripts/test_beta_go_no_go_validator.ps1
         ./scripts/test_windows_package_smoke_evidence_validator.ps1
+        ./scripts/test_ubuntu_package_smoke_evidence_validator.ps1
 
   format-check:
     if: false  # disabled: dotnet format has platform-sensitive indentation behavior

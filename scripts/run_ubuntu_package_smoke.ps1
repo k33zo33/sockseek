@@ -95,7 +95,11 @@ $hostStageDir = Join-Path $artifactsRootFullPath "stage-$Runtime"
 $hostArchivePath = Join-Path $artifactsRootFullPath "Sockseek-$Runtime.tar.gz"
 $hostManifestPath = Join-Path $artifactsRootFullPath "Sockseek-$Runtime.sha256"
 $testerInstructionsPath = Join-Path $hostStageDir 'closed-beta-tester-instructions.md'
+$runtimeEvidenceDir = Join-Path $artifactsRootFullPath 'runtime-evidence'
+$runtimeEvidencePath = Join-Path $runtimeEvidenceDir 'ubuntu-runtime-smoke.json'
+$evidencePath = Join-Path $artifactsRootFullPath 'package-smoke-evidence.json'
 $repoMount = "type=bind,source=$repoRoot,target=/src"
+New-Item -ItemType Directory -Force -Path $runtimeEvidenceDir | Out-Null
 
 Write-Host "Running Ubuntu 24.04 package smoke for commit $headCommit."
 Write-Host "Artifacts root: $artifactsRootFullPath"
@@ -174,14 +178,45 @@ Invoke-CheckedCommand $DockerCli @(
 
 Write-Host 'Running exact extracted package smoke.'
 $archiveMount = "type=bind,source=$hostArchivePath,target=/artifacts/Sockseek-$Runtime.tar.gz,readonly"
+$evidenceMount = "type=bind,source=$runtimeEvidenceDir,target=/evidence"
 Invoke-CheckedCommand $DockerCli @(
-    'run', '--rm', '--mount', $archiveMount,
-    $SmokeImageName, "/artifacts/Sockseek-$Runtime.tar.gz")
+    'run', '--rm', '--mount', $archiveMount, '--mount', $evidenceMount,
+    $SmokeImageName, "/artifacts/Sockseek-$Runtime.tar.gz", '/evidence/ubuntu-runtime-smoke.json')
 
+$runtimeEvidence = Get-Content -LiteralPath $runtimeEvidencePath -Raw | ConvertFrom-Json
+if ($runtimeEvidence.schemaVersion -ne 1) {
+    throw "Unsupported Ubuntu runtime evidence schema version: $($runtimeEvidence.schemaVersion)"
+}
 $archiveHash = (Get-FileHash -LiteralPath $hostArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$evidence = [ordered]@{
+    schemaVersion = 1
+    recordedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    commit = $headCommit
+    version = $Version
+    runtime = $Runtime
+    archive = [System.IO.Path]::GetFileName($hostArchivePath)
+    archiveSha256 = $archiveHash
+    host = [ordered]@{
+        distributionId = [string]$runtimeEvidence.distributionId
+        distributionVersion = [string]$runtimeEvidence.distributionVersion
+        architecture = [string]$runtimeEvidence.architecture
+        containerImage = $SmokeImageName
+    }
+    checks = $runtimeEvidence.checks
+}
+$evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $evidencePath -Encoding UTF8
+
+$validator = Join-Path $PSScriptRoot 'validate_ubuntu_package_smoke_evidence.ps1'
+& $validator `
+    -ArtifactPath $hostArchivePath `
+    -EvidencePath $evidencePath `
+    -RequiredHost Ubuntu2404X64 `
+    -ExpectedCommit $headCommit
+
 Write-Host 'Ubuntu 24.04 package smoke completed successfully.'
 Write-Host "Commit: $headCommit"
 Write-Host "Archive: $hostArchivePath"
 Write-Host "Archive SHA256: $archiveHash"
 Write-Host "Manifest: $hostManifestPath"
 Write-Host "Stage: $hostStageDir"
+Write-Host "Evidence: $evidencePath"

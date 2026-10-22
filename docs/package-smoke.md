@@ -157,7 +157,27 @@ The helper records the full checked-out commit and rejects a dirty worktree. It 
 - starts the packaged Desktop under Xvfb and requires its packaged local daemon to become healthy; and
 - exercises the packaged user-local `install.sh` and `uninstall.sh` while confirming user data is preserved by default.
 
-Artifacts are written under `.tmp\sprint16-ubuntu-package-smoke-<commit>\`. Keep the archive hash, manifest and console transcript with release-candidate evidence. This Ubuntu smoke is distinct from the Alpine Docker/headless path documented in `docs/docker.md`.
+Artifacts are written under `.tmp\sprint16-ubuntu-package-smoke-<commit>\`. The
+helper also writes `package-smoke-evidence.json` after the exact extracted archive
+passes. Runtime host fields come from inside the pinned Ubuntu container, and the
+checks include payload/executable validation, daemon and Desktop health, anonymous
+API rejection, secret lifecycle and permissions, loopback-only listeners,
+install/uninstall and default user-data preservation. Keep that file, the archive,
+manifest and console transcript together. This Ubuntu smoke is distinct from the
+Alpine Docker/headless path documented in `docs/docker.md`.
+
+Validate the retained archive and evidence together. The release gate uses
+`-RequiredHost Ubuntu2404X64`, which rejects another distribution/version or
+architecture, package/hash/commit drift, a non-AGPL artifact and any missing runtime
+check:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_ubuntu_package_smoke_evidence.ps1 `
+  -ArtifactPath .tmp\sprint16-ubuntu-package-smoke-c7b4cc5\Sockseek-linux-x64.tar.gz `
+  -EvidencePath .tmp\sprint16-ubuntu-package-smoke-c7b4cc5\package-smoke-evidence.json `
+  -ExpectedCommit c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f `
+  -RequiredHost Ubuntu2404X64
+```
 
 The Ubuntu package expects the system LibVLC runtime and unversioned loader alias provided by `vlc` and `libvlc-dev`. The packaged `install.sh` checks this prerequisite and prints the exact `apt` command when it is absent.
 
@@ -173,6 +193,9 @@ Candidate `c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f` was exercised on
   preservation. The archive is
   `Sockseek-linux-x64.tar.gz`, SHA256
   `ee7072fba179799c2911b49bb75860b6d82406426a53945e6c1a8198a25670fd`.
+  On 2026-10-22 the retained archive also passed the new fail-closed evidence
+  path, including loopback-only checks for the direct daemon, restarted daemon and
+  Desktop child daemon; the validator classified its runtime as `Ubuntu2404X64`.
 - Windows `win-x64` exact-package preflight passed publish, 132-package SBOM,
   staging, ZIP extraction, direct daemon health/auth/loopback checks and
   packaged Desktop child-daemon health/auth/loopback checks. The direct daemon
