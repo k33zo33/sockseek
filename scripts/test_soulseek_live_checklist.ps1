@@ -99,6 +99,60 @@ try {
         throw 'Expected validator to accept complete redacted evidence.'
     }
 
+    $originalMetadataJson = Get-Content -LiteralPath $metadataPath -Raw
+    $forgedMetadata = $originalMetadataJson | ConvertFrom-Json
+    $forgedMetadata.requiredHost = 'Windows11X64'
+    $forgedMetadata.host.family = 'Windows'
+    $forgedMetadata.host.description = 'Microsoft Windows 11 Pro'
+    $forgedMetadata.host.version = '10.0.22631 (build 22631)'
+    $forgedMetadata.host.architecture = 'X64'
+    $forgedMetadata.host.classification = 'Windows11X64'
+    $forgedMetadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding UTF8
+    $windowsChecklist = [regex]::Replace(
+        $checklist,
+        '(?m)^\| Host \|.*$',
+        '| Host | Microsoft Windows 11 Pro; 10.0.22631 (build 22631); X64; Windows11X64 |')
+    Set-Content -LiteralPath $checklistPath -Value $windowsChecklist -Encoding UTF8
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -ne 0) {
+        throw 'Expected validator to accept coherent Windows 11 x64 host evidence.'
+    }
+
+    Set-Content -LiteralPath $checklistPath -Value $checklist -Encoding UTF8
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject host metadata that no longer matches the checklist header.'
+    }
+
+    $forgedMetadata.host.version = '10.0.19045 (build 19045)'
+    $forgedMetadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding UTF8
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject a Windows 11 label with a pre-Windows 11 build.'
+    }
+
+    $forgedMetadata.host.family = 'Linux'
+    $forgedMetadata.host.description = 'Ubuntu 24.04 LTS'
+    $forgedMetadata.host.version = '24.04'
+    $forgedMetadata.host.architecture = 'X64'
+    $forgedMetadata.host.classification = 'Ubuntu2404X64'
+    $forgedMetadata.requiredHost = 'Ubuntu2404X64'
+    $forgedMetadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding UTF8
+    $ubuntuChecklist = [regex]::Replace(
+        $checklist,
+        '(?m)^\| Host \|.*$',
+        '| Host | Ubuntu 24.04 LTS; 24.04; X64; Ubuntu2404X64 |')
+    Set-Content -LiteralPath $checklistPath -Value $ubuntuChecklist -Encoding UTF8
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -ne 0) {
+        throw 'Expected validator to accept coherent Ubuntu 24.04 x64 host evidence.'
+    }
+
+    $forgedMetadata.host.version = '22.04'
+    $forgedMetadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding UTF8
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject Ubuntu 22.04 metadata labeled as Ubuntu 24.04.'
+    }
+
+    Set-Content -LiteralPath $metadataPath -Value $originalMetadataJson -Encoding UTF8
+    Set-Content -LiteralPath $checklistPath -Value $checklist -Encoding UTF8
+
     Set-Content -LiteralPath (Join-Path $runDirectory 'evidence\diagnostics-review.txt') `
         -Value 'password=should-not-appear' `
         -Encoding ASCII

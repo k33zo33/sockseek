@@ -68,6 +68,46 @@ function Assert-Contains {
     }
 }
 
+function Get-HostClassification {
+    param(
+        [string]$Family,
+        [string]$Description,
+        [string]$Version,
+        [string]$Architecture
+    )
+
+    $isX64 = $Architecture -match '^(?i:X64|AMD64|x86_64)$'
+    if ($Family -eq 'Windows') {
+        $buildNumber = -1
+        $buildMatch = [regex]::Match($Version, '(?i)\bbuild\s+(?<value>\d+)\b')
+        if ($buildMatch.Success) {
+            $buildNumber = [int]$buildMatch.Groups['value'].Value
+        }
+        else {
+            $versionValue = $Version.Split(' ', 2)[0]
+            $parsedVersion = $null
+            if ([System.Version]::TryParse($versionValue, [ref]$parsedVersion)) {
+                $buildNumber = $parsedVersion.Build
+            }
+        }
+
+        if ($Description -match '(?i)Windows 11' -and $isX64 -and $buildNumber -ge 22000) {
+            return 'Windows11X64'
+        }
+        if ($Description -match '(?i)Windows 10' -and $isX64 -and $buildNumber -ge 0) {
+            return 'Windows10X64'
+        }
+    }
+    elseif ($Family -eq 'Linux' `
+        -and $Description -match '(?i)Ubuntu 24[.]04' `
+        -and $Version -match '^24[.]04(?:[.]|$)' `
+        -and $isX64) {
+        return 'Ubuntu2404X64'
+    }
+
+    return 'Other'
+}
+
 $resolvedArtifact = (Resolve-Path -LiteralPath $ArtifactPath).Path
 $resolvedRunDirectory = (Resolve-Path -LiteralPath $RunDirectory).Path
 $metadataPath = Join-Path $resolvedRunDirectory 'run-metadata.json'
@@ -104,7 +144,19 @@ if ([string]$metadata.artifactVersion -ne [string]$release.version) {
 if ([string]$metadata.license -ne 'AGPL-3.0' -or [string]$release.license -ne 'AGPL-3.0') {
     throw 'Run and artifact must retain the AGPL-3.0 license.'
 }
-if ([string]$metadata.requiredHost -ne 'Any' -and [string]$metadata.host.classification -ne [string]$metadata.requiredHost) {
+$allowedRequiredHosts = @('Any', 'Windows11X64', 'Ubuntu2404X64')
+if ($allowedRequiredHosts -notcontains [string]$metadata.requiredHost) {
+    throw "Run metadata contains an unsupported required host: $($metadata.requiredHost)"
+}
+$hostClassification = Get-HostClassification `
+    -Family ([string]$metadata.host.family) `
+    -Description ([string]$metadata.host.description) `
+    -Version ([string]$metadata.host.version) `
+    -Architecture ([string]$metadata.host.architecture)
+if ([string]$metadata.host.classification -ne $hostClassification) {
+    throw "Captured host classification '$($metadata.host.classification)' does not match recomputed classification '$hostClassification'."
+}
+if ([string]$metadata.requiredHost -ne 'Any' -and $hostClassification -ne [string]$metadata.requiredHost) {
     throw 'Captured host classification does not satisfy the run requirement.'
 }
 
@@ -114,6 +166,10 @@ Assert-Contains -Text $checklist -Expected $expectedCommit -Description 'the exa
 Assert-Contains -Text $checklist -Expected $actualHash -Description 'the exact artifact SHA256'
 Assert-Contains -Text $checklist -Expected ([string]$metadata.sessionLabel) -Description 'the redacted session label'
 Assert-Contains -Text $checklist -Expected ([string]$metadata.networkMode) -Description 'the network mode'
+Assert-Contains -Text $checklist -Expected ([string]$metadata.host.description) -Description 'the captured host description'
+Assert-Contains -Text $checklist -Expected ([string]$metadata.host.version) -Description 'the captured host version'
+Assert-Contains -Text $checklist -Expected ([string]$metadata.host.architecture) -Description 'the captured host architecture'
+Assert-Contains -Text $checklist -Expected $hostClassification -Description 'the recomputed host classification'
 
 $redactionText = $checklist + [Environment]::NewLine + (Get-Content -LiteralPath $metadataPath -Raw)
 $evidenceDirectory = Join-Path $resolvedRunDirectory 'evidence'

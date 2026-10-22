@@ -66,10 +66,49 @@ function Read-ReleaseMetadata {
     throw 'Artifact must be a Sockseek .zip or .tar.gz package.'
 }
 
+function Get-HostClassification {
+    param(
+        [string]$Family,
+        [string]$Description,
+        [string]$Version,
+        [string]$Architecture
+    )
+
+    $isX64 = $Architecture -match '^(?i:X64|AMD64|x86_64)$'
+    if ($Family -eq 'Windows') {
+        $buildNumber = -1
+        $buildMatch = [regex]::Match($Version, '(?i)\bbuild\s+(?<value>\d+)\b')
+        if ($buildMatch.Success) {
+            $buildNumber = [int]$buildMatch.Groups['value'].Value
+        }
+        else {
+            $versionValue = $Version.Split(' ', 2)[0]
+            $parsedVersion = $null
+            if ([System.Version]::TryParse($versionValue, [ref]$parsedVersion)) {
+                $buildNumber = $parsedVersion.Build
+            }
+        }
+
+        if ($Description -match '(?i)Windows 11' -and $isX64 -and $buildNumber -ge 22000) {
+            return 'Windows11X64'
+        }
+        if ($Description -match '(?i)Windows 10' -and $isX64 -and $buildNumber -ge 0) {
+            return 'Windows10X64'
+        }
+    }
+    elseif ($Family -eq 'Linux' `
+        -and $Description -match '(?i)Ubuntu 24[.]04' `
+        -and $Version -match '^24[.]04(?:[.]|$)' `
+        -and $isX64) {
+        return 'Ubuntu2404X64'
+    }
+
+    return 'Other'
+}
+
 function Get-HostEvidence {
     $description = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
     $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-    $classification = 'Other'
     $family = 'Other'
     $version = [Environment]::OSVersion.Version.ToString()
 
@@ -88,15 +127,6 @@ function Get-HostEvidence {
             # RuntimeInformation remains a useful fallback when CIM is unavailable.
         }
 
-        if ($description -match 'Windows 11' -and $architecture -eq 'X64') {
-            $classification = 'Windows11X64'
-        }
-        elseif ($description -match 'Windows 10' -and $architecture -eq 'X64') {
-            $classification = 'Windows10X64'
-        }
-        elseif ($architecture -eq 'X64') {
-            $classification = 'WindowsOtherX64'
-        }
     }
     elseif ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
         [System.Runtime.InteropServices.OSPlatform]::Linux)) {
@@ -113,10 +143,13 @@ function Get-HostEvidence {
             }
         }
 
-        if ($description -match 'Ubuntu 24\.04' -and $architecture -eq 'X64') {
-            $classification = 'Ubuntu2404X64'
-        }
     }
+
+    $classification = Get-HostClassification `
+        -Family $family `
+        -Description $description `
+        -Version $version `
+        -Architecture $architecture
 
     return [ordered]@{
         family = $family
