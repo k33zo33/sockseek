@@ -183,9 +183,11 @@ if (Test-Path -LiteralPath $evidenceDirectory -PathType Container) {
 }
 
 $sensitivePatterns = [ordered]@{
-    'a password assignment' = '(?im)\bpassword\s*[:=]'
-    'an Authorization bearer header' = '(?im)\bauthorization\s*[:=]\s*bearer\s+'
-    'an OAuth or client secret assignment' = '(?im)\b(access_token|refresh_token|client_secret|code_verifier)\s*[:=]'
+    'a password assignment' = '(?im)["'']?[A-Za-z0-9_-]*password["'']?\s*[:=]'
+    'a password command-line option' = '(?im)(?:^|\s)--?password(?:\s+|=)'
+    'an Authorization credential' = '(?im)["'']?authorization["'']?\s*[:=]\s*["'']?(?:bearer|basic|digest|negotiate)\s+\S+'
+    'a token or secret assignment' = '(?im)["'']?(?:[A-Za-z0-9_-]*(?:token|secret)|code[_-]?verifier|oauth[_-]?code)["'']?\s*[:=]'
+    'an OAuth code JSON property' = '(?im)["'']code["'']\s*:'
     'a sensitive URL query parameter' = '(?im)https?://\S+[?&](token|access_token|refresh_token|code|key|secret)='
 }
 foreach ($entry in $sensitivePatterns.GetEnumerator()) {

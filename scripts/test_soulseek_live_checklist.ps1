@@ -159,11 +159,45 @@ try {
     if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
         throw 'Expected validator to reject a password assignment in text evidence.'
     }
+
+    Set-Content -LiteralPath (Join-Path $runDirectory 'evidence\diagnostics-review.txt') `
+        -Value '{"password":"should-not-appear"}' `
+        -Encoding ASCII
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject a quoted JSON password property.'
+    }
+
+    Set-Content -LiteralPath (Join-Path $runDirectory 'evidence\diagnostics-review.txt') `
+        -Value '{"clientSecret":"should-not-appear"}' `
+        -Encoding ASCII
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject a camelCase JSON secret property.'
+    }
+
+    Set-Content -LiteralPath (Join-Path $runDirectory 'evidence\diagnostics-review.txt') `
+        -Value '{"code":"should-not-appear"}' `
+        -Encoding ASCII
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject a quoted OAuth code property.'
+    }
+
+    Set-Content -LiteralPath (Join-Path $runDirectory 'evidence\diagnostics-review.txt') `
+        -Value '--password should-not-appear' `
+        -Encoding ASCII
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject a password command-line option.'
+    }
     Remove-Item -LiteralPath (Join-Path $runDirectory 'evidence\diagnostics-review.txt') -Force
 
     Add-Content -LiteralPath $checklistPath -Value "`nAuthorization: Bearer should-not-appear"
     if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
         throw 'Expected validator to reject an Authorization bearer header.'
+    }
+    Set-Content -LiteralPath $checklistPath -Value $checklist -Encoding UTF8
+
+    Add-Content -LiteralPath $checklistPath -Value "`n{`"Authorization`":`"Basic should-not-appear`"}"
+    if ((Invoke-PowerShellScript -Path $validator -ScriptArguments $validatorArguments) -eq 0) {
+        throw 'Expected validator to reject a quoted Basic Authorization credential.'
     }
     Set-Content -LiteralPath $checklistPath -Value $checklist -Encoding UTF8
 

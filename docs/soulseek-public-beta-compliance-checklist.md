@@ -63,7 +63,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_soulseek_li
 
 The validator rejects pending or failed rows, missing evidence, mismatched package
 hashes/commits, host metadata/classification drift, an invalid required-host
-classification and common credential or Authorization-header forms. Windows 11
+classification and common plaintext, JSON, command-line and Authorization credential
+forms. Windows 11
 requires an x64 build number of at least 22000, and Ubuntu requires 24.04 x64.
 It cannot prove that screenshots or prose are true;
 the named reviewer remains responsible for the live observations and redaction.
