@@ -13,6 +13,11 @@ param(
 
     [string]$DotNetCli = 'dotnet',
 
+    [string]$ExistingArtifactPath = '',
+
+    [ValidatePattern('^[0-9a-fA-F]{64}$')]
+    [string]$ExpectedSha256 = '',
+
     [ValidateSet('Any', 'Windows11X64')]
     [string]$RequiredHost = 'Any',
 
@@ -34,6 +39,34 @@ function Invoke-CheckedCommand {
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    }
+}
+
+function Read-ZipReleaseMetadata {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $entries = @($archive.Entries |
+            Where-Object { $_.FullName.TrimStart('/', '\') -eq 'release-metadata.json' })
+        if ($entries.Count -ne 1) {
+            throw "Expected exactly one release-metadata.json at the package root, found $($entries.Count)."
+        }
+
+        $reader = New-Object System.IO.StreamReader($entries[0].Open(), [Text.Encoding]::UTF8)
+        try {
+            return $reader.ReadToEnd() | ConvertFrom-Json
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $archive.Dispose()
     }
 }
 
@@ -356,19 +389,66 @@ if ($RequiredHost -ne 'Any' -and $hostClassification -ne $RequiredHost) {
     throw "Windows package smoke requires host $RequiredHost, but this host is ${hostClassification}: $($os.Caption) $($os.Version) build $($os.BuildNumber) $($os.OSArchitecture)."
 }
 
+$useExistingArtifact = -not [string]::IsNullOrWhiteSpace($ExistingArtifactPath)
+$resolvedExistingArtifact = $null
+if ($useExistingArtifact) {
+    if ($Runtime -ne 'win-x64') {
+        throw "Existing Windows artifact runtime must be win-x64, found '$Runtime'."
+    }
+    if ($Commit -notmatch '^[0-9a-fA-F]{40}$') {
+        throw 'ExistingArtifactPath requires Commit to be the expected full 40-character artifact commit.'
+    }
+    if ([string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+        throw 'ExistingArtifactPath requires ExpectedSha256 so the retained package is verified before execution.'
+    }
+
+    $resolvedExistingArtifact = (Resolve-Path -LiteralPath $ExistingArtifactPath).Path
+    if (-not (Test-Path -LiteralPath $resolvedExistingArtifact -PathType Leaf) `
+        -or -not $resolvedExistingArtifact.EndsWith('.zip', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Existing Windows artifact must be a .zip file: $ExistingArtifactPath"
+    }
+
+    $sourceArtifactHash = (Get-FileHash -LiteralPath $resolvedExistingArtifact -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($sourceArtifactHash -ne $ExpectedSha256.ToLowerInvariant()) {
+        throw "Existing artifact SHA256 $sourceArtifactHash does not match expected SHA256 $($ExpectedSha256.ToLowerInvariant())."
+    }
+
+    $existingRelease = Read-ZipReleaseMetadata -Path $resolvedExistingArtifact
+    $existingCommit = ([string]$existingRelease.commit).ToLowerInvariant()
+    if ($existingCommit -notmatch '^[0-9a-f]{40}$' -or $existingCommit -ne $Commit.ToLowerInvariant()) {
+        throw "Existing artifact commit '$existingCommit' does not match expected commit $($Commit.ToLowerInvariant())."
+    }
+    if ([string]$existingRelease.version -ne $Version) {
+        throw "Existing artifact version '$($existingRelease.version)' does not match expected version '$Version'."
+    }
+    if ([string]$existingRelease.sourceUrl -ne $SourceUrl) {
+        throw "Existing artifact source URL '$($existingRelease.sourceUrl)' does not match expected source URL '$SourceUrl'."
+    }
+    if ([string]$existingRelease.license -ne 'AGPL-3.0') {
+        throw "Existing artifact license must be AGPL-3.0, found '$($existingRelease.license)'."
+    }
+
+    $Commit = $existingCommit
+}
+elseif (-not [string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+    throw 'ExpectedSha256 is valid only with ExistingArtifactPath.'
+}
+
 $headCommit = (& git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($headCommit)) {
     throw 'Unable to resolve the current Git commit.'
 }
 
-if ([string]::IsNullOrWhiteSpace($Commit)) {
-    $Commit = $headCommit
-}
-elseif (-not $headCommit.StartsWith($Commit, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Requested commit $Commit is not the checked-out commit $headCommit."
-}
-else {
-    $Commit = $headCommit
+if (-not $useExistingArtifact) {
+    if ([string]::IsNullOrWhiteSpace($Commit)) {
+        $Commit = $headCommit
+    }
+    elseif (-not $headCommit.StartsWith($Commit, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Requested commit $Commit is not the checked-out commit $headCommit."
+    }
+    else {
+        $Commit = $headCommit
+    }
 }
 
 $workingTreeChanges = @(& git status --porcelain --untracked-files=all)
@@ -376,11 +456,12 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Unable to inspect the Git working tree.'
 }
 if ($workingTreeChanges.Count -gt 0) {
-    throw 'Windows package smoke requires a clean working tree so the artifact matches its recorded commit.'
+    throw 'Windows package smoke requires a clean working tree for a reproducible evidence harness.'
 }
 
 if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
-    $ArtifactsRoot = ".tmp\sprint16-windows-package-smoke-$($headCommit.Substring(0, 7))"
+    $rootName = if ($useExistingArtifact) { 'sprint16-windows-package-runtime-smoke' } else { 'sprint16-windows-package-smoke' }
+    $ArtifactsRoot = ".tmp\$rootName-$($Commit.Substring(0, 7))"
 }
 
 $repoRoot = (Resolve-Path -LiteralPath '.').Path
@@ -388,6 +469,14 @@ $artifactsRootFullPath = [System.IO.Path]::GetFullPath($ArtifactsRoot)
 $repositoryPrefix = $repoRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
 if (-not $artifactsRootFullPath.StartsWith($repositoryPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "ArtifactsRoot must stay inside the repository: $artifactsRootFullPath"
+}
+if ($useExistingArtifact) {
+    $artifactsRootPrefix = $artifactsRootFullPath.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if ($resolvedExistingArtifact.StartsWith($artifactsRootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'ExistingArtifactPath must stay outside ArtifactsRoot so -Force cannot delete the retained package.'
+    }
 }
 
 if (Test-Path -LiteralPath $artifactsRootFullPath) {
@@ -417,104 +506,114 @@ New-Item -ItemType Directory -Force -Path $artifactsRootFullPath | Out-Null
 Write-Host "Running Windows package smoke for commit $Commit."
 Write-Host "Artifacts root: $artifactsRootFullPath"
 
-Write-Host "Publishing Sockseek.Desktop for $Runtime."
-Invoke-CheckedCommand $DotNetCli @(
-    'publish',
-    'Sockseek.Desktop\Sockseek.Desktop.csproj',
-    '-c',
-    $Configuration,
-    '-r',
-    $Runtime,
-    '--self-contained',
-    'true',
-    '-o',
-    $desktopPublishDir)
-
-Write-Host "Publishing Sockseek.Server daemon for $Runtime."
-Invoke-CheckedCommand $DotNetCli @(
-    'publish',
-    'Sockseek.Server\Sockseek.Server.csproj',
-    '-c',
-    $Configuration,
-    '-r',
-    $Runtime,
-    '--self-contained',
-    'true',
-    '-o',
-    $daemonPublishDir)
-
-Write-Host "Generating SPDX SBOM."
-Invoke-CheckedCommand $DotNetCli @(
-    'run',
-    '--project',
-    'Sockseek.Packager\Sockseek.Packager.csproj',
-    '-c',
-    $Configuration,
-    '--',
-    'generate-sbom',
-    $repoRoot,
-    $sbomPath,
-    'Sockseek',
-    $Version,
-    $Commit,
-    $SourceUrl)
-
-Write-Host "Staging Windows release layout."
-Invoke-CheckedCommand $DotNetCli @(
-    'run',
-    '--project',
-    'Sockseek.Packager\Sockseek.Packager.csproj',
-    '-c',
-    $Configuration,
-    '--',
-    'stage-windows',
-    $repoRoot,
-    $desktopPublishDir,
-    $daemonPublishDir,
-    $stageDir,
-    'Sockseek.Desktop.exe',
-    'Sockseek.Server.exe',
-    $Version,
-    $Commit,
-    $SourceUrl,
-    $sbomPath)
-
-Write-Host "Generating closed beta tester instructions."
-Invoke-CheckedCommand 'powershell' @(
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    'scripts\write_closed_beta_tester_instructions.ps1',
-    '-Commit',
-    $Commit,
-    '-SourceUrl',
-    $SourceUrl,
-    '-ArtifactName',
-    "Sockseek $Runtime closed beta",
-    '-Version',
-    $Version,
-    '-OutputPath',
-    $testerInstructionsPath)
-
-if (-not (Test-Path -LiteralPath $testerInstructionsPath)) {
-    throw "Closed beta tester instructions were not generated: $testerInstructionsPath"
+if ($useExistingArtifact) {
+    Write-Host "Using retained Windows artifact: $resolvedExistingArtifact"
+    Copy-Item -LiteralPath $resolvedExistingArtifact -Destination $archivePath
+    $copiedArtifactHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($copiedArtifactHash -ne $sourceArtifactHash) {
+        throw 'Copied Windows artifact SHA256 differs from the retained source package.'
+    }
 }
+else {
+    Write-Host "Publishing Sockseek.Desktop for $Runtime."
+    Invoke-CheckedCommand $DotNetCli @(
+        'publish',
+        'Sockseek.Desktop\Sockseek.Desktop.csproj',
+        '-c',
+        $Configuration,
+        '-r',
+        $Runtime,
+        '--self-contained',
+        'true',
+        '-o',
+        $desktopPublishDir)
 
-Write-Host "Creating Windows release archive and SHA256 manifest."
-Invoke-CheckedCommand $DotNetCli @(
-    'run',
-    '--project',
-    'Sockseek.Packager\Sockseek.Packager.csproj',
-    '-c',
-    $Configuration,
-    '--',
-    'archive-windows',
-    $stageDir,
-    $archivePath,
-    $manifestPath,
-    'Sockseek.Desktop.exe',
-    'Sockseek.Server.exe')
+    Write-Host "Publishing Sockseek.Server daemon for $Runtime."
+    Invoke-CheckedCommand $DotNetCli @(
+        'publish',
+        'Sockseek.Server\Sockseek.Server.csproj',
+        '-c',
+        $Configuration,
+        '-r',
+        $Runtime,
+        '--self-contained',
+        'true',
+        '-o',
+        $daemonPublishDir)
+
+    Write-Host "Generating SPDX SBOM."
+    Invoke-CheckedCommand $DotNetCli @(
+        'run',
+        '--project',
+        'Sockseek.Packager\Sockseek.Packager.csproj',
+        '-c',
+        $Configuration,
+        '--',
+        'generate-sbom',
+        $repoRoot,
+        $sbomPath,
+        'Sockseek',
+        $Version,
+        $Commit,
+        $SourceUrl)
+
+    Write-Host "Staging Windows release layout."
+    Invoke-CheckedCommand $DotNetCli @(
+        'run',
+        '--project',
+        'Sockseek.Packager\Sockseek.Packager.csproj',
+        '-c',
+        $Configuration,
+        '--',
+        'stage-windows',
+        $repoRoot,
+        $desktopPublishDir,
+        $daemonPublishDir,
+        $stageDir,
+        'Sockseek.Desktop.exe',
+        'Sockseek.Server.exe',
+        $Version,
+        $Commit,
+        $SourceUrl,
+        $sbomPath)
+
+    Write-Host "Generating closed beta tester instructions."
+    Invoke-CheckedCommand 'powershell' @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        'scripts\write_closed_beta_tester_instructions.ps1',
+        '-Commit',
+        $Commit,
+        '-SourceUrl',
+        $SourceUrl,
+        '-ArtifactName',
+        "Sockseek $Runtime closed beta",
+        '-Version',
+        $Version,
+        '-OutputPath',
+        $testerInstructionsPath)
+
+    if (-not (Test-Path -LiteralPath $testerInstructionsPath)) {
+        throw "Closed beta tester instructions were not generated: $testerInstructionsPath"
+    }
+
+    Write-Host "Creating Windows release archive and SHA256 manifest."
+    Invoke-CheckedCommand $DotNetCli @(
+        'run',
+        '--project',
+        'Sockseek.Packager\Sockseek.Packager.csproj',
+        '-c',
+        $Configuration,
+        '--',
+        'archive-windows',
+        $stageDir,
+        $archivePath,
+        $manifestPath,
+        'Sockseek.Desktop.exe',
+        'Sockseek.Server.exe')
+}
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($archivePath)
@@ -527,9 +626,11 @@ finally {
     $archive.Dispose()
 }
 
-$manifest = Get-Content -LiteralPath $manifestPath -Raw
-if ($manifest -notmatch [Regex]::Escape($testerInstructionsFileName)) {
-    throw "SHA256 manifest is missing $testerInstructionsFileName"
+if (-not $useExistingArtifact) {
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw
+    if ($manifest -notmatch [Regex]::Escape($testerInstructionsFileName)) {
+        throw "SHA256 manifest is missing $testerInstructionsFileName"
+    }
 }
 
 Write-Host 'Extracting and running the exact Windows release archive.'
@@ -639,11 +740,13 @@ $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.T
 $evidence = [ordered]@{
     schemaVersion = 1
     recordedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-    commit = $headCommit
+    commit = $Commit
     version = $Version
     runtime = $Runtime
     archive = [System.IO.Path]::GetFileName($archivePath)
     archiveSha256 = $archiveHash
+    artifactMode = $(if ($useExistingArtifact) { 'retained' } else { 'built' })
+    harnessCommit = $headCommit
     host = [ordered]@{
         caption = $os.Caption
         version = $os.Version
@@ -670,14 +773,17 @@ $validator = Join-Path $PSScriptRoot 'validate_windows_package_smoke_evidence.ps
     -ArtifactPath $archivePath `
     -EvidencePath $evidencePath `
     -RequiredHost $RequiredHost `
-    -ExpectedCommit $headCommit
+    -ExpectedCommit $Commit
 
 Write-Host "Windows package smoke completed successfully."
-Write-Host "Commit: $headCommit"
+Write-Host "Artifact commit: $Commit"
+Write-Host "Harness commit: $headCommit"
 Write-Host "Host: $($os.Caption) $($os.Version) $($os.OSArchitecture)"
-Write-Host "Stage: $stageDir"
 Write-Host "Archive: $archivePath"
 Write-Host "Archive SHA256: $archiveHash"
-Write-Host "Manifest: $manifestPath"
-Write-Host "Tester instructions: $testerInstructionsPath"
+if (-not $useExistingArtifact) {
+    Write-Host "Stage: $stageDir"
+    Write-Host "Manifest: $manifestPath"
+    Write-Host "Tester instructions: $testerInstructionsPath"
+}
 Write-Host "Evidence: $evidencePath"

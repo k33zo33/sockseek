@@ -45,6 +45,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate_windows_pac
   -RequiredHost Windows11X64
 ```
 
+To execute the already retained candidate byte-for-byte on a Windows 11 x64
+machine, use the runtime-only mode. It verifies the expected full commit and
+SHA256 before copying or executing the ZIP, then runs the same daemon, Desktop,
+DPAPI, authentication and loopback checks without rebuilding the package or
+requiring the .NET SDK:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_windows_package_smoke.ps1 `
+  -ExistingArtifactPath C:\evidence\Sockseek-win-x64.zip `
+  -Commit c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f `
+  -ExpectedSha256 2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde `
+  -RequiredHost Windows11X64 `
+  -Force
+```
+
+The helper checkout must still be clean, but it may be newer than the artifact;
+the resulting evidence records both the embedded artifact commit and the harness
+commit. `ExistingArtifactPath` must remain outside the output directory so
+`-Force` cannot delete the retained source ZIP.
+
 Run the fast tester-instructions smoke when changing beta limitation, diagnostics, security or tester-instruction text:
 
 ```powershell
