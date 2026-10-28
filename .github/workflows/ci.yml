@@ -81,6 +81,7 @@ jobs:
       run: |
         ./scripts/test_soulseek_live_checklist.ps1
         ./scripts/test_soulseek_remote_peer_workflow.ps1
+        ./scripts/test_soulseek_live_orchestrator.ps1
         ./scripts/validate_soulseek_compliance_gate.ps1
         ./scripts/test_soulseek_compliance_gate_validator.ps1
         ./scripts/validate_beta_go_no_go.ps1

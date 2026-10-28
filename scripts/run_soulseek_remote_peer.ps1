@@ -51,6 +51,7 @@ function Read-ControlBundle {
         'remoteProbe',
         'hostProbe',
         'readyMessage',
+        'replyMessage',
         'completeMessage'
     )
     foreach ($name in $required) {
@@ -167,7 +168,12 @@ $resolvedServer = (Resolve-Path -LiteralPath $PublishedServerPath -ErrorAction S
 $evidenceDirectory = Split-Path -Parent ([IO.Path]::GetFullPath($EvidencePath))
 New-Item -ItemType Directory -Path $evidenceDirectory -Force | Out-Null
 
-$workRoot = Join-Path ([IO.Path]::GetTempPath()) ('sockseek-live-peer-' + $RunLabel)
+$temporaryBoundary = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+$workRoot = [IO.Path]::GetFullPath((Join-Path $temporaryBoundary ('sockseek-live-peer-' + $RunLabel)))
+$boundaryPrefix = $temporaryBoundary.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not $workRoot.StartsWith($boundaryPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'The bounded controlled-peer working directory escaped the temporary directory.'
+}
 $configDirectory = Join-Path $workRoot 'config'
 $shareDirectory = Join-Path $workRoot 'share'
 New-Item -ItemType Directory -Path $configDirectory, $shareDirectory -Force | Out-Null
@@ -178,7 +184,6 @@ $process = $null
 $wishlistId = $null
 $stdoutCopy = $null
 $stderrCopy = $null
-$replyMessage = $null
 $stage = 'initialize'
 $startedAt = [DateTimeOffset]::UtcNow
 $script:runDeadline = $startedAt.AddMinutes($TimeoutMinutes)
@@ -190,7 +195,7 @@ $result = [ordered]@{
     completedAtUtc = $null
     exactCandidateSource = $true
     connected = $false
-    sharing = [ordered]@{ passed = $false; directoryCount = 0; fileCount = 0 }
+    sharing = [ordered]@{ passed = $false; observedAtUtc = $null; directoryCount = 0; fileCount = 0 }
     readyHandshake = [ordered]@{ passed = $false; observedAtUtc = $null }
     search = [ordered]@{ passed = $false; observedAtUtc = $null; controlledResultCount = 0 }
     wishlist = [ordered]@{ passed = $false; observedAtUtc = $null; controlledResultCount = 0 }
@@ -288,6 +293,7 @@ try {
     $result.sharing.directoryCount = [int]$sharing.directoryCount
     $result.sharing.fileCount = [int]$sharing.fileCount
     $result.sharing.passed = $sharing.fileCount -ge 1 -and @($sharing.roots | Where-Object { $_.included }).Count -eq 1
+    $result.sharing.observedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
     if (-not $result.sharing.passed) {
         throw 'share_snapshot_invalid'
     }
@@ -319,10 +325,9 @@ try {
     $result.readyHandshake.observedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
 
     $stage = 'bidirectional_chat'
-    $replyMessage = 'reply-' + (New-RandomHex -ByteCount 8)
     $null = Invoke-LocalApi -Method Post -Path '/api/v1/soulseek/chat/private/messages' -Body @{
         username = [string]$bundle.hostUsername
-        message = $replyMessage
+        message = [string]$bundle.replyMessage
     }
     $result.chat.replySent = $true
     $rooms = Invoke-LocalApi -Method Post -Path '/api/v1/soulseek/chat/rooms/refresh'
@@ -529,7 +534,6 @@ finally {
     $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
     $bundle = $null
     $accessValue = $null
-    $replyMessage = $null
 }
 
 if ($result.failureCode) {

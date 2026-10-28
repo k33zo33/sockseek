@@ -47,8 +47,11 @@ Assert-Contains $runner "[Environment]::GetEnvironmentVariable('SOCKSEEK_LIVE_PE
 Assert-Contains $runner "[Environment]::SetEnvironmentVariable('SOCKSEEK_LIVE_PEER_BUNDLE', `$null)" 'bundle removal before daemon launch'
 Assert-Contains $runner "failureCode = 'remote_peer_failed'" 'a stable redacted failure code'
 Assert-Contains $runner 'Remove-Item -LiteralPath $workRoot -Recurse -Force' 'bounded working-data cleanup'
+Assert-Contains $runner 'escaped the temporary directory' 'an explicit temporary-directory cleanup boundary check'
 Assert-Contains $runner "-Path '/api/v1/soulseek/account'" 'explicit account cleanup'
 Assert-Contains $runner 'Get-BoundedTimeout' 'a global live-run deadline'
+Assert-Contains $runner "'replyMessage'" 'an exact bidirectional chat reply field'
+Assert-Contains $runner 'message = [string]$bundle.replyMessage' 'the exact host-verifiable chat reply'
 
 if ($runner -match '(?im)Write-(Host|Output|Verbose|Debug|Information|Warning)\s+.*(?:bundle|remoteUsername|remotePassword|hostUsername|readyMessage|completeMessage)') {
     throw 'Controlled-peer runner may not print bundle fields.'
@@ -64,6 +67,7 @@ $fakeValues = [ordered]@{
     remoteProbe = 'remote-validation-probe-9f4a'
     hostProbe = 'host-validation-probe-9f4a'
     readyMessage = 'ready-validation-message-9f4a'
+    replyMessage = 'reply-validation-message-9f4a'
     completeMessage = 'complete-validation-message-9f4a'
 }
 $previousBundle = [Environment]::GetEnvironmentVariable('SOCKSEEK_LIVE_PEER_BUNDLE')

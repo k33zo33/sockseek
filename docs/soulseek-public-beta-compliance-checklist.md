@@ -69,6 +69,29 @@ requires an x64 build number of at least 22000, and Ubuntu requires 24.04 x64.
 It cannot prove that screenshots or prose are true;
 the named reviewer remains responsible for the live observations and redaction.
 
+For the controlled two-peer Windows run, use the manual-only remote workflow through
+the host orchestrator after a temporary TCP listener, firewall rule and router mapping
+have been explicitly approved. The script verifies the full retained-package hash,
+generates both dedicated accounts and control values in memory, passes the remote
+bundle to GitHub only over standard input, requires evidence in both directions and
+removes the repository control, accounts, daemon and working data before accepting the
+checklist:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_soulseek_live_checklist.ps1 `
+  -ArtifactPath .tmp\sprint16-windows-package-smoke-c7b4cc5\Sockseek-win-x64.zip `
+  -Reviewer 'release-reviewer' `
+  -CandidateCommit c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f `
+  -ExpectedArtifactSha256 2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde `
+  -ListenPort 49999 `
+  -PortForwardConfirmed
+```
+
+The confirmation switch records only operator intent; it does not configure or prove
+the router/firewall path. Remove both temporary network rules immediately after the
+run, including after a failed run. Never put account names, passwords, probes or chat
+control text on the command line or in retained evidence.
+
 1. Start from a clean user data directory or a documented upgrade path.
 2. Confirm the daemon binds to loopback and protected `/api/v1` endpoints require the local session token.
 3. Connect to Soulseek with a test account and do not record or paste the account password.
