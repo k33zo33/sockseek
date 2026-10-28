@@ -1,0 +1,82 @@
+name: Soulseek controlled live peer
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_commit:
+        description: Exact candidate commit used by the primary live-checklist client
+        required: true
+        type: string
+      run_label:
+        description: Redacted correlation label for this bounded live run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soulseek-controlled-live-peer
+  cancel-in-progress: false
+
+jobs:
+  controlled-peer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout harness
+        uses: actions/checkout@v4
+
+      - name: Validate bounded run inputs
+        shell: pwsh
+        env:
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          RUN_LABEL: ${{ inputs.run_label }}
+        run: |
+          if ($env:CANDIDATE_COMMIT -notmatch '^[0-9a-fA-F]{40}$') {
+            throw 'candidate_commit must be a full Git commit SHA.'
+          }
+          if ($env:RUN_LABEL -notmatch '^[A-Za-z0-9._-]{3,64}$') {
+            throw 'run_label contains unsupported characters.'
+          }
+
+      - name: Checkout candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_commit }}
+          path: candidate
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore candidate server
+        run: dotnet restore candidate/Sockseek.Server/Sockseek.Server.csproj
+
+      - name: Publish candidate server
+        run: >-
+          dotnet publish candidate/Sockseek.Server/Sockseek.Server.csproj
+          --configuration Release
+          --no-restore
+          --output "${{ runner.temp }}/sockseek-live-server"
+
+      - name: Run bounded controlled peer
+        shell: pwsh
+        env:
+          SOCKSEEK_LIVE_PEER_BUNDLE: ${{ secrets.SOCKSEEK_LIVE_PEER_BUNDLE }}
+        run: |
+          ./scripts/run_soulseek_remote_peer.ps1 `
+            -PublishedServerPath '${{ runner.temp }}/sockseek-live-server/Sockseek.Server.dll' `
+            -RunLabel '${{ inputs.run_label }}' `
+            -CandidateCommit '${{ inputs.candidate_commit }}' `
+            -EvidencePath '${{ github.workspace }}/.tmp/soulseek-live-peer-evidence.json'
+
+      - name: Upload redacted peer evidence
+        if: ${{ always() && hashFiles('.tmp/soulseek-live-peer-evidence.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: soulseek-live-peer-${{ inputs.run_label }}
+          path: ${{ github.workspace }}/.tmp/soulseek-live-peer-evidence.json
+          if-no-files-found: error
+          retention-days: 7
