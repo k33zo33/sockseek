@@ -42,18 +42,41 @@ Soulseek-network checklist run.
 
 ## Live Soulseek checklist
 
-No dedicated-account live-network checklist run is recorded for this candidate.
-Automated adapter/API/Desktop coverage is green, but it is not a substitute for
-protocol evidence. The following required rows therefore remain unverified:
+No complete dedicated-account live-network checklist is recorded for this
+candidate. Automated adapter/API/Desktop coverage is green, but it is not a
+substitute for protocol evidence.
+
+On 2026-10-28 an exact-package supporting preflight used a generated dedicated
+account without retaining its identity or credentials in evidence. The client
+connected to Soulseek and passed public-network search, on-demand wishlist
+search, privilege refresh, private-message send, room refresh, public-chat
+start/stop, an explicit one-directory/one-file share snapshot, packaged
+legal-use messaging and the four-provider no-audio capability check. Redacted
+count-only output is retained locally under
+`.tmp/sprint16-host-live-peer-c7b4cc5/preflight-evidence.json`.
+
+A follow-up controlled-pair attempt brought two generated accounts online from
+the same host and retained ZIP, exposed one approved generated WAV fixture and
+verified its share counts. The controlled search result did not arrive within
+the bounded window, so the harness left every checklist row Pending, removed
+the second account and stopped its daemon. This partial run is retained under
+`.tmp/soulseek-live-checklists-host/20261028-174600-c7b4cc5-Sockseek-win-x64/`.
+It is not accepted evidence for peer-facing rows. Public search succeeding in
+the preflight while the same-host controlled result remained absent points to
+the test network topology rather than proving a product pass or regression; a
+peer on a distinct reachable network path is still required.
+
+The following required rows therefore remain incomplete:
 
 | Area | Current evidence state |
 | --- | --- |
-| Search and explicit download | Automated coverage present; exact-candidate live notes missing. |
-| Wishlist | Automated persistence, scheduling, recovery and UI coverage present; live notes missing. |
-| Upload / sharing and advertised counts | Automated path, snapshot, upload and UI coverage present; remote-peer live evidence missing. |
-| Chat | Automated private, room and public chat coverage present; live notes missing. |
-| Privileges | Automated recognition and acknowledgement coverage present; live notes missing. |
-| Folder browse | Automated browse/path-safety coverage present; live notes missing. |
+| Search and explicit download | Public search passed in exact-package preflight; controlled-peer search provenance and explicit download remain missing. |
+| Wishlist | Exact-package on-demand wishlist search completed with live results; the final accepted checklist row remains Pending until one complete run validates. |
+| Upload / sharing and advertised counts | One approved generated WAV root advertised one directory and one file; remote-peer upload evidence remains missing. |
+| Chat | Private send plus room refresh and public start/stop passed; controlled bidirectional delivery remains missing. |
+| Privileges | Live privilege refresh passed; the final accepted checklist row remains Pending until one complete run validates. |
+| Folder browse | Automated coverage is green; controlled remote browse remains missing. |
+| Legal-use messaging and provider audio invariant | Exact packaged notices and all four provider capabilities passed; the final accepted checklist rows remain Pending until one complete run validates. |
 
 No account name, password, token, private-message content or private playlist URL
 is recorded in this evidence.
