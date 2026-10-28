@@ -32,7 +32,7 @@ is not superseded by this document.
 | --- | --- | --- |
 | Ubuntu 24.04 x64 | `Sockseek-linux-x64.tar.gz`; SHA256 `ee7072fba179799c2911b49bb75860b6d82406426a53945e6c1a8198a25670fd`. Exact archive passed daemon `/health`, anonymous protected-API rejection, authenticated Soulseek account configure, daemon restart/restore and disconnect, response and encrypted-payload plaintext checks, `0700` secret-directory and `0600` key/payload checks, secret cleanup, packaged Desktop child-daemon health under Xvfb, install/uninstall and data preservation. A 2026-10-22 rerun added direct/restarted/child-daemon loopback-only checks and structured evidence; `validate_ubuntu_package_smoke_evidence.ps1` bound the original archive/hash/commit/license to all required checks and classified the runtime `Ubuntu2404X64`. | Pass |
 | Windows 10 Pro x64 preflight | `Sockseek-win-x64.zip`; SHA256 `2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde`. Evidence JSON records Windows `10.0.19045`, build `19045`, 64-bit. Exact ZIP passed direct daemon and Desktop child-daemon health, anonymous protected-API rejection, loopback-only listener checks and the DPAPI-backed Soulseek account configure, daemon restart/restore and disconnect lifecycle without response/plaintext leakage or a retained secret payload. | Pass as preflight only |
-| Windows 11 x64 | No run is recorded on a Windows 11 host for this candidate. `scripts/validate_windows_package_smoke_evidence.ps1 -RequiredHost Windows11X64` rejects the retained Windows 10 evidence, so it cannot be substituted. | Missing |
+| Windows 11 x64 | On 2026-10-28 the retained `Sockseek-win-x64.zip` passed runtime-only smoke on Microsoft Windows 11 Pro `10.0.26300`, build `26300`, 64-bit, with Secure Boot and vTPM enabled. The runner preserved SHA256 `2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde`, recorded artifact commit `c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f` and harness commit `3d33cb0f93ccfe25a2da12a8ac23ff0dd6db6892`, then passed direct daemon and Desktop child-daemon health, anonymous protected-API rejection, loopback-only listener checks and the DPAPI-backed account configure, restart/restore, disconnect and secret cleanup lifecycle. `scripts/validate_windows_package_smoke_evidence.ps1 -RequiredHost Windows11X64` independently accepted the copied evidence under `.tmp/sprint16-win11-vm-evidence-c7b4cc5/`. | Pass |
 
 The exact Linux package excludes `VideoLAN.LibVLC.Windows`; the Ubuntu runtime
 supplies `vlc` and `libvlc-dev`. Linux staging rejects a future
@@ -63,8 +63,7 @@ is recorded in this evidence.
 Public beta remains `NO-GO` because:
 
 1. the redacted dedicated-account live Soulseek checklist is incomplete;
-2. the exact Windows 11 x64 package smoke is missing; and
-3. ADR-0009 remains the accepted decision, so no superseding ADR or public-beta
+2. ADR-0009 remains the accepted decision, so no superseding ADR or public-beta
    release notes may be accepted yet.
 
 Closed/internal testing remains permitted under the existing limitations and

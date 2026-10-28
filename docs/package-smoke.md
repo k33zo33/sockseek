@@ -232,9 +232,18 @@ Candidate `c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f` was exercised on
   and disconnect with response/plaintext checks and secret cleanup. The archive is
   `Sockseek-win-x64.zip`, SHA256
   `2d41a5f4cedd496ff8ea3e7adac13347634eb922aa7e6f1c07289ab64c210dde`.
-- The Windows evidence JSON identifies Microsoft Windows 10 Pro
-  `10.0.19045`, 64-bit. This is not the required Windows 11 x64 acceptance
-  run.
+- The Windows 10 evidence JSON identifies Microsoft Windows 10 Pro
+  `10.0.19045`, 64-bit and remains preflight evidence only.
+- On 2026-10-28 the same retained ZIP passed runtime-only smoke on Microsoft
+  Windows 11 Pro `10.0.26300`, build `26300`, 64-bit, with Secure Boot and
+  vTPM enabled. Direct, restarted and Desktop child daemons passed health,
+  authentication and loopback-only checks; the DPAPI-backed Soulseek account
+  lifecycle passed configure, restart/restore, disconnect and secret cleanup.
+  The evidence records artifact commit `c7b4cc5ba18cc3ce4f9c2b3fa83734b07d67ac0f`,
+  harness commit `3d33cb0f93ccfe25a2da12a8ac23ff0dd6db6892` and the unchanged archive
+  SHA256. `validate_windows_package_smoke_evidence.ps1 -RequiredHost Windows11X64`
+  independently accepted the copied evidence under
+  `.tmp/sprint16-win11-vm-evidence-c7b4cc5/`.
 - The exact candidate also passed `scripts/run_docker_smoke.ps1`: compose
   validation, image build, packaged CLI help, daemon loopback `/health` and
   bounded container cleanup all returned exit code 0. Diagnostics are retained
